@@ -18,7 +18,7 @@ We're releasing two flavors of these open models:
 - `gpt-oss-120b` — for production, general purpose, high reasoning use cases that fit into a single H100 GPU (117B parameters with 5.1B active parameters)
 - `gpt-oss-20b` — for lower latency, and local or specialized use cases (21B parameters with 3.6B active parameters)
 
-Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they may not work correctly.
+Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
 
 ### Highlights
 
