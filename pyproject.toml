@@ -24,8 +24,7 @@ version = "0.0.1"
 
 [project.optional-dependencies]
 triton = [
-  "triton @ git+https://github.com/triton-lang/triton.git",
-  "triton_kernels @ git+https://github.com/triton-lang/triton.git#subdirectory=python/triton_kernels",
+  "triton>=3.4.0",
   "safetensors>=0.5.3",
   "torch>=2.7.0",
 ]
