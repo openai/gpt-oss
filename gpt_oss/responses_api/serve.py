@@ -47,6 +47,8 @@ if __name__ == "__main__":
         from .inference.ollama import setup_model
     elif args.inference_backend == "vllm":
         from .inference.vllm import setup_model
+    elif args.inference_backend == "transformers":
+        from .inference.transformers import setup_model
     else:
         raise ValueError(f"Invalid inference backend: {args.inference_backend}")
 

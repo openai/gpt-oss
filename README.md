@@ -273,6 +273,7 @@ You can start this server with the following inference backends:
 - `metal` — uses the metal implementation on Apple Silicon only
 - `ollama` — uses the Ollama /api/generate API as a inference solution
 - `vllm` — uses your installed vllm version to perform inference
+- `transformers` — uses your installed transformers version to perform local inference
 
 ```bash
 usage: python -m gpt_oss.responses_api.serve [-h] [--checkpoint FILE] [--port PORT] [--inference-backend BACKEND]
