@@ -42,11 +42,10 @@ packages = ["gpt_oss"]
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt
-wheel.packages = ["gpt_oss"] # copy the whole Python package tree
 cmake.args = [
   "-DGPTOSS_BUILD_PYTHON=ON",
   "-DCMAKE_BUILD_TYPE=Release",
   "-DBUILD_SHARED_LIBS=OFF",
 ]
 [tool.scikit-build.wheel]
-plat-name = "manylinux_2_17_x86_64"
+packages = ["gpt_oss"] # copy the whole Python package tree
