@@ -399,7 +399,7 @@ The model got trained on using a python tool to perform calculations and other a
 
 #### Usage
 
-To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_python()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
+To enable the Python tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_python()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
 
 ```python
 import datetime
