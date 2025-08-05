@@ -120,7 +120,7 @@ def main(args):
             ])
         )
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
-    elif args.developer_message:
+    else:
         developer_message_content = DeveloperContent.new().with_instructions(args.developer_message)
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
 
