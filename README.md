@@ -130,6 +130,7 @@ This repository provides a collection of reference implementations:
 
 ### Requirements
 
+- python 3.12
 - On macOS: Install the Xcode CLI tools --> `xcode-select --install`
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
@@ -151,7 +152,7 @@ If you want to modify the code or try the metal implementation set the project u
 
 ```shell
 git clone https://github.com/openai/gpt-oss.git
-pip install -e .[metal]
+pip install -e ".[metal]"
 ```
 
 ## Download the model
