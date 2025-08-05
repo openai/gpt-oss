@@ -25,7 +25,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Use gpt-oss-120b with LM Studio](https://lmstudio.ai/models/openai/gpt-oss-120b)
 - Hugging Face & Transformers
   - [How to run gpt-oss with Transformers](https://cookbook.openai.com/articles/gpt-oss/run-transformers)
-  - [Hugging Face & gpt-oss launch blog](http://huggingface.co/blog/welcome-openai-gpt-oss)
+  - [Hugging Face & gpt-oss launch blog](https://huggingface.co/blog/welcome-openai-gpt-oss)
   - [Collection of Hugging Face examples](https://github.com/huggingface/gpt-oss-recipes)
 - NVIDIA
   - [gpt-oss on RTX](https://blogs.nvidia.com/blog/rtx-ai-garage-openai-oss)
@@ -36,12 +36,12 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [How to run gpt-oss with vLLM](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 - NVIDIA
   - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/gpt-oss/run-nvidia)
-  - [Deploying gpt-oss on TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog_9_Deploying_GPT_OSS_on_TRTLLM.md)
+  - [Deploying gpt-oss on TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog9_Deploying_GPT_OSS_on_TRTLLM.md)
 
 ### Cloud
 
 - Groq
-  - [Groq & gpt-oss launch blog](http://groq.com/day-zero-support-for-openai-open-model)
+  - [Groq & gpt-oss launch blog](https://groq.com/blog/day-zero-support-for-openai-open-models)
   - [gpt-oss-120b model on the GroqCloud Playground](https://console.groq.com/playground?model=openai/gpt-oss-120b)
   - [gpt-oss-20b model on the GroqCloud Playground](https://console.groq.com/playground?model=openai/gpt-oss-20b)
   - [gpt-oss with built-in web search on GroqCloud](https://console.groq.com/docs/browser-search)
