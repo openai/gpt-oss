@@ -29,6 +29,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Collection of Hugging Face examples](https://github.com/huggingface/gpt-oss-recipes)
 - NVIDIA
   - [gpt-oss on RTX](https://blogs.nvidia.com/blog/rtx-ai-garage-openai-oss)
+- AMD
+  - [Running gpt-oss models on AMD Ryzen AI Processors and Radeon Graphics Cards](https://www.amd.com/en/blogs/2025/how-to-run-openai-gpt-oss-20b-120b-models-on-amd-ryzen-ai-radeon.html)
 
 ### Server
 
@@ -37,6 +39,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 - NVIDIA
   - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/gpt-oss/run-nvidia)
   - [Deploying gpt-oss on TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog9_Deploying_GPT_OSS_on_TRTLLM.md)
+- AMD
+  - [Running the Latest Open Models from OpenAI on AMD AI Hardware](https://rocm.blogs.amd.com/ecosystems-and-partners/openai-day-0/README.html)  
 
 ### Cloud
 
@@ -55,6 +59,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Cloudflare & gpt-oss launch blog post](http://blog.cloudflare.com/openai-gpt-oss-on-workers-ai)
   - [gpt-oss-120b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b)
   - [gpt-oss-20b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b)
+- AMD
+  - [gpt-oss-120B on AMD MI300X](https://huggingface.co/spaces/amd/gpt-oss-120b-chatbot) 
 
 ## Examples & Tutorials
 
