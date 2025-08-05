@@ -480,3 +480,8 @@ We recommend sampling with `temperature=1.0` and `top_p=1.0`.
 The reference implementations in this repository are meant as a starting point and inspiration. Outside of bug fixes we do not intend to accept new feature contributions. If you build implementations based on this code such as new tool implementations you are welcome to contribute them to the [`awesome-gpt-oss.md`](./awesome-gpt-oss.md) file.
 
 [harmony]: https://github.com/openai/harmony
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=openai/gpt-oss&type=Date)](https://www.star-history.com/#openai/gpt-oss&Date)
+
