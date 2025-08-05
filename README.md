@@ -436,7 +436,7 @@ token_ids = encoding.render_conversation_for_completion(conversation, Role.ASSIS
 # ...
 
 # parse the output
-messages = messages = encoding.parse_messages_from_completion_tokens(output_tokens, Role.ASSISTANT)
+messages = encoding.parse_messages_from_completion_tokens(output_tokens, Role.ASSISTANT)
 last_message = messages[-1]
 if last_message.recipient == "python":
   # perform python call
