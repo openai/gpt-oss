@@ -25,9 +25,12 @@ When you send a message containing python code to python, it will be executed in
     })
 async def python(code: str) -> str:
     tool = PythonTool()
-    messages = []
-    async for message in tool.process(
-            Message(author=Author(role=Role.TOOL, name="python"),
-                    content=[TextContent(text=code)])):
-        messages.append(message)
-    return "\n".join([message.content[0].text for message in messages])
+    try:
+        messages = []
+        async for message in tool.process(
+                Message(author=Author(role=Role.TOOL, name="python"),
+                        content=[TextContent(text=code)])):
+            messages.append(message)
+        return "\n".join([message.content[0].text for message in messages])
+    except Exception as e:
+        return f"Error executing python code: {e}"

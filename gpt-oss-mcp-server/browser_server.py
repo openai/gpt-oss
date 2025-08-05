@@ -54,13 +54,16 @@ async def search(ctx: Context,
                  topn: int = 10,
                  source: Optional[str] = None) -> str:
     """Search for information related to a query"""
-    browser = ctx.request_context.lifespan_context.create_or_get_browser(
-        ctx.client_id)
-    messages = []
-    async for message in browser.search(query=query, topn=topn, source=source):
-        if message.content and hasattr(message.content[0], 'text'):
-            messages.append(message.content[0].text)
-    return "\n".join(messages)
+    try:
+        browser = ctx.request_context.lifespan_context.create_or_get_browser(
+            ctx.client_id)
+        messages = []
+        async for message in browser.search(query=query, topn=topn, source=source):
+            if message.content and hasattr(message.content[0], 'text'):
+                messages.append(message.content[0].text)
+        return "\n".join(messages)
+    except Exception as e:
+        return f"Error searching: {e}"
 
 
 @mcp.tool(
@@ -83,18 +86,21 @@ async def open_link(ctx: Context,
                     view_source: bool = False,
                     source: Optional[str] = None) -> str:
     """Open a link or navigate to a page location"""
-    browser = ctx.request_context.lifespan_context.create_or_get_browser(
-        ctx.client_id)
-    messages = []
-    async for message in browser.open(id=id,
-                                      cursor=cursor,
-                                      loc=loc,
-                                      num_lines=num_lines,
-                                      view_source=view_source,
-                                      source=source):
-        if message.content and hasattr(message.content[0], 'text'):
-            messages.append(message.content[0].text)
-    return "\n".join(messages)
+    try:
+        browser = ctx.request_context.lifespan_context.create_or_get_browser(
+            ctx.client_id)
+        messages = []
+        async for message in browser.open(id=id,
+                                          cursor=cursor,
+                                          loc=loc,
+                                          num_lines=num_lines,
+                                          view_source=view_source,
+                                          source=source):
+            if message.content and hasattr(message.content[0], 'text'):
+                messages.append(message.content[0].text)
+        return "\n".join(messages)
+    except Exception as e:
+        return f"Error opening link: {e}"
 
 
 @mcp.tool(
@@ -105,10 +111,13 @@ async def open_link(ctx: Context,
 )
 async def find_pattern(ctx: Context, pattern: str, cursor: int = -1) -> str:
     """Find exact matches of a pattern in the current page"""
-    browser = ctx.request_context.lifespan_context.create_or_get_browser(
-        ctx.client_id)
-    messages = []
-    async for message in browser.find(pattern=pattern, cursor=cursor):
-        if message.content and hasattr(message.content[0], 'text'):
-            messages.append(message.content[0].text)
-    return "\n".join(messages)
+    try:
+        browser = ctx.request_context.lifespan_context.create_or_get_browser(
+            ctx.client_id)
+        messages = []
+        async for message in browser.find(pattern=pattern, cursor=cursor):
+            if message.content and hasattr(message.content[0], 'text'):
+                messages.append(message.content[0].text)
+        return "\n".join(messages)
+    except Exception as e:
+        return f"Error finding pattern: {e}"
