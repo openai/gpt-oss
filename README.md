@@ -3,7 +3,7 @@
 <p align="center"><br>
 <a href="https://gpt-oss.com" target="_blank">Try gpt-oss</a> | <a href="https://cookbook.openai.com/topic/gpt-oss">Guides</a> | <a href="https://openai.com/index/gpt-oss-model-card">Model card</a>
 <br><a href="https://openai.com/index/introducing-gpt-oss/">Learn more about OpenAI's open models</a><br>
-Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</a>
+Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face
 </p>
 <br>
 </center>
