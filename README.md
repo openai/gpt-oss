@@ -351,7 +351,7 @@ system_message_content = SystemContent.new().with_conversation_start_date(
 if use_browser_tool:
     # enables the tool
     system_message_content = system_message_content.with_tools(browser_tool.tool_config)
-    # alternativel you could
+    # alternatively you could use the following if your tool is not stateless
     system_message_content = system_message_content.with_browser()
 
 # construct the system message
