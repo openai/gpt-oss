@@ -48,3 +48,5 @@ cmake.args = [
   "-DCMAKE_BUILD_TYPE=Release",
   "-DBUILD_SHARED_LIBS=OFF",
 ]
+[tool.scikit-build.wheel]
+plat-name = "manylinux_2_17_x86_64"
