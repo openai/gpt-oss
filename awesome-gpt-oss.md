@@ -35,7 +35,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 - vLLM
   - [How to run gpt-oss with vLLM](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 - NVIDIA
-  - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/gpt-oss/run-nvidia)
+  - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/run-nvidia)
   - [Deploying gpt-oss on TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog9_Deploying_GPT_OSS_on_TRTLLM.md)
 
 ### Cloud
@@ -46,7 +46,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [gpt-oss-20b model on the GroqCloud Playground](https://console.groq.com/playground?model=openai/gpt-oss-20b)
   - [gpt-oss with built-in web search on GroqCloud](https://console.groq.com/docs/browser-search)
   - [gpt-oss with built-in code execution on GroqCloud](https://console.groq.com/docs/code-execution) 
-  - [Responses API on Groq](https://console.groq.com/docs/responses)
+  - [Responses API on Groq](https://console.groq.com/docs/responses-api)
 - NVIDIA
   - [NVIDIA launch blog post](https://blogs.nvidia.com/blog/openai-gpt-oss/)
   - [NVIDIA & gpt-oss developer launch blog post](https://developer.nvidia.com/blog/delivering-1-5-m-tps-inference-on-nvidia-gb200-nvl72-nvidia-accelerates-openai-gpt-oss-models-from-cloud-to-edge/)
