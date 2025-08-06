@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 from . import report
+from .basic_eval import BasicEval
 from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
 from .healthbench_eval import HealthBenchEval
@@ -81,6 +82,7 @@ def main():
                 reasoning_effort=reasoning_effort,
                 temperature=args.temperature,
                 base_url=args.base_url,
+                max_tokens=131_072,
             )
 
     print(f"Running with args {args}")
@@ -98,9 +100,11 @@ def main():
         )
         # Set num_examples = None to reproduce full evals
         match eval_name:
+            case "basic":
+                return BasicEval()
             case "gpqa":
                 return GPQAEval(
-                    n_repeats=8,
+                    n_repeats=1 if args.debug else 8,
                     num_examples=num_examples,
                     debug=debug_mode,
                     n_threads=args.n_threads or 1,
@@ -131,7 +135,7 @@ def main():
                 )
             case "aime25":
                 return AIME25Eval(
-                    n_repeats=8,
+                    n_repeats=1 if args.debug else 8,
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                 )

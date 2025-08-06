@@ -27,7 +27,6 @@ class ChatCompletionsSampler(SamplerBase):
         reasoning_effort: str | None = None,
         base_url: str = "http://localhost:8000/v1",
     ):
-        self.api_key_name = "OPENAI_API_KEY"
         self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
         self.model = model
         self.system_message = system_message
@@ -63,8 +62,13 @@ class ChatCompletionsSampler(SamplerBase):
                         temperature=self.temperature,
                         max_tokens=self.max_tokens,
                     )
-                content = response.choices[0].message.content
-                if content is None:
+
+                choice = response.choices[0]
+                content = choice.message.content
+                if getattr(choice.message, "reasoning", None):
+                    message_list.append(self._pack_message("assistant", choice.message.reasoning))
+
+                if not content:
                     raise ValueError("OpenAI API returned empty response; retrying")
                 return SamplerResponse(
                     response_text=content,
