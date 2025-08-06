@@ -19,12 +19,16 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--list-models", action="store_true", help="List available models"
-    )
-    parser.add_argument(
         "--model",
         type=str,
-        help="Select a model by name. Also accepts a comma-separated list of models.",
+        default="gpt-oss-120b,gpt-oss-20b",
+        help="Select a model by name. Accepts a comma-separated list.",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        type=str,
+        default="low,medium,high",
+        help="Reasoning effort (low, medium, high). Accepts a comma-separated list.",
     )
     parser.add_argument(
         "--sampler",
@@ -43,7 +47,7 @@ def main():
         "--eval",
         type=str,
         default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25",
-        help="Select an eval by name. Also accepts a comma-separated list of evals.",
+        help="Select an eval by name. Accepts a comma-separated list.",
     )
     parser.add_argument(
         "--temperature",
@@ -68,64 +72,16 @@ def main():
 
     sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
 
-    models = {
-        "120b-low": sampler_cls(
-            model="gpt-oss-120b",
-            reasoning_model=True,
-            reasoning_effort="low",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "120b": sampler_cls(
-            model="gpt-oss-120b",
-            reasoning_model=True,
-            reasoning_effort="medium",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "120b-high": sampler_cls(
-            model="gpt-oss-120b",
-            reasoning_model=True,
-            reasoning_effort="high",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "20b-low": sampler_cls(
-            model="gpt-oss-20b",
-            reasoning_model=True,
-            reasoning_effort="low",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "20b": sampler_cls(
-            model="gpt-oss-20b",
-            reasoning_model=True,
-            reasoning_effort="medium",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "20b-high": sampler_cls(
-            model="gpt-oss-20b",
-            reasoning_model=True,
-            reasoning_effort="high",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-    }
-
-    if args.list_models:
-        print("Available models:")
-        for model_name in models.keys():
-            print(f" - {model_name}")
-        return
-
-    if args.model:
-        models_chosen = args.model.split(",")
-        for model_name in models_chosen:
-            if model_name not in models:
-                print(f"Error: Model '{model_name}' not found.")
-                return
-        models = {model_name: models[model_name] for model_name in models_chosen}
+    models = {}
+    for model_name in args.model.split(","):
+        for reasoning_effort in args.reasoning_effort.split(","):
+            models[f"{model_name}-{reasoning_effort}"] = sampler_cls(
+                model=model_name,
+                reasoning_model=True,
+                reasoning_effort=reasoning_effort,
+                temperature=args.temperature,
+                base_url=args.base_url,
+            )
 
     print(f"Running with args {args}")
 
@@ -182,17 +138,15 @@ def main():
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
 
-    evals_list = args.eval.split(",")
     evals = {}
-    for eval_name in evals_list:
+    for eval_name in args.eval.split(","):
         evals[eval_name] = get_evals(eval_name, args.debug)
 
-    print(evals)
     debug_suffix = "_DEBUG" if args.debug else ""
     print(debug_suffix)
     mergekey2resultpath = {}
-    print(f"Running the following evals: {list(evals.keys())}")
-    print(f"Running evals for the following models: {list(models.keys())}")
+    print(f"Running the following evals: {evals}")
+    print(f"Running evals for the following models: {models}")
 
     now = datetime.now()
     date_str = now.strftime("%Y%m%d_%H%M%S")
@@ -230,6 +184,7 @@ def main():
                 print(f"Writing all results to {full_result_filename}")
 
             mergekey2resultpath[f"{file_stem}"] = result_filename
+
     merge_metrics = []
     for eval_model_name, result_filename in mergekey2resultpath.items():
         try:
