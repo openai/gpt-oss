@@ -1,7 +1,13 @@
-build
+build/
 _skbuild
 tmp*
-__pycache__
+__pycache__/
 *.egg*
 node_modules/
 *.log
+.venv/
+*.py[cod]
+*.pyo
+gpt-oss-20b/
+gpt_oss/metal/_metal*.so
+.DS_Store
