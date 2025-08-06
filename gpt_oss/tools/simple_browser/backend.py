@@ -207,7 +207,7 @@ class JinaBackend(Backend):
         
         # make a simple HTML page to work with browser format
         titles_and_urls = [
-            (result["title"], result["url"], result["description"])
+            (result.get("title", ""), result.get("url", ""), result.get("description", ""))
             for result in results
         ]
         html_page = f"""
