@@ -87,14 +87,16 @@ def prepare_metadata_for_build_wheel(
 # Optional hooks
 
 def build_editable(
-    editable_directory: str, config_settings: Mapping[str, Any] | None = None
+    wheel_directory: str,
+    config_settings: Mapping[str, Any] | None = None,
+    metadata_directory: str | None = None,
 ) -> str:
     be = _backend()
     fn = getattr(be, "build_editable", None)
     if fn is None:
         # setuptools implements build_editable; if not available, raise the standard error
         raise RuntimeError("Editable installs not supported by the selected backend")
-    return fn(editable_directory, config_settings)
+    return fn(wheel_directory, config_settings, metadata_directory)
 
 
 def get_requires_for_build_wheel(
