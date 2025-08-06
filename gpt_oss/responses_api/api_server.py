@@ -815,13 +815,14 @@ def create_api_server(
             developer_message_content = developer_message_content.with_function_tools(
                 tools
             )
-
+    
         developer_message = Message.from_role_and_content(
             Role.DEVELOPER, developer_message_content
         )
-
+    
         messages = [system_message, developer_message]
-
+        additional_instructions = []
+    
         if isinstance(body.input, str):
             user_message = Message.from_role_and_content(Role.USER, body.input)
             messages.append(user_message)
@@ -836,21 +837,33 @@ def create_api_server(
                 if item.type == "message" and item.role == Role.ASSISTANT:
                     last_assistant_idx = idx
 
+            # Collect system instructions from client messages
+            additional_instructions = []
+            
             for idx, item in enumerate(body.input):
                 if item.type == "message":
-                    # TODO: add system prompt handling
-                    if isinstance(item.content, str):
-                        messages.append(
-                            Message.from_role_and_content(item.role, item.content)
-                        )
+                    if item.role == Role.SYSTEM:
+                        # Handle system messages by collecting instructions for developer message
+                        if isinstance(item.content, str):
+                            additional_instructions.append(item.content)
+                        else:
+                            # Concatenate all text content items for system messages
+                            for content_item in item.content:
+                                additional_instructions.append(content_item.text)
                     else:
-                        for content_item in item.content:
+                        # Handle user and assistant messages
+                        if isinstance(item.content, str):
                             messages.append(
-                                Message.from_role_and_content(item.role, content_item.text)
+                                Message.from_role_and_content(item.role, item.content)
                             )
-                    # add final channel to the last assistant message if it's from the assistant
-                    if item.role == Role.ASSISTANT:
-                        messages[-1] = messages[-1].with_channel("final")
+                        else:
+                            for content_item in item.content:
+                                messages.append(
+                                    Message.from_role_and_content(item.role, content_item.text)
+                                )
+                        # add final channel to the last assistant message if it's from the assistant
+                        if item.role == Role.ASSISTANT:
+                            messages[-1] = messages[-1].with_channel("final")
                 elif item.type == "reasoning":
                     # Only include reasoning if it is after the last assistant message and we are handling a function call at the moment
                     if (
@@ -881,6 +894,18 @@ def create_api_server(
                             item.output,
                         ).with_recipient("assistant").with_channel("commentary")
                     )
+
+        # Update developer message with additional instructions from system messages
+        if additional_instructions:
+            combined_instructions = body.instructions or ""
+            if combined_instructions and additional_instructions:
+                combined_instructions += "\n\n" + "\n".join(additional_instructions)
+            elif additional_instructions:
+                combined_instructions = "\n".join(additional_instructions)
+            
+            # Recreate developer message with updated instructions
+            developer_message_content = DeveloperContent.new().with_instructions(combined_instructions)
+            messages[1] = Message.from_role_and_content(Role.DEVELOPER, developer_message_content)
 
         conversation = Conversation.from_messages(messages)
 
