@@ -27,7 +27,7 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single H100 GPU and `gpt-oss-20b` to run within 16GB of memory..
+- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single H100 GPU and `gpt-oss-20b` to run within 16GB of memory.
 
 ### Inference examples
 
