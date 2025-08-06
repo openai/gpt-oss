@@ -5,7 +5,7 @@ import itertools
 import json
 import re
 import textwrap
-from typing import Any, AsyncIterator, Callable, ParamSpec, Sequence
+from typing import Any, AsyncIterator, Callable, ParamSpec
 from urllib.parse import quote, unquote
 
 import pydantic
@@ -18,7 +18,7 @@ from openai_harmony import (
     Message,
     Role,
     TextContent,
-    ToolNamespaceConfig
+    ToolNamespaceConfig,
 )
 
 from ..tool import Tool
@@ -39,9 +39,7 @@ logger = structlog.stdlib.get_logger(component=__name__)
 ENC_NAME = "o200k_base"
 FIND_PAGE_LINK_FORMAT = "# 【{idx}†{title}】"
 PARTIAL_INITIAL_LINK_PATTERN = re.compile(r"^[^【】]*】")
-PARTIAL_FINAL_LINK_PATTERN = re.compile(
-    r"【\d*(?:†(?P<content>[^†】]*)(?:†[^†】]*)?)?$"
-)
+PARTIAL_FINAL_LINK_PATTERN = re.compile(r"【\d*(?:†(?P<content>[^†】]*)(?:†[^†】]*)?)?$")
 LINK_PATTERN = re.compile(r"【\d+†(?P<content>[^†】]+)(?:†[^†】]+)?】")
 
 CITATION_OUTPUT_PATTERN = re.compile(r"【(?P<cursor>\d+)†(?P<content>[^†】]+)(?:†[^†】]+)?】")
@@ -81,7 +79,7 @@ def _tiktoken_vocabulary_lengths(enc_name: str) -> list[int]:
     for i in range(encoding.n_vocab):
         try:
             results.append(len(encoding.decode([i])))
-        except Exception as e:
+        except Exception:
             results.append(1)
     return results
 
@@ -103,9 +101,7 @@ def get_tokens(text: str, enc_name: str) -> Tokens:
     encoding = tiktoken.get_encoding(enc_name)
     tokens = encoding.encode(text, disallowed_special=())
     _vocabulary_lenghts = _tiktoken_vocabulary_lengths(enc_name)
-    tok2idx = [0] + list(itertools.accumulate(_vocabulary_lenghts[i] for i in tokens))[
-        :-1
-    ]
+    tok2idx = [0] + list(itertools.accumulate(_vocabulary_lenghts[i] for i in tokens))[:-1]
     result = Tokens(tokens=tokens, tok2idx=tok2idx)
     return result
 
@@ -126,9 +122,7 @@ def get_end_loc(
         if len(txt) > view_tokens:
             # limit the amount of text we tokenize here
             upper_bound = max_chars_per_token(encoding_name)
-            tok2idx = get_tokens(
-                txt[: (view_tokens + 1) * upper_bound], encoding_name
-            ).tok2idx
+            tok2idx = get_tokens(txt[: (view_tokens + 1) * upper_bound], encoding_name).tok2idx
             if len(tok2idx) > view_tokens:
                 end_idx = tok2idx[view_tokens]
                 num_lines = txt[:end_idx].count("\n") + 1  # round up
@@ -151,9 +145,7 @@ def get_page_metadata(
     return page_metadata
 
 
-def join_lines(
-    lines: list[str], add_line_numbers: bool = False, offset: int = 0
-) -> str:
+def join_lines(lines: list[str], add_line_numbers: bool = False, offset: int = 0) -> str:
     if add_line_numbers:
         return "\n".join([f"L{i + offset}: {line}" for i, line in enumerate(lines)])
     else:
@@ -164,11 +156,7 @@ def wrap_lines(text: str, width: int = 80) -> list[str]:
     lines = text.split("\n")
     wrapped = itertools.chain.from_iterable(
         (
-            textwrap.wrap(
-                line, width=width, replace_whitespace=False, drop_whitespace=False
-            )
-            if line
-            else [""]
+            textwrap.wrap(line, width=width, replace_whitespace=False, drop_whitespace=False) if line else [""]
         )  # preserve empty lines
         for line in lines
     )
@@ -182,9 +170,7 @@ def strip_links(text: str) -> str:
     return text
 
 
-def maybe_get_function_args(
-    message: Message, tool_name: str = "browser"
-) -> dict[str, Any] | None:
+def maybe_get_function_args(message: Message, tool_name: str = "browser") -> dict[str, Any] | None:
     if not message.recipient.startswith(f"{tool_name}."):
         return None
 
@@ -224,15 +210,9 @@ async def run_find_in_page(
             line_idx += 1
             continue
         snippet = "\n".join(lines[line_idx : line_idx + num_show_lines])
-        link_title = FIND_PAGE_LINK_FORMAT.format(
-            idx=f"{match_idx}", title=f"match at L{line_idx}"
-        )
+        link_title = FIND_PAGE_LINK_FORMAT.format(idx=f"{match_idx}", title=f"match at L{line_idx}")
         result_chunks.append(f"{link_title}\n{snippet}")
-        snippets.append(
-            Extract(
-                url=page.url, text=snippet, title=f"#{match_idx}", line_idx=line_idx
-            )
-        )
+        snippets.append(Extract(url=page.url, text=snippet, title=f"#{match_idx}", line_idx=line_idx))
         if len(result_chunks) == max_results:
             break
         match_idx += 1
@@ -259,9 +239,7 @@ def handle_errors(
     func: Callable[CallParams, AsyncIterator["Message"]],
 ) -> Callable[CallParams, AsyncIterator["Message"]]:
     @functools.wraps(func)
-    async def inner(
-        *args: CallParams.args, **kwargs: CallParams.kwargs
-    ) -> AsyncIterator[Message]:
+    async def inner(*args: CallParams.args, **kwargs: CallParams.kwargs) -> AsyncIterator[Message]:
         tool = args[0]
         # Could be cool to type this explicitly, but mypy makes it hard
         assert isinstance(tool, SimpleBrowserTool)
@@ -296,13 +274,10 @@ class SimpleBrowserState(pydantic.BaseModel):
         try:
             page_url = self.page_stack[cursor]
         except TypeError as e:
-            raise ToolUsageError(
-                f"`cursor` should be an integer, not `{type(cursor).__name__}`"
-            ) from e
+            raise ToolUsageError(f"`cursor` should be an integer, not `{type(cursor).__name__}`") from e
         except IndexError as e:
             raise ToolUsageError(
-                f"Cursor `{cursor}` is out of range. "
-                f"Available cursor indices: [0 - {self.current_cursor}]."
+                f"Cursor `{cursor}` is out of range. Available cursor indices: [0 - {self.current_cursor}]."
             ) from e
         return self.pages[page_url]
 
@@ -352,12 +327,15 @@ class SimpleBrowserTool(Tool):
     def tool_config(self) -> ToolNamespaceConfig:
         config = ToolNamespaceConfig.browser()
         config.name = self.name
-        config.description = """Tool for browsing.
+        config.description = (
+            """Tool for browsing.
 The `cursor` appears in brackets before each browsing display: `[{cursor}]`.
 Cite information from the tool using the following format:
 `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.
 Do not quote more than 10 words directly from the tool output.
-sources=""" + self.backend.source
+sources="""
+            + self.backend.source
+        )
         return config
 
     @property
@@ -392,9 +370,7 @@ sources=""" + self.backend.source
         header += f"\n**{scrollbar}**\n\n"
 
         content = TextContent(text=self._render_browsing_display(cursor, body, header))
-        return self.make_response(
-            content=content, metadata=get_page_metadata(self.tool_state.get_page())
-        )
+        return self.make_response(content=content, metadata=get_page_metadata(self.tool_state.get_page()))
 
     async def show_page(self, loc: int = 0, num_lines: int = -1) -> Message:
         page = self.tool_state.get_page()
@@ -403,15 +379,10 @@ sources=""" + self.backend.source
         total_lines = len(lines)
 
         if loc >= total_lines:
-            err_msg = (
-                f"Invalid location parameter: `{loc}`. "
-                f"Cannot exceed page maximum of {total_lines - 1}."
-            )
+            err_msg = f"Invalid location parameter: `{loc}`. Cannot exceed page maximum of {total_lines - 1}."
             raise ToolUsageError(err_msg)
 
-        end_loc = get_end_loc(
-            loc, num_lines, total_lines, lines, self.view_tokens, self.encoding_name
-        )
+        end_loc = get_end_loc(loc, num_lines, total_lines, lines, self.view_tokens, self.encoding_name)
 
         lines_to_show = lines[loc:end_loc]
         body = join_lines(lines_to_show, add_line_numbers=True, offset=loc)
@@ -441,13 +412,10 @@ sources=""" + self.backend.source
         except Exception as e:
             msg = maybe_truncate(str(e))
             logger.warning("Error fetching URL in lean browser tool", exc_info=e)
-            raise BackendError(
-                f"Error fetching URL `{maybe_truncate(url)}`: {msg}"
-            ) from e
+            raise BackendError(f"Error fetching URL `{maybe_truncate(url)}`: {msg}") from e
 
     def make_error_message(self, error: Exception) -> Message:
         """Uses the message creation codepath from the base class."""
-        error_name = error.__class__.__name__
         content = TextContent(text=str(error))
         return self.make_response(content=content)
 
@@ -538,9 +506,7 @@ sources=""" + self.backend.source
     async def find(self, pattern: str, cursor: int = -1) -> AsyncIterator[Message]:
         page = self.tool_state.get_page(cursor)
         if page.snippets is not None:
-            raise ToolUsageError(
-                "Cannot run `find` on search results page or find results page"
-            )
+            raise ToolUsageError("Cannot run `find` on search results page or find results page")
 
         pc = await run_find_in_page(
             pattern=str(pattern).lower(),
@@ -616,8 +582,9 @@ sources=""" + self.backend.source
         else:
             raise ValueError("should not be here")
 
-
-    def normalize_citations(self, old_content: str, hide_partial_citations: bool = False) -> tuple[str, list[dict[str, Any]], bool]:
+    def normalize_citations(
+        self, old_content: str, hide_partial_citations: bool = False
+    ) -> tuple[str, list[dict[str, Any]], bool]:
         """
         Returns a tuple of (new_message, annotations, has_partial_citations)
         - new_message: Message with citations replaced by ([domain](url))
@@ -635,12 +602,14 @@ sources=""" + self.backend.source
             content = match.group("content")
             start_idx = match.start()
             end_idx = match.end()
-            matches.append({
-                "cursor": cursor,
-                "content": content,
-                "start": start_idx,
-                "end": end_idx
-            })
+            matches.append(
+                {
+                    "cursor": cursor,
+                    "content": content,
+                    "start": start_idx,
+                    "end": end_idx,
+                }
+            )
 
         # Build a mapping from cursor to url
         cursor_to_url = {}
@@ -656,7 +625,6 @@ sources=""" + self.backend.source
         new_content = ""
         last_idx = 0
         annotations = []
-        running_offset = 0  # Offset due to length changes in replacements
 
         for m in matches:
             cursor = m["cursor"]
@@ -673,13 +641,15 @@ sources=""" + self.backend.source
                 # The start and end indices in the new content
                 start_index = len(new_content)
                 end_index = start_index + len(replacement)
-                annotations.append({
-                    "start_index": start_index,
-                    "end_index": end_index,
-                    "title": domain,
-                    "url": url,
-                    "type": "url_citation",
-                })
+                annotations.append(
+                    {
+                        "start_index": start_index,
+                        "end_index": end_index,
+                        "title": domain,
+                        "url": url,
+                        "type": "url_citation",
+                    }
+                )
                 new_content += replacement
             else:
                 # Keep the original citation format if cursor is missing
@@ -693,4 +663,3 @@ sources=""" + self.backend.source
 
         new_content += old_content[last_idx:]
         return new_content, annotations, has_partial_citations
-

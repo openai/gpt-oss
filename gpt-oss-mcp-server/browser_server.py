@@ -34,7 +34,7 @@ mcp = FastMCP(
 Tool for browsing.
 The `cursor` appears in brackets before each browsing display: `[{cursor}]`.
 Cite information from the tool using the following format:
-`【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`. 
+`【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.
 Do not quote more than 10 words directly from the tool output.
 sources=web
 """.strip(),
@@ -46,19 +46,14 @@ sources=web
 @mcp.tool(
     name="search",
     title="Search for information",
-    description=
-    "Searches for information related to `query` and displays `topn` results.",
+    description="Searches for information related to `query` and displays `topn` results.",
 )
-async def search(ctx: Context,
-                 query: str,
-                 topn: int = 10,
-                 source: Optional[str] = None) -> str:
+async def search(ctx: Context, query: str, topn: int = 10, source: Optional[str] = None) -> str:
     """Search for information related to a query"""
-    browser = ctx.request_context.lifespan_context.create_or_get_browser(
-        ctx.client_id)
+    browser = ctx.request_context.lifespan_context.create_or_get_browser(ctx.client_id)
     messages = []
     async for message in browser.search(query=query, topn=topn, source=source):
-        if message.content and hasattr(message.content[0], 'text'):
+        if message.content and hasattr(message.content[0], "text"):
             messages.append(message.content[0].text)
     return "\n".join(messages)
 
@@ -75,24 +70,27 @@ If `loc` is not provided, the viewport will be positioned at the beginning of th
 Use this function without `id` to scroll to a new location of an opened page.
 """.strip(),
 )
-async def open_link(ctx: Context,
-                    id: Union[int, str] = -1,
-                    cursor: int = -1,
-                    loc: int = -1,
-                    num_lines: int = -1,
-                    view_source: bool = False,
-                    source: Optional[str] = None) -> str:
+async def open_link(
+    ctx: Context,
+    id: Union[int, str] = -1,
+    cursor: int = -1,
+    loc: int = -1,
+    num_lines: int = -1,
+    view_source: bool = False,
+    source: Optional[str] = None,
+) -> str:
     """Open a link or navigate to a page location"""
-    browser = ctx.request_context.lifespan_context.create_or_get_browser(
-        ctx.client_id)
+    browser = ctx.request_context.lifespan_context.create_or_get_browser(ctx.client_id)
     messages = []
-    async for message in browser.open(id=id,
-                                      cursor=cursor,
-                                      loc=loc,
-                                      num_lines=num_lines,
-                                      view_source=view_source,
-                                      source=source):
-        if message.content and hasattr(message.content[0], 'text'):
+    async for message in browser.open(
+        id=id,
+        cursor=cursor,
+        loc=loc,
+        num_lines=num_lines,
+        view_source=view_source,
+        source=source,
+    ):
+        if message.content and hasattr(message.content[0], "text"):
             messages.append(message.content[0].text)
     return "\n".join(messages)
 
@@ -100,15 +98,13 @@ async def open_link(ctx: Context,
 @mcp.tool(
     name="find",
     title="Find pattern in page",
-    description=
-    "Finds exact matches of `pattern` in the current page, or the page given by `cursor`.",
+    description="Finds exact matches of `pattern` in the current page, or the page given by `cursor`.",
 )
 async def find_pattern(ctx: Context, pattern: str, cursor: int = -1) -> str:
     """Find exact matches of a pattern in the current page"""
-    browser = ctx.request_context.lifespan_context.create_or_get_browser(
-        ctx.client_id)
+    browser = ctx.request_context.lifespan_context.create_or_get_browser(ctx.client_id)
     messages = []
     async for message in browser.find(pattern=pattern, cursor=cursor):
-        if message.content and hasattr(message.content[0], 'text'):
+        if message.content and hasattr(message.content[0], "text"):
             messages.append(message.content[0].text)
     return "\n".join(messages)

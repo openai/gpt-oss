@@ -1,8 +1,6 @@
-import asyncio
 import datetime
 import uuid
 from typing import Callable, Literal, Optional
-import json
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
@@ -39,7 +37,7 @@ from .events import (
     ResponseWebSearchCallInProgress,
     ResponseWebSearchCallSearching,
     ResponseWebSearchCallCompleted,
-    ResponseOutputTextAnnotationAdded
+    ResponseOutputTextAnnotationAdded,
 )
 from .types import (
     UrlCitation,
@@ -73,9 +71,8 @@ def get_reasoning_effort(effort: Literal["low", "medium", "high"]) -> ReasoningE
 def is_not_builtin_tool(recipient: str) -> bool:
     return not recipient.startswith("browser.") and not recipient == "python" and not recipient == "assistant"
 
-def create_api_server(
-    infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
-) -> FastAPI:
+
+def create_api_server(infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding) -> FastAPI:
     app = FastAPI()
     responses_store: dict[str, tuple[ResponsesRequest, ResponseObject]] = {}
 
@@ -95,9 +92,7 @@ def create_api_server(
         if len(output_tokens) > 0:
             if debug_mode:
                 try:
-                    entries = encoding.parse_messages_from_completion_tokens(
-                        output_tokens, Role.ASSISTANT
-                    )
+                    entries = encoding.parse_messages_from_completion_tokens(output_tokens, Role.ASSISTANT)
                 except Exception as e:
                     print(f"Error parsing tokens: {e}")
                     error = Error(
@@ -106,9 +101,7 @@ def create_api_server(
                     )
                     entries = []
             else:
-                entries = encoding.parse_messages_from_completion_tokens(
-                    output_tokens, Role.ASSISTANT
-                )
+                entries = encoding.parse_messages_from_completion_tokens(output_tokens, Role.ASSISTANT)
 
             fc_index = 0
             browser_tool_index = 0
@@ -138,12 +131,16 @@ def create_api_server(
                             call_id=call_id,
                         )
                     )
-                elif len(entry_dict.get("recipient", "")) > 0 and entry_dict["recipient"].startswith("browser.") and browser_tool is not None:
+                elif (
+                    len(entry_dict.get("recipient", "")) > 0
+                    and entry_dict["recipient"].startswith("browser.")
+                    and browser_tool is not None
+                ):
                     # Mirror event-based creation of WebSearchCallItems when the browser tool is invoked
                     name = entry_dict["recipient"]
                     call = entry_dict["content"][0]
                     arguments = call["text"]
-                    function_name = name[len("browser."):]
+                    function_name = name[len("browser.") :]
 
                     # Reconstruct a Message for argument parsing
                     tool_msg = (
@@ -190,9 +187,11 @@ def create_api_server(
                         )
                 elif entry_dict["channel"] == "final":
                     content = []
-                    for content_entry in entry_dict["content"]:    
+                    for content_entry in entry_dict["content"]:
                         if browser_tool:
-                            text_content, annotation_entries, _has_partial_citations = browser_tool.normalize_citations(content_entry["text"])
+                            text_content, annotation_entries, _has_partial_citations = browser_tool.normalize_citations(
+                                content_entry["text"]
+                            )
                             annotations = [UrlCitation(**a) for a in annotation_entries]
                         else:
                             text_content = content_entry["text"]
@@ -287,7 +286,6 @@ def create_api_server(
         request_body: ResponsesRequest
         request: Request
         sequence_number: int
-    
 
         def __init__(
             self,
@@ -296,9 +294,7 @@ def create_api_server(
             as_sse: bool = False,
             request: Optional[Request] = None,
             response_id: Optional[str] = None,
-            store_callback: Optional[
-                Callable[[str, ResponsesRequest, ResponseObject], None]
-            ] = None,
+            store_callback: Optional[Callable[[str, ResponsesRequest, ResponseObject], None]] = None,
             browser_tool: Optional[SimpleBrowserTool] = None,
         ):
             self.initial_tokens = initial_tokens
@@ -308,15 +304,9 @@ def create_api_server(
             self.request_body = request_body
             self.parser = StreamableParser(encoding, role=Role.ASSISTANT)
             self.as_sse = as_sse
-            self.debug_mode = request_body.metadata.get(
-                "__debug", False
-            )  # we use this for demo purposes
+            self.debug_mode = request_body.metadata.get("__debug", False)  # we use this for demo purposes
             # Set temperature for this stream, fallback to DEFAULT_TEMPERATURE if not set
-            self.temperature = (
-                request_body.temperature
-                if request_body.temperature is not None
-                else DEFAULT_TEMPERATURE
-            )
+            self.temperature = request_body.temperature if request_body.temperature is not None else DEFAULT_TEMPERATURE
             self.request = request
             self.sequence_number = 0
             self.function_call_ids: list[tuple[str, str]] = []
@@ -360,16 +350,14 @@ def create_api_server(
                 )
             )
 
-            current_content_index = (
-                0  # for this implementation we will always have one content item only
-            )
+            current_content_index = 0  # for this implementation we will always have one content item only
             current_output_index = -1
             sent_output_item_added = False
 
             # we use this if the model outputs a citation to buffer until completed
-            output_delta_buffer = "" 
+            output_delta_buffer = ""
             # we use this to track the current output text content for things like providing the right indices in citations
-            current_output_text_content = "" 
+            current_output_text_content = ""
             current_annotations = []
 
             while True:
@@ -386,7 +374,7 @@ def create_api_server(
                 self.tokens.append(next_tok)
                 try:
                     self.parser.process(next_tok)
-                except Exception as e:
+                except Exception:
                     pass
 
                 if self.parser.state == StreamState.EXPECT_START:
@@ -397,10 +385,7 @@ def create_api_server(
                         previous_item = self.parser.messages[-1]
                         if previous_item.recipient is not None:
                             recipient = previous_item.recipient
-                            if (
-                                not recipient.startswith("browser.")
-                                and not recipient == "python"
-                            ):
+                            if not recipient.startswith("browser.") and not recipient == "python":
                                 fc_id = f"fc_{uuid.uuid4().hex}"
                                 call_id = f"call_{uuid.uuid4().hex}"
                                 self.function_call_ids.append((fc_id, call_id))
@@ -411,12 +396,8 @@ def create_api_server(
                                         item=FunctionCallItem(
                                             type="function_call",
                                             name=(
-                                                previous_item.recipient[
-                                                    len("functions.") :
-                                                ]
-                                                if previous_item.recipient.startswith(
-                                                    "functions."
-                                                )
+                                                previous_item.recipient[len("functions.") :]
+                                                if previous_item.recipient.startswith("functions.")
                                                 else previous_item.recipient
                                             ),
                                             arguments=previous_item.content[0].text,
@@ -464,7 +445,11 @@ def create_api_server(
                         if previous_item.channel == "final":
                             annotations = [UrlCitation(**a) for a in current_annotations]
                             if browser_tool:
-                                normalized_text, _annotations, _has_partial_citations = browser_tool.normalize_citations(previous_item.content[0].text)
+                                (
+                                    normalized_text,
+                                    _annotations,
+                                    _has_partial_citations,
+                                ) = browser_tool.normalize_citations(previous_item.content[0].text)
                             else:
                                 normalized_text = previous_item.content[0].text
                                 annotations = []
@@ -530,10 +515,12 @@ def create_api_server(
                     should_send_output_text_delta = True
                     if browser_tool:
                         # we normalize on the full current text to get the right indices in citations
-                        updated_output_text, annotations, has_partial_citations = browser_tool.normalize_citations(current_output_text_content + output_delta_buffer)
+                        updated_output_text, annotations, has_partial_citations = browser_tool.normalize_citations(
+                            current_output_text_content + output_delta_buffer
+                        )
                         # remove the current text to get back the delta but now normalized
-                        output_delta_buffer = updated_output_text[len(current_output_text_content):]
-                        
+                        output_delta_buffer = updated_output_text[len(current_output_text_content) :]
+
                         # Filter annotations to only include those whose start_index is not already present in current_annotations
                         # this is to avoid sending duplicate annotations as multiple annotations can't be in the same place
                         existing_start_indices = {a["start_index"] for a in current_annotations}
@@ -553,7 +540,6 @@ def create_api_server(
 
                         if has_partial_citations:
                             should_send_output_text_delta = False
-
 
                     if should_send_output_text_delta:
                         yield self._send_event(
@@ -578,9 +564,7 @@ def create_api_server(
                             ResponseOutputItemAdded(
                                 type="response.output_item.added",
                                 output_index=current_output_index,
-                                item=ReasoningItem(
-                                    type="reasoning", summary=[], content=[]
-                                ),
+                                item=ReasoningItem(type="reasoning", summary=[], content=[]),
                             )
                         )
                         yield self._send_event(
@@ -617,7 +601,7 @@ def create_api_server(
                             and last_message.recipient is not None
                             and last_message.recipient.startswith("browser.")
                         ):
-                            function_name = last_message.recipient[len("browser."):]
+                            function_name = last_message.recipient[len("browser.") :]
                             action = None
                             parsed_args = browser_tool.process_arguments(last_message)
                             if function_name == "search":
@@ -640,20 +624,22 @@ def create_api_server(
                             if action is not None:
                                 web_search_call_id = f"ws_{uuid.uuid4().hex}"
                                 self.browser_call_ids.append(web_search_call_id)
-                                yield self._send_event(ResponseOutputItemAdded(
-                                    type="response.output_item.added",
-                                    output_index=current_output_index,
-                                    item=WebSearchCallItem(
-                                        type="web_search_call",
-                                        id=web_search_call_id,
-                                        action=action,
-                                    ),
-                                ))
+                                yield self._send_event(
+                                    ResponseOutputItemAdded(
+                                        type="response.output_item.added",
+                                        output_index=current_output_index,
+                                        item=WebSearchCallItem(
+                                            type="web_search_call",
+                                            id=web_search_call_id,
+                                            action=action,
+                                        ),
+                                    )
+                                )
                                 yield self._send_event(
                                     ResponseWebSearchCallInProgress(
                                         type="response.web_search_call.in_progress",
                                         output_index=current_output_index,
-                                        id=web_search_call_id
+                                        id=web_search_call_id,
                                     )
                                 )
 
@@ -675,10 +661,10 @@ def create_api_server(
                             new_tokens = encoding.render_conversation_for_completion(
                                 Conversation.from_messages(result), Role.ASSISTANT
                             )
-                            
+
                             print(encoding.decode_utf8(new_tokens))
                             self.output_tokens.append(next_tok)
-                            self.tokens.append(encoding.encode('<|end|>', allowed_special="all")[0])
+                            self.tokens.append(encoding.encode("<|end|>", allowed_special="all")[0])
 
                             for token in new_tokens:
                                 self.parser.process(token)
@@ -692,19 +678,21 @@ def create_api_server(
                                     id=web_search_call_id,
                                 )
                             )
-                            yield self._send_event(ResponseOutputItemDone(
-                                type="response.output_item.done",
-                                output_index=current_output_index,
-                                item=WebSearchCallItem(
-                                    type="web_search_call",
-                                    id=web_search_call_id,
-                                    action=action,
-                                ),
-                            ))
+                            yield self._send_event(
+                                ResponseOutputItemDone(
+                                    type="response.output_item.done",
+                                    output_index=current_output_index,
+                                    item=WebSearchCallItem(
+                                        type="web_search_call",
+                                        id=web_search_call_id,
+                                        action=action,
+                                    ),
+                                )
+                            )
 
                             current_output_index += 1
                             self.new_request = True
-                            
+
                             continue
 
                         else:
@@ -742,10 +730,7 @@ def create_api_server(
     async def generate(body: ResponsesRequest, request: Request):
         print("request received")
 
-        use_browser_tool = any(
-            getattr(tool, "type", None) == "browser_search"
-            for tool in (body.tools or [])
-        )
+        use_browser_tool = any(getattr(tool, "type", None) == "browser_search" for tool in (body.tools or []))
 
         if use_browser_tool:
             backend = ExaBackend(
@@ -778,11 +763,10 @@ def create_api_server(
                     body.instructions = prev_req.instructions
                 body.input = merged_input
 
-
         system_message_content = SystemContent.new().with_conversation_start_date(
             datetime.datetime.now().strftime("%Y-%m-%d")
         )
-        
+
         if body.reasoning is not None:
             reasoning_effort = get_reasoning_effort(body.reasoning.effort)
             system_message_content = system_message_content.with_reasoning_effort(reasoning_effort)
@@ -790,19 +774,14 @@ def create_api_server(
         if use_browser_tool:
             system_message_content = system_message_content.with_tools(browser_tool.tool_config)
 
-        system_message = Message.from_role_and_content(
-            Role.SYSTEM, system_message_content
-        )
+        system_message = Message.from_role_and_content(Role.SYSTEM, system_message_content)
 
-        developer_message_content = DeveloperContent.new().with_instructions(
-            body.instructions
-        )
+        developer_message_content = DeveloperContent.new().with_instructions(body.instructions)
 
         tools = []
         if body.tools:
             for tool in body.tools:
                 if tool.type == "function":
-                    has_functions = True
                     tools.append(
                         ToolDescription.new(
                             tool.name,
@@ -810,15 +789,11 @@ def create_api_server(
                             tool.parameters,
                         )
                     )
-        
-        if len(tools) > 0:
-            developer_message_content = developer_message_content.with_function_tools(
-                tools
-            )
 
-        developer_message = Message.from_role_and_content(
-            Role.DEVELOPER, developer_message_content
-        )
+        if len(tools) > 0:
+            developer_message_content = developer_message_content.with_function_tools(tools)
+
+        developer_message = Message.from_role_and_content(Role.DEVELOPER, developer_message_content)
 
         messages = [system_message, developer_message]
 
@@ -826,9 +801,7 @@ def create_api_server(
             user_message = Message.from_role_and_content(Role.USER, body.input)
             messages.append(user_message)
         else:
-            is_last_message_function_call_output = (
-                len(body.input) > 0 and body.input[-1].type == "function_call_output"
-            )
+            is_last_message_function_call_output = len(body.input) > 0 and body.input[-1].type == "function_call_output"
             function_call_map = {}
             # Find the index of the last assistant message
             last_assistant_idx = -1
@@ -840,28 +813,21 @@ def create_api_server(
                 if item.type == "message":
                     # TODO: add system prompt handling
                     if isinstance(item.content, str):
-                        messages.append(
-                            Message.from_role_and_content(item.role, item.content)
-                        )
+                        messages.append(Message.from_role_and_content(item.role, item.content))
                     else:
                         for content_item in item.content:
-                            messages.append(
-                                Message.from_role_and_content(item.role, content_item.text)
-                            )
+                            messages.append(Message.from_role_and_content(item.role, content_item.text))
                     # add final channel to the last assistant message if it's from the assistant
                     if item.role == Role.ASSISTANT:
                         messages[-1] = messages[-1].with_channel("final")
                 elif item.type == "reasoning":
                     # Only include reasoning if it is after the last assistant message and we are handling a function call at the moment
-                    if (
-                        idx > last_assistant_idx
-                        and is_last_message_function_call_output
-                    ):
+                    if idx > last_assistant_idx and is_last_message_function_call_output:
                         for content_item in item.content:
                             messages.append(
-                                Message.from_role_and_content(
-                                    Role.ASSISTANT, content_item.text
-                                ).with_channel("analysis")
+                                Message.from_role_and_content(Role.ASSISTANT, content_item.text).with_channel(
+                                    "analysis"
+                                )
                             )
                 elif item.type == "function_call":
                     function_call_map[item.call_id] = item
@@ -879,14 +845,14 @@ def create_api_server(
                         Message.from_author_and_content(
                             Author.new(Role.TOOL, f"functions.{function_call.name}"),
                             item.output,
-                        ).with_recipient("assistant").with_channel("commentary")
+                        )
+                        .with_recipient("assistant")
+                        .with_channel("commentary")
                     )
 
         conversation = Conversation.from_messages(messages)
 
-        initial_tokens = encoding.render_conversation_for_completion(
-            conversation, Role.ASSISTANT
-        )
+        initial_tokens = encoding.render_conversation_for_completion(conversation, Role.ASSISTANT)
         print(encoding.decode_utf8(initial_tokens))
         response_id = f"resp_{uuid.uuid4().hex}"
 

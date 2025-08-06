@@ -100,11 +100,7 @@ class Parser:
     def is_done(self, prefixes: Optional[Tuple[str, ...]] = None) -> bool:
         if self.index >= len(self.lines):
             return True
-        if (
-            prefixes
-            and len(prefixes) > 0
-            and self._norm(self._cur_line()).startswith(prefixes)
-        ):
+        if prefixes and len(prefixes) > 0 and self._norm(self._cur_line()).startswith(prefixes):
             return True
         return False
 
@@ -203,9 +199,7 @@ class Parser:
                             index = i + 1
                             found = True
                             break
-                if not found and def_str.strip() not in [
-                    s.strip() for s in lines[:index]
-                ]:
+                if not found and def_str.strip() not in [s.strip() for s in lines[:index]]:
                     for i, s in enumerate(lines[index:], index):
                         if s.strip() == def_str.strip():
                             index = i + 1
@@ -217,9 +211,7 @@ class Parser:
             new_index, fuzz = find_context(lines, next_ctx, index, eof)
             if new_index == -1:
                 ctx_txt = "\n".join(next_ctx)
-                raise DiffError(
-                    f"Invalid {'EOF ' if eof else ''}context at {index}:\n{ctx_txt}"
-                )
+                raise DiffError(f"Invalid {'EOF ' if eof else ''}context at {index}:\n{ctx_txt}")
             self.fuzz += fuzz
             for ch in chunks:
                 ch.orig_index += new_index
@@ -230,9 +222,7 @@ class Parser:
 
     def _parse_add_file(self) -> PatchAction:
         lines: List[str] = []
-        while not self.is_done(
-            ("*** End Patch", "*** Update File:", "*** Delete File:", "*** Add File:")
-        ):
+        while not self.is_done(("*** End Patch", "*** Update File:", "*** Delete File:", "*** Add File:")):
             s = self.read_line()
             if not s.startswith("+"):
                 raise DiffError(f"Invalid Add File line (missing '+'): {s}")
@@ -243,9 +233,7 @@ class Parser:
 # --------------------------------------------------------------------------- #
 #  Helper functions
 # --------------------------------------------------------------------------- #
-def find_context_core(
-    lines: List[str], context: List[str], start: int
-) -> Tuple[int, int]:
+def find_context_core(lines: List[str], context: List[str], start: int) -> Tuple[int, int]:
     if not context:
         return start, 0
 
@@ -253,21 +241,15 @@ def find_context_core(
         if lines[i : i + len(context)] == context:
             return i, 0
     for i in range(start, len(lines)):
-        if [s.rstrip() for s in lines[i : i + len(context)]] == [
-            s.rstrip() for s in context
-        ]:
+        if [s.rstrip() for s in lines[i : i + len(context)]] == [s.rstrip() for s in context]:
             return i, 1
     for i in range(start, len(lines)):
-        if [s.strip() for s in lines[i : i + len(context)]] == [
-            s.strip() for s in context
-        ]:
+        if [s.strip() for s in lines[i : i + len(context)]] == [s.strip() for s in context]:
             return i, 100
     return -1, 0
 
 
-def find_context(
-    lines: List[str], context: List[str], start: int, eof: bool
-) -> Tuple[int, int]:
+def find_context(lines: List[str], context: List[str], start: int, eof: bool) -> Tuple[int, int]:
     if eof:
         new_index, fuzz = find_context_core(lines, context, len(lines) - len(context))
         if new_index != -1:
@@ -277,9 +259,7 @@ def find_context(
     return find_context_core(lines, context, start)
 
 
-def peek_next_section(
-    lines: List[str], index: int
-) -> Tuple[List[str], List[Chunk], int, bool]:
+def peek_next_section(lines: List[str], index: int) -> Tuple[List[str], List[Chunk], int, bool]:
     old: List[str] = []
     del_lines: List[str] = []
     ins_lines: List[str] = []
@@ -368,13 +348,9 @@ def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
 
     for chunk in action.chunks:
         if chunk.orig_index > len(orig_lines):
-            raise DiffError(
-                f"{path}: chunk.orig_index {chunk.orig_index} exceeds file length"
-            )
+            raise DiffError(f"{path}: chunk.orig_index {chunk.orig_index} exceeds file length")
         if orig_index > chunk.orig_index:
-            raise DiffError(
-                f"{path}: overlapping chunks at {orig_index} > {chunk.orig_index}"
-            )
+            raise DiffError(f"{path}: overlapping chunks at {orig_index} > {chunk.orig_index}")
 
         dest_lines.extend(orig_lines[orig_index : chunk.orig_index])
         orig_index = chunk.orig_index
@@ -390,15 +366,11 @@ def patch_to_commit(patch: Patch, orig: Dict[str, str]) -> Commit:
     commit = Commit()
     for path, action in patch.actions.items():
         if action.type is ActionType.DELETE:
-            commit.changes[path] = FileChange(
-                type=ActionType.DELETE, old_content=orig[path]
-            )
+            commit.changes[path] = FileChange(type=ActionType.DELETE, old_content=orig[path])
         elif action.type is ActionType.ADD:
             if action.new_file is None:
                 raise DiffError("ADD action without file content")
-            commit.changes[path] = FileChange(
-                type=ActionType.ADD, new_content=action.new_file
-            )
+            commit.changes[path] = FileChange(type=ActionType.ADD, new_content=action.new_file)
         elif action.type is ActionType.UPDATE:
             new_content = _get_updated_file(orig[path], action, path)
             commit.changes[path] = FileChange(
@@ -429,24 +401,14 @@ def text_to_patch(text: str, orig: Dict[str, str]) -> Tuple[Patch, int]:
 
 def identify_files_needed(text: str) -> List[str]:
     lines = text.splitlines()
-    return [
-        line[len("*** Update File: ") :]
-        for line in lines
-        if line.startswith("*** Update File: ")
-    ] + [
-        line[len("*** Delete File: ") :]
-        for line in lines
-        if line.startswith("*** Delete File: ")
+    return [line[len("*** Update File: ") :] for line in lines if line.startswith("*** Update File: ")] + [
+        line[len("*** Delete File: ") :] for line in lines if line.startswith("*** Delete File: ")
     ]
 
 
 def identify_files_added(text: str) -> List[str]:
     lines = text.splitlines()
-    return [
-        line[len("*** Add File: ") :]
-        for line in lines
-        if line.startswith("*** Add File: ")
-    ]
+    return [line[len("*** Add File: ") :] for line in lines if line.startswith("*** Add File: ")]
 
 
 # --------------------------------------------------------------------------- #
@@ -493,11 +455,10 @@ def remove_file(path: str) -> None:
     pathlib.Path(path).unlink(missing_ok=True)
 
 
-
 def apply_patch(
     text: str,
     open_fn: Callable[[str], str] = open_file,
-    write_fn: Callable[[str, str], None] = write_file, 
+    write_fn: Callable[[str, str], None] = write_file,
     remove_fn: Callable[[str], None] = remove_file,
 ) -> str:
     if not text.startswith("*** Begin Patch"):

@@ -30,15 +30,11 @@ class ModelConfig:
 
 
 class RMSNorm(torch.nn.Module):
-    def __init__(
-        self, num_features: int, eps: float = 1e-05, device: torch.device | None = None
-    ):
+    def __init__(self, num_features: int, eps: float = 1e-05, device: torch.device | None = None):
         super().__init__()
         self.num_features = num_features
         self.eps = eps
-        self.scale = torch.nn.Parameter(
-            torch.ones(num_features, device=device, dtype=torch.float32)
-        )
+        self.scale = torch.nn.Parameter(torch.ones(num_features, device=device, dtype=torch.float32))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[-1] == self.num_features
@@ -84,35 +80,20 @@ class RotaryEmbedding(torch.nn.Module):
 
     def _compute_concentration_and_inv_freq(self) -> torch.Tensor:
         """See YaRN paper: https://arxiv.org/abs/2309.00071"""
-        freq = self.base ** (
-            torch.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device)
-            / self.head_dim
-        )
+        freq = self.base ** (torch.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device) / self.head_dim)
         if self.scaling_factor > 1.0:
-            concentration = (
-                0.1 * math.log(self.scaling_factor) + 1.0
-            )  # YaRN concentration
+            concentration = 0.1 * math.log(self.scaling_factor) + 1.0  # YaRN concentration
 
             d_half = self.head_dim / 2
             # NTK by parts
-            low = (
-                d_half
-                * math.log(self.initial_context_length / (self.ntk_beta * 2 * math.pi))
-                / math.log(self.base)
-            )
-            high = (
-                d_half
-                * math.log(self.initial_context_length / (self.ntk_alpha * 2 * math.pi))
-                / math.log(self.base)
-            )
+            low = d_half * math.log(self.initial_context_length / (self.ntk_beta * 2 * math.pi)) / math.log(self.base)
+            high = d_half * math.log(self.initial_context_length / (self.ntk_alpha * 2 * math.pi)) / math.log(self.base)
             assert 0 < low < high < d_half - 1
 
             interpolation = 1.0 / (self.scaling_factor * freq)
             extrapolation = 1.0 / freq
 
-            ramp = (
-                torch.arange(d_half, dtype=torch.float32, device=freq.device) - low
-            ) / (high - low)
+            ramp = (torch.arange(d_half, dtype=torch.float32, device=freq.device) - low) / (high - low)
             mask = 1 - ramp.clamp(0, 1)
 
             inv_freq = interpolation * (1 - mask) + extrapolation * mask
@@ -160,9 +141,7 @@ def sdpa(Q, K, V, S, sm_scale, sliding_window=0):
     S = S.reshape(n_heads, q_mult, 1, 1).expand(-1, -1, n_tokens, -1)
     mask = torch.triu(Q.new_full((n_tokens, n_tokens), -float("inf")), diagonal=1)
     if sliding_window > 0:
-        mask += torch.tril(
-            mask.new_full((n_tokens, n_tokens), -float("inf")), diagonal=-sliding_window
-        )
+        mask += torch.tril(mask.new_full((n_tokens, n_tokens), -float("inf")), diagonal=-sliding_window)
     QK = torch.einsum("qhmd,khmd->hmqk", Q, K)
     QK *= sm_scale
     QK += mask[None, None, :, :]
@@ -186,16 +165,10 @@ class AttentionBlock(torch.nn.Module):
         self.num_key_value_heads = config.num_key_value_heads
         # Only apply sliding window to every other layer
         self.sliding_window = config.sliding_window if layer_idx % 2 == 0 else 0
-        self.sinks = torch.nn.Parameter(
-            torch.empty(config.num_attention_heads, device=device, dtype=torch.bfloat16)
-        )
+        self.sinks = torch.nn.Parameter(torch.empty(config.num_attention_heads, device=device, dtype=torch.bfloat16))
         self.norm = RMSNorm(config.hidden_size, device=device)
-        qkv_dim = config.head_dim * (
-            config.num_attention_heads + 2 * config.num_key_value_heads
-        )
-        self.qkv = torch.nn.Linear(
-            config.hidden_size, qkv_dim, device=device, dtype=torch.bfloat16
-        )
+        qkv_dim = config.head_dim * (config.num_attention_heads + 2 * config.num_key_value_heads)
+        self.qkv = torch.nn.Linear(config.hidden_size, qkv_dim, device=device, dtype=torch.bfloat16)
         self.out = torch.nn.Linear(
             config.head_dim * config.num_attention_heads,
             config.hidden_size,
@@ -220,14 +193,14 @@ class AttentionBlock(torch.nn.Module):
         q = qkv[:, : self.num_attention_heads * self.head_dim].contiguous()
         k = qkv[
             :,
-            self.num_attention_heads
-            * self.head_dim : (self.num_attention_heads + self.num_key_value_heads)
+            self.num_attention_heads * self.head_dim : (self.num_attention_heads + self.num_key_value_heads)
             * self.head_dim,
         ].contiguous()
         v = qkv[
             :,
-            (self.num_attention_heads + self.num_key_value_heads)
-            * self.head_dim : (self.num_attention_heads + 2 * self.num_key_value_heads)
+            (self.num_attention_heads + self.num_key_value_heads) * self.head_dim : (
+                self.num_attention_heads + 2 * self.num_key_value_heads
+            )
             * self.head_dim,
         ].contiguous()
 
@@ -268,9 +241,7 @@ class MLPBlock(torch.nn.Module):
         self.swiglu_limit = config.swiglu_limit
         self.world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.norm = RMSNorm(config.hidden_size, device=device)
-        self.gate = torch.nn.Linear(
-            config.hidden_size, config.num_experts, device=device, dtype=torch.bfloat16
-        )
+        self.gate = torch.nn.Linear(config.hidden_size, config.num_experts, device=device, dtype=torch.bfloat16)
         assert config.intermediate_size % self.world_size == 0
         self.mlp1_weight = torch.nn.Parameter(
             torch.empty(
@@ -361,14 +332,9 @@ class Transformer(torch.nn.Module):
         device: torch.device | None = None,
     ):
         super().__init__()
-        self.embedding = torch.nn.Embedding(
-            config.vocab_size, config.hidden_size, device=device, dtype=torch.bfloat16
-        )
+        self.embedding = torch.nn.Embedding(config.vocab_size, config.hidden_size, device=device, dtype=torch.bfloat16)
         self.block = torch.nn.ModuleList(
-            [
-                TransformerBlock(config, layer_idx, device)
-                for layer_idx in range(config.num_hidden_layers)
-            ]
+            [TransformerBlock(config, layer_idx, device) for layer_idx in range(config.num_hidden_layers)]
         )
         self.norm = RMSNorm(config.hidden_size, device=device)
         self.unembedding = torch.nn.Linear(
@@ -388,9 +354,7 @@ class Transformer(torch.nn.Module):
         return x
 
     @staticmethod
-    def from_checkpoint(
-        path: str, device: str | torch.device = "cuda"
-    ) -> "Transformer":
+    def from_checkpoint(path: str, device: str | torch.device = "cuda") -> "Transformer":
         if not isinstance(device, torch.device):
             device = torch.device(device)
 
@@ -420,17 +384,13 @@ class Transformer(torch.nn.Module):
             if "mlp1" in name:  # both weight and bias
                 loaded_tensor = loaded_tensor[
                     :,
-                    my_rank * 2
-                    * per_rank_intermediate_size : (my_rank + 1) * 2
-                    * per_rank_intermediate_size,
+                    my_rank * 2 * per_rank_intermediate_size : (my_rank + 1) * 2 * per_rank_intermediate_size,
                     ...,
                 ]
             elif "mlp2_weight" in name:  # only weight
                 loaded_tensor = loaded_tensor[
                     ...,
-                    my_rank
-                    * per_rank_intermediate_size : (my_rank + 1)
-                    * per_rank_intermediate_size,
+                    my_rank * per_rank_intermediate_size : (my_rank + 1) * per_rank_intermediate_size,
                 ]
             try:
                 param.data.copy_(loaded_tensor)
@@ -448,12 +408,14 @@ class TokenGenerator:
         self.model = Transformer.from_checkpoint(checkpoint, device=self.device)
 
     @torch.inference_mode()
-    def generate(self,
-                 prompt_tokens: list[int],
-                 stop_tokens: list[int],
-                 temperature: float = 1.0,
-                 max_tokens: int = 0,
-                 return_logprobs: bool = False):
+    def generate(
+        self,
+        prompt_tokens: list[int],
+        stop_tokens: list[int],
+        temperature: float = 1.0,
+        max_tokens: int = 0,
+        return_logprobs: bool = False,
+    ):
         tokens = list(prompt_tokens)
         num_generated_tokens = 0
         while max_tokens == 0 or num_generated_tokens < max_tokens:

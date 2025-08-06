@@ -40,7 +40,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/run-nvidia)
   - [Deploying gpt-oss on TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog9_Deploying_GPT_OSS_on_TRTLLM.md)
 - AMD
-  - [Running the Latest Open Models from OpenAI on AMD AI Hardware](https://rocm.blogs.amd.com/ecosystems-and-partners/openai-day-0/README.html)  
+  - [Running the Latest Open Models from OpenAI on AMD AI Hardware](https://rocm.blogs.amd.com/ecosystems-and-partners/openai-day-0/README.html)
 
 ### Cloud
 
@@ -49,7 +49,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [gpt-oss-120b model on the GroqCloud Playground](https://console.groq.com/playground?model=openai/gpt-oss-120b)
   - [gpt-oss-20b model on the GroqCloud Playground](https://console.groq.com/playground?model=openai/gpt-oss-20b)
   - [gpt-oss with built-in web search on GroqCloud](https://console.groq.com/docs/browser-search)
-  - [gpt-oss with built-in code execution on GroqCloud](https://console.groq.com/docs/code-execution) 
+  - [gpt-oss with built-in code execution on GroqCloud](https://console.groq.com/docs/code-execution)
   - [Responses API on Groq](https://console.groq.com/docs/responses-api)
 - NVIDIA
   - [NVIDIA launch blog post](https://blogs.nvidia.com/blog/openai-gpt-oss/)
@@ -60,7 +60,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [gpt-oss-120b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b)
   - [gpt-oss-20b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b)
 - AMD
-  - [gpt-oss-120B on AMD MI300X](https://huggingface.co/spaces/amd/gpt-oss-120b-chatbot) 
+  - [gpt-oss-120B on AMD MI300X](https://huggingface.co/spaces/amd/gpt-oss-120b-chatbot)
 
 ## Examples & Tutorials
 

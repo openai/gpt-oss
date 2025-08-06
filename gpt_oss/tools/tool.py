@@ -10,9 +10,7 @@ from openai_harmony import (
 )
 
 
-def _maybe_update_inplace_and_validate_channel(
-    *, input_message: Message, tool_message: Message
-) -> None:
+def _maybe_update_inplace_and_validate_channel(*, input_message: Message, tool_message: Message) -> None:
     # If the channel of a new message produced by tool is different from the originating message,
     # we auto-set the new message's channel, if unset, or raise an error.
     if tool_message.channel != input_message.channel:
@@ -85,16 +83,13 @@ class Tool(ABC):
     def instruction_dict(self) -> dict[str, str]:
         return {self.name: self.instruction()}
 
-    def error_message(
-        self, error_message: str, id: UUID | None = None, channel: str | None = None
-    ) -> Message:
+    def error_message(self, error_message: str, id: UUID | None = None, channel: str | None = None) -> Message:
         """
         Return an error message that's from this tool.
         """
         return Message(
             id=id if id else uuid4(),
             author=Author(role=Role.TOOL, name=self.name),
-            content=TextContent(text=error_message), # TODO: Use SystemError instead
+            content=TextContent(text=error_message),  # TODO: Use SystemError instead
             channel=channel,
         ).with_recipient("assistant")
-

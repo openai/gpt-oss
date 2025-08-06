@@ -39,9 +39,7 @@ class ResponseOutputTextDelta(ResponseEvent):
 
 
 class ResponseReasoningSummaryTextDelta(ResponseEvent):
-    type: Literal["response.reasoning_summary_text.delta"] = (
-        "response.reasoning_summary_text.delta"
-    )
+    type: Literal["response.reasoning_summary_text.delta"] = "response.reasoning_summary_text.delta"
     item_id: str = "item_1234"
     output_index: int = 0
     content_index: int = 0
@@ -105,6 +103,7 @@ class ResponseContentPartDone(ResponseEvent):
     content_index: int = 0
     part: Union[TextContentItem, ReasoningTextContentItem]
 
+
 class ResponseOutputTextAnnotationAdded(ResponseEvent):
     type: Literal["response.output_text.annotation.added"] = "response.output_text.annotation.added"
     item_id: str = "item_1234"
@@ -113,15 +112,18 @@ class ResponseOutputTextAnnotationAdded(ResponseEvent):
     annotation_index: int = 0
     annotation: UrlCitation
 
+
 class ResponseWebSearchCallInProgress(ResponseEvent):
     type: Literal["response.web_search_call.in_progress"] = "response.web_search_call.in_progress"
     output_index: int = 0
     item_id: str = "item_1234"
 
+
 class ResponseWebSearchCallSearching(ResponseEvent):
     type: Literal["response.web_search_call.searching"] = "response.web_search_call.searching"
     output_index: int = 0
     item_id: str = "item_1234"
+
 
 class ResponseWebSearchCallCompleted(ResponseEvent):
     type: Literal["response.web_search_call.completed"] = "response.web_search_call.completed"

@@ -89,9 +89,7 @@ async def main():
             elif event.item.type == "tool_call_output_item":
                 print(f"-- Tool output: {event.item.output}")
             elif event.item.type == "message_output_item":
-                print(
-                    f"-- Message output:\n {ItemHelpers.text_message_output(event.item)}"
-                )
+                print(f"-- Message output:\n {ItemHelpers.text_message_output(event.item)}")
             else:
                 pass
 
@@ -99,9 +97,6 @@ async def main():
 
 
 if __name__ == "__main__":
-
     if not shutil.which("npx"):
-        raise RuntimeError(
-            "npx is not installed. Please install it with `npm install -g npx`."
-        )
+        raise RuntimeError("npx is not installed. Please install it with `npm install -g npx`.")
     asyncio.run(main())

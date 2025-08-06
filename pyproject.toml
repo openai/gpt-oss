@@ -1,48 +1,54 @@
 [project]
-name = "gpt-oss"
 description = "A collection of reference inference implementations for gpt-oss by OpenAI"
+name = "gpt-oss"
 
 dependencies = [
-  "openai-harmony",
   "tiktoken>=0.9.0",
   "aiohttp>=3.12.14",
   "chz>=0.3.0",
   "docker>=7.1.0",
   "fastapi>=0.116.1",
   "html2text>=2025.4.15",
-  "lxml>=4.9.4",
+  "lxml>=6.0.0",
   "pydantic>=2.11.7",
   "structlog>=25.4.0",
   "tenacity>=9.1.2",
   "uvicorn>=0.35.0",
   "requests>=2.31.0",
-  "termcolor",
+  "termcolor>=3.1.0",
+  "openai-harmony>=0.0.3",
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 version = "0.0.1"
 
 [project.optional-dependencies]
-triton = ["triton", "safetensors>=0.5.3", "torch>=2.7.0"]
-torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
+eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
-eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile"]
+torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
+triton = ["triton", "safetensors>=0.5.3", "torch>=2.7.0"]
 
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "gpt_oss_build_backend.backend"
 backend-path = ["_build"]
+build-backend = "gpt_oss_build_backend.backend"
+requires = ["setuptools>=68"]
 
 [tool.setuptools]
 packages = ["gpt_oss"]
 
 [tool.scikit-build]
-cmake.source-dir = "." # pick up the root CMakeLists.txt
 cmake.args = [
   "-DGPTOSS_BUILD_PYTHON=ON",
   "-DCMAKE_BUILD_TYPE=Release",
   "-DBUILD_SHARED_LIBS=OFF",
 ]
+cmake.source-dir = "." # pick up the root CMakeLists.txt
 [tool.scikit-build.wheel]
 packages = ["gpt_oss"] # copy the whole Python package tree
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.7",
+]
