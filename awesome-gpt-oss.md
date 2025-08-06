@@ -29,14 +29,18 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Collection of Hugging Face examples](https://github.com/huggingface/gpt-oss-recipes)
 - NVIDIA
   - [gpt-oss on RTX](https://blogs.nvidia.com/blog/rtx-ai-garage-openai-oss)
+- AMD
+  - [Running gpt-oss models on AMD Ryzen AI Processors and Radeon Graphics Cards](https://www.amd.com/en/blogs/2025/how-to-run-openai-gpt-oss-20b-120b-models-on-amd-ryzen-ai-radeon.html)
 
 ### Server
 
 - vLLM
   - [How to run gpt-oss with vLLM](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 - NVIDIA
-  - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/gpt-oss/run-nvidia)
+  - [Optimizing gpt-oss with NVIDIA TensorRT-LLM](https://cookbook.openai.com/articles/run-nvidia)
   - [Deploying gpt-oss on TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog9_Deploying_GPT_OSS_on_TRTLLM.md)
+- AMD
+  - [Running the Latest Open Models from OpenAI on AMD AI Hardware](https://rocm.blogs.amd.com/ecosystems-and-partners/openai-day-0/README.html)  
 
 ### Cloud
 
@@ -46,7 +50,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [gpt-oss-20b model on the GroqCloud Playground](https://console.groq.com/playground?model=openai/gpt-oss-20b)
   - [gpt-oss with built-in web search on GroqCloud](https://console.groq.com/docs/browser-search)
   - [gpt-oss with built-in code execution on GroqCloud](https://console.groq.com/docs/code-execution) 
-  - [Responses API on Groq](https://console.groq.com/docs/responses)
+  - [Responses API on Groq](https://console.groq.com/docs/responses-api)
 - NVIDIA
   - [NVIDIA launch blog post](https://blogs.nvidia.com/blog/openai-gpt-oss/)
   - [NVIDIA & gpt-oss developer launch blog post](https://developer.nvidia.com/blog/delivering-1-5-m-tps-inference-on-nvidia-gb200-nvl72-nvidia-accelerates-openai-gpt-oss-models-from-cloud-to-edge/)
@@ -55,6 +59,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Cloudflare & gpt-oss launch blog post](http://blog.cloudflare.com/openai-gpt-oss-on-workers-ai)
   - [gpt-oss-120b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-120b)
   - [gpt-oss-20b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b)
+- AMD
+  - [gpt-oss-120B on AMD MI300X](https://huggingface.co/spaces/amd/gpt-oss-120b-chatbot) 
 
 ## Examples & Tutorials
 

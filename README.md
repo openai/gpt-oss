@@ -18,16 +18,16 @@ We're releasing two flavors of these open models:
 - `gpt-oss-120b` — for production, general purpose, high reasoning use cases that fit into a single H100 GPU (117B parameters with 5.1B active parameters)
 - `gpt-oss-20b` — for lower latency, and local or specialized use cases (21B parameters with 3.6B active parameters)
 
-Both models were trained on our [harmony response format][harmony] and should only be used with the harmony format as it will not work correctly otherwise.
+Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
 
 ### Highlights
 
 - **Permissive Apache 2.0 license:** Build freely without copyleft restrictions or patent risk—ideal for experimentation, customization, and commercial deployment.
 - **Configurable reasoning effort:** Easily adjust the reasoning effort (low, medium, high) based on your specific use case and latency needs.
-- **Full chain-of-thought:** Gain complete access to the model's reasoning process, facilitating easier debugging and increased trust in outputs. It's not intended to be shown to end users.
+- **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, making `gpt-oss-120b` run on a single H100 GPU and the `gpt-oss-20b` model run within 16GB of memory.
+- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single H100 GPU and `gpt-oss-20b` to run within 16GB of memory..
 
 ### Inference examples
 
@@ -130,6 +130,7 @@ This repository provides a collection of reference implementations:
 
 ### Requirements
 
+- python 3.12
 - On macOS: Install the Xcode CLI tools --> `xcode-select --install`
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
@@ -151,7 +152,7 @@ If you want to modify the code or try the metal implementation set the project u
 
 ```shell
 git clone https://github.com/openai/gpt-oss.git
-pip install -e .[metal]
+GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
 ## Download the model
@@ -227,6 +228,7 @@ python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_fil
 ```
 
 Or downloaded the pre-converted weight:
+
 ```shell
 huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
 huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
@@ -402,7 +404,7 @@ To improve performance the tool caches requests so that the model can revisit a 
 
 ### Python
 
-The model was trained to use using a python tool to perform calculations and other actions as part of its chain-of-thought. During the training the model used a stateful tool which makes running tools between CoT loops easier. This reference implementation, however, uses a stateless mode. As a result the PythonTool defines its own tool description to override the definition in [`openai-harmony`][harmony].
+The model was trained to use a python tool to perform calculations and other actions as part of its chain-of-thought. During the training the model used a stateful tool which makes running tools between CoT loops easier. This reference implementation, however, uses a stateless mode. As a result the PythonTool defines its own tool description to override the definition in [`openai-harmony`][harmony].
 
 > [!WARNING]
 > This implementation runs in a permissive Docker container which could be problematic in cases like prompt injections. It's serving as an example and you should consider implementing your own container restrictions in production.
