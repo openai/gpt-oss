@@ -237,7 +237,7 @@ class JinaBackend(Backend):
             {
                 "url": url,
                 "respondTiming": "html" if is_view_source else "mutation-idle",
-                "retainLinks": "gpt_oss",
+                "retainLinks": "gpt-oss",
                 "retainImages": "none",
             },
         )
