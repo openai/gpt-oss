@@ -28,21 +28,26 @@ Notes
 - This file is discovered via `backend-path = ["_build"]` and
   `build-backend = "gpt_oss_build_backend.backend"` in pyproject.toml.
 """
+
 import os
+import logging
 from importlib import import_module
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, Union
 
+# Setup basic logging (can be customized or disabled by user via logging config)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-TRUE_VALUES = {"1", "true", "TRUE", "on", "ON", "yes", "YES"}
+TRUE_VALUES = {"1", "true", "on", "yes"}
 
 
 def _use_metal_backend() -> bool:
-    return str(os.environ.get("GPTOSS_BUILD_METAL", "")).strip() in TRUE_VALUES
+    val = os.environ.get("GPTOSS_BUILD_METAL", "")
+    return val.strip().lower() in TRUE_VALUES
 
 
 def _setuptools_backend():
     from setuptools import build_meta as _bm  # type: ignore
-
     return _bm
 
 
@@ -51,33 +56,38 @@ def _scikit_build_backend():
 
 
 def _backend():
-    return _scikit_build_backend() if _use_metal_backend() else _setuptools_backend()
+    if _use_metal_backend():
+        logger.info("[gpt-oss build] Using Metal backend (scikit-build-core)")
+        return _scikit_build_backend()
+    else:
+        logger.info("[gpt-oss build] Using default backend (setuptools)")
+        return _setuptools_backend()
 
 
 # Required PEP 517 hooks
 
 def build_wheel(
     wheel_directory: str,
-    config_settings: Mapping[str, Any] | None = None,
-    metadata_directory: str | None = None,
+    config_settings: Union[Mapping[str, Any], None] = None,
+    metadata_directory: Union[str, None] = None,
 ) -> str:
     return _backend().build_wheel(wheel_directory, config_settings, metadata_directory)
 
 
 def build_sdist(
-    sdist_directory: str, config_settings: Mapping[str, Any] | None = None
+    sdist_directory: str,
+    config_settings: Union[Mapping[str, Any], None] = None,
 ) -> str:
     return _backend().build_sdist(sdist_directory, config_settings)
 
 
 def prepare_metadata_for_build_wheel(
-    metadata_directory: str, config_settings: Mapping[str, Any] | None = None
+    metadata_directory: str,
+    config_settings: Union[Mapping[str, Any], None] = None,
 ) -> str:
-    # Fallback if backend doesn't implement it
     be = _backend()
     fn = getattr(be, "prepare_metadata_for_build_wheel", None)
     if fn is None:
-        # setuptools exposes it; scikit-build-core may not. Defer to building a wheel for metadata.
         return _setuptools_backend().prepare_metadata_for_build_wheel(
             metadata_directory, config_settings
         )
@@ -87,35 +97,32 @@ def prepare_metadata_for_build_wheel(
 # Optional hooks
 
 def build_editable(
-    editable_directory: str, config_settings: Mapping[str, Any] | None = None
+    editable_directory: str,
+    config_settings: Union[Mapping[str, Any], None] = None,
 ) -> str:
     be = _backend()
     fn = getattr(be, "build_editable", None)
     if fn is None:
-        # setuptools implements build_editable; if not available, raise the standard error
         raise RuntimeError("Editable installs not supported by the selected backend")
     return fn(editable_directory, config_settings)
 
 
 def get_requires_for_build_wheel(
-    config_settings: Mapping[str, Any] | None = None,
+    config_settings: Union[Mapping[str, Any], None] = None,
 ) -> Sequence[str]:
     if _use_metal_backend():
-        # Add dynamic build requirements only when building the Metal backend
         return [
             "scikit-build-core>=0.10",
             "pybind11>=2.12",
             "cmake>=3.26",
             "ninja",
         ]
-    # setuptools usually returns []
     return list(_setuptools_backend().get_requires_for_build_wheel(config_settings))
 
 
 def get_requires_for_build_sdist(
-    config_settings: Mapping[str, Any] | None = None,
+    config_settings: Union[Mapping[str, Any], None] = None,
 ) -> Sequence[str]:
-    # No special requirements for SDist
     be = _backend()
     fn = getattr(be, "get_requires_for_build_sdist", None)
     if fn is None:
@@ -124,7 +131,7 @@ def get_requires_for_build_sdist(
 
 
 def get_requires_for_build_editable(
-    config_settings: Mapping[str, Any] | None = None,
+    config_settings: Union[Mapping[str, Any], None] = None,
 ) -> Sequence[str]:
     if _use_metal_backend():
         return [
@@ -137,4 +144,4 @@ def get_requires_for_build_editable(
     fn = getattr(be, "get_requires_for_build_editable", None)
     if fn is None:
         return []
-    return list(fn(config_settings)) 
+    return list(fn(config_settings))
