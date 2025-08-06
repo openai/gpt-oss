@@ -10,7 +10,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Cloud](#cloud)
 - [Examples / Tutorials](#examples--tutorials)
 - [Tools](#tools)
-- [Training](#Training)
+- [Training](#training)
 
 ## Inference
 
