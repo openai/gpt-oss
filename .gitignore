@@ -11,3 +11,4 @@ node_modules/
 gpt-oss-20b/
 gpt_oss/metal/_metal*.so
 .DS_Store
+tests-data/
