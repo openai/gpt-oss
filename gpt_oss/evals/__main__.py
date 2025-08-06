@@ -223,7 +223,8 @@ def main():
     merge_metrics = []
     for eval_model_name, result_filename in mergekey2resultpath.items():
         try:
-            result = json.load(open(result_filename, "r+"))
+           with open(result_filename, "r") as f:
+                 result = json.load(f)
         except Exception as e:
             print(e, result_filename)
             continue
