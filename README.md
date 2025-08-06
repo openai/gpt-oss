@@ -237,7 +237,7 @@ huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-
 To test it you can run:
 
 ```shell
-python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/model.bin -p "why did the chicken cross the road?"
+python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/metal/model.bin -p "why did the chicken cross the road?"
 ```
 
 ## Harmony format & tools
