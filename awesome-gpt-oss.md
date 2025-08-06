@@ -65,11 +65,23 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 ## Examples & Tutorials
 
 - [OpenAI harmony response format](https://cookbook.openai.com/articles/openai-harmony)
+- gpt-oss-tutorial by Alexyskoutnev - Your fast track to GPT-OSS. Spin up the models, run inference, and build agentic workflows — all from clear, reproducible notebooks.
 
 ## Tools
 
 - [Example `python` tool for gpt-oss](./gpt_oss/tools/python_docker/)
 - [Example `browser` tool for gpt-oss](./gpt_oss/tools/simple_browser/)
+
+## Official Resources
+
+Welcome GPT OSS - Hugging Face Blog - Comprehensive introduction and getting started guide for the GPT-OSS model family.
+Using NVIDIA TensorRT-LLM to run gpt-oss-20b - Official OpenAI Cookbook guide for optimizing gpt-oss models using NVIDIA's TensorRT-LLM for high-performance inference.
+
+## Platform-Specific Implementations
+
+OpenAI's New Open Models on NVIDIA GeForce RTX - Official NVIDIA guide for running gpt-oss models locally on RTX AI PCs.
+unsloth/gpt-oss-20b-GGUF - GGUF format conversion for easier local deployment and reduced memory usage.
+
 
 ## Contributing
 
