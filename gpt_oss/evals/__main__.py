@@ -6,9 +6,9 @@ from . import report
 from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
 from .healthbench_eval import HealthBenchEval
-from .chat_completion_sampler import (
+from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
-    ChatCompletionSampler,
+    ChatCompletionsSampler,
 )
 from .responses_sampler import ResponsesSampler
 
@@ -25,6 +25,13 @@ def main():
         "--model",
         type=str,
         help="Select a model by name. Also accepts a comma-separated list of models.",
+    )
+    parser.add_argument(
+        "--sampler",
+        type=str,
+        choices=["responses", "chat_completions"],
+        default="responses",
+        help="Sampler backend to use for models.",
     )
     parser.add_argument(
         "--base-url",
@@ -59,43 +66,45 @@ def main():
 
     args = parser.parse_args()
 
+    sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
+
     models = {
-        "120b-low": ResponsesSampler(
+        "120b-low": sampler_cls(
             model="gpt-oss-120b",
             reasoning_model=True,
             reasoning_effort="low",
             temperature=args.temperature,
             base_url=args.base_url,
         ),
-        "120b": ResponsesSampler(
+        "120b": sampler_cls(
             model="gpt-oss-120b",
             reasoning_model=True,
             reasoning_effort="medium",
             temperature=args.temperature,
             base_url=args.base_url,
         ),
-        "120b-high": ResponsesSampler(
+        "120b-high": sampler_cls(
             model="gpt-oss-120b",
             reasoning_model=True,
             reasoning_effort="high",
             temperature=args.temperature,
             base_url=args.base_url,
         ),
-        "20b-low": ResponsesSampler(
+        "20b-low": sampler_cls(
             model="gpt-oss-20b",
             reasoning_model=True,
             reasoning_effort="low",
             temperature=args.temperature,
             base_url=args.base_url,
         ),
-        "20b": ResponsesSampler(
+        "20b": sampler_cls(
             model="gpt-oss-20b",
             reasoning_model=True,
             reasoning_effort="medium",
             temperature=args.temperature,
             base_url=args.base_url,
         ),
-        "20b-high": ResponsesSampler(
+        "20b-high": sampler_cls(
             model="gpt-oss-20b",
             reasoning_model=True,
             reasoning_effort="high",
@@ -120,10 +129,11 @@ def main():
 
     print(f"Running with args {args}")
 
-    grading_sampler = ChatCompletionSampler(
+    grading_sampler = ChatCompletionsSampler(
         model="gpt-4.1-2025-04-14",
         system_message=OPENAI_SYSTEM_MESSAGE_API,
         max_tokens=2048,
+        base_url="https://api.openai.com/v1",
     )
 
     def get_evals(eval_name, debug_mode):
