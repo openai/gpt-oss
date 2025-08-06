@@ -1,7 +1,7 @@
 <img alt="gpt-oss-120" src="./docs/gpt-oss.svg">
 <p align="center">
   <a href="https://gpt-oss.com"><strong>Try gpt-oss</strong></a> ·
-  <a href="https://cookbook.openai.com/topic/gpt-oss"><strong>Guides</strong></a> ·
+  <a href="https://cookbook.openai.com/topic/gpt-oss"><strong>Guides </strong></a> ·
   <a href="https://openai.com/index/gpt-oss-model-card"><strong>Model card</strong></a> ·
   <a href="https://openai.com/index/introducing-gpt-oss/"><strong>OpenAI blog</strong></a>
 </p>
