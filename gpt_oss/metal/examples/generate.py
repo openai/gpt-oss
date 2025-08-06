@@ -1,8 +1,5 @@
-#!/usr/bin/env python
-
 import argparse
 import sys
-
 from gpt_oss.metal import Context, Model
 
 
@@ -19,15 +16,22 @@ def main(args):
 
     context = Context(model, context_length=options.context_length)
     context.append(options.prompt)
-    print(context.tokens)
-    prompt_tokens = context.num_tokens
 
+    prompt_tokens = context.num_tokens
     tokenizer = model.tokenizer
+
+    print("\n🧠 Output:\n", end='', flush=True)
 
     while context.num_tokens - prompt_tokens < options.limit:
         token = context.sample()
         context.append(token)
-        print(str(tokenizer.decode(token), encoding="utf-8"), end='', flush=True)
+
+        decoded = tokenizer.decode(token)
+        
+        if isinstance(decoded, bytes):
+            print(decoded.decode("utf-8"), end='', flush=True)
+        else:
+            print(decoded, end='', flush=True)
 
 
 if __name__ == '__main__':
