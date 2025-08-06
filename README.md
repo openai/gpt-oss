@@ -152,7 +152,7 @@ If you want to modify the code or try the metal implementation set the project u
 
 ```shell
 git clone https://github.com/openai/gpt-oss.git
-pip install -e ".[metal]"
+GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
 ## Download the model
@@ -228,6 +228,7 @@ python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_fil
 ```
 
 Or downloaded the pre-converted weight:
+
 ```shell
 huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
 huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
