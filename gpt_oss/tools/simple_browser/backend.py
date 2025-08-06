@@ -2,15 +2,13 @@
 Simple backend for the simple browser tool.
 """
 
-import functools
 import logging
 import os
 from abc import abstractmethod
 from typing import Callable, ParamSpec, TypeVar
-from urllib.parse import quote
 
 import chz
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession
 from tenacity import (
     after_log,
     before_sleep_log,
@@ -21,10 +19,7 @@ from tenacity import (
 )
 
 from .page_contents import (
-    Extract,
-    FetchResult,
     PageContents,
-    get_domain,
     process_html,
 )
 
@@ -110,24 +105,21 @@ class ExaBackend(Backend):
         headers = {"x-api-key": self._get_api_key()}
         async with session.post(f"{self.BASE_URL}{endpoint}", json=payload, headers=headers) as resp:
             if resp.status != 200:
-                raise BackendError(
-                    f"Exa API error {resp.status}: {await resp.text()}"
-                )
+                raise BackendError(f"Exa API error {resp.status}: {await resp.text()}")
             return await resp.json()
 
-    async def search(
-        self, query: str, topn: int, session: ClientSession
-    ) -> PageContents:
+    async def search(self, query: str, topn: int, session: ClientSession) -> PageContents:
         data = await self._post(
             session,
             "/search",
-            {"query": query, "numResults": topn, "contents": {"text": True, "summary": True}},
+            {
+                "query": query,
+                "numResults": topn,
+                "contents": {"text": True, "summary": True},
+            },
         )
         # make a simple HTML page to work with browser format
-        titles_and_urls = [
-            (result["title"], result["url"], result["summary"])
-            for result in data["results"]
-        ]
+        titles_and_urls = [(result["title"], result["url"], result["summary"]) for result in data["results"]]
         html_page = f"""
 <html><body>
 <h1>Search Results</h1>
@@ -152,7 +144,7 @@ class ExaBackend(Backend):
         data = await self._post(
             session,
             "/contents",
-            {"urls": [url], "text": { "includeHtmlTags": True }},
+            {"urls": [url], "text": {"includeHtmlTags": True}},
         )
         results = data.get("results", [])
         if not results:

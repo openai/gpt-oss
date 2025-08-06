@@ -127,9 +127,7 @@ fake_tokens = [
 token_queue = fake_tokens.copy()
 
 
-def stub_infer_next_token(
-    tokens: list[int], temperature: float = 0.0, new_request: bool = False
-) -> int:
+def stub_infer_next_token(tokens: list[int], temperature: float = 0.0, new_request: bool = False) -> int:
     global token_queue
     next_tok = token_queue.pop(0)
     if len(token_queue) == 0:

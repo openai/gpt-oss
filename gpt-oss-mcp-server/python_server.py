@@ -22,12 +22,16 @@ When you send a message containing python code to python, it will be executed in
     annotations={
         # Harmony format don't wnat this schema to be part of it because it's simple text in text out
         "include_in_prompt": False,
-    })
+    },
+)
 async def python(code: str) -> str:
     tool = PythonTool()
     messages = []
     async for message in tool.process(
-            Message(author=Author(role=Role.TOOL, name="python"),
-                    content=[TextContent(text=code)])):
+        Message(
+            author=Author(role=Role.TOOL, name="python"),
+            content=[TextContent(text=code)],
+        )
+    ):
         messages.append(message)
     return "\n".join([message.content[0].text for message in messages])

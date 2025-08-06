@@ -39,9 +39,7 @@ class ChatCompletionSampler(SamplerBase):
 
     def __call__(self, message_list: MessageList) -> SamplerResponse:
         if self.system_message:
-            message_list = [
-                self._pack_message("system", self.system_message)
-            ] + message_list
+            message_list = [self._pack_message("system", self.system_message)] + message_list
         trial = 0
         while True:
             try:

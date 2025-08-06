@@ -38,9 +38,7 @@ class GPQAEval(Eval):
         debug: bool = False,
         n_threads: int = 1,
     ):
-        df = pandas.read_csv(
-            f"https://openaipublic.blob.core.windows.net/simple-evals/gpqa_{variant}.csv"
-        )
+        df = pandas.read_csv(f"https://openaipublic.blob.core.windows.net/simple-evals/gpqa_{variant}.csv")
         rng = random.Random(0)
 
         if debug:
@@ -69,13 +67,13 @@ class GPQAEval(Eval):
             correct_index = choices.index(row["Correct Answer"])
             correct_answer = "ABCD"[correct_index]
             choices_dict = dict(
-                A=choices[0], B=choices[1], C=choices[2], D=choices[3], Question=row["Question"]
+                A=choices[0],
+                B=choices[1],
+                C=choices[2],
+                D=choices[3],
+                Question=row["Question"],
             )
-            prompt_messages = [
-                sampler._pack_message(
-                    content=format_multichoice_question(choices_dict), role="user"
-                )
-            ]
+            prompt_messages = [sampler._pack_message(content=format_multichoice_question(choices_dict), role="user")]
             sampler_response = sampler(prompt_messages)
             response_text = sampler_response.response_text
             actual_queried_prompt_messages = sampler_response.actual_queried_message_list
@@ -90,7 +88,10 @@ class GPQAEval(Eval):
             )
             convo = actual_queried_prompt_messages + [dict(content=response_text, role="assistant")]
             return SingleEvalResult(
-                html=html, score=score, convo=convo, metrics={"chars": len(response_text)}
+                html=html,
+                score=score,
+                convo=convo,
+                metrics={"chars": len(response_text)},
             )
 
         results = report.map_with_progress(fn, self.examples, num_threads=self.n_threads)

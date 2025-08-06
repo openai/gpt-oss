@@ -34,7 +34,9 @@ from .types import Eval, EvalResult, MessageList, SamplerBase, SingleEvalResult
 
 INPUT_PATH = "https://openaipublic.blob.core.windows.net/simple-evals/healthbench/2025-05-07-06-14-12_oss_eval.jsonl"
 INPUT_PATH_HARD = "https://openaipublic.blob.core.windows.net/simple-evals/healthbench/hard_2025-05-08-21-00-10.jsonl"
-INPUT_PATH_CONSENSUS = "https://openaipublic.blob.core.windows.net/simple-evals/healthbench/consensus_2025-05-09-20-00-46.jsonl"
+INPUT_PATH_CONSENSUS = (
+    "https://openaipublic.blob.core.windows.net/simple-evals/healthbench/consensus_2025-05-09-20-00-46.jsonl"
+)
 
 GRADER_TEMPLATE = """
 Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
@@ -132,21 +134,15 @@ class RubricItem:
         )
 
 
-def calculate_score(
-    rubric_items: list[RubricItem], grading_response_list: list[dict]
-) -> float | None:
-    total_possible_points = sum(
-        rubric_item.points for rubric_item in rubric_items if rubric_item.points > 0
-    )
+def calculate_score(rubric_items: list[RubricItem], grading_response_list: list[dict]) -> float | None:
+    total_possible_points = sum(rubric_item.points for rubric_item in rubric_items if rubric_item.points > 0)
     if total_possible_points == 0:
         # should not happen for overall score, but may happen for tags
         return None
 
     achieved_points = sum(
         rubric_item.points
-        for rubric_item, grading_response in zip(
-            rubric_items, grading_response_list, strict=True
-        )
+        for rubric_item, grading_response in zip(rubric_items, grading_response_list, strict=True)
         if grading_response["criteria_met"]
     )
     overall_score = achieved_points / total_possible_points
@@ -202,9 +198,7 @@ def _compute_clipped_stats(
         return len(values)
     elif stat == "bootstrap_std":
         bootstrap_samples = [np.random.choice(values, len(values)) for _ in range(1000)]
-        bootstrap_means = [
-            _compute_clipped_stats(list(s), "mean") for s in bootstrap_samples
-        ]
+        bootstrap_means = [_compute_clipped_stats(list(s), "mean") for s in bootstrap_samples]
         return np.std(bootstrap_means)
     else:
         raise ValueError(f"Unknown {stat =}")
@@ -257,14 +251,12 @@ class HealthBenchEval(Eval):
         subset_name: Literal["hard", "consensus"] | None = None,
     ):
         if run_reference_completions:
-            assert physician_completions_mode is not None, (
-                "physician_completions_mode must be provided if run_reference_completions is True"
-            )
+            assert (
+                physician_completions_mode is not None
+            ), "physician_completions_mode must be provided if run_reference_completions is True"
             assert PHYSICIAN_COMPLETION_MODES[physician_completions_mode][
                 "has_reference"
-            ], (
-                "physician_completions_mode must have reference completions if run_reference_completions is True"
-            )
+            ], "physician_completions_mode must have reference completions if run_reference_completions is True"
 
         if subset_name == "hard":
             input_path = INPUT_PATH_HARD
@@ -284,16 +276,15 @@ class HealthBenchEval(Eval):
         # physician completions mode
         self.physician_completions_mode = physician_completions_mode
         if self.physician_completions_mode is not None:
-            assert self.physician_completions_mode in PHYSICIAN_COMPLETION_MODES, (
-                f"Invalid physician completions mode: {self.physician_completions_mode}; must be one of {PHYSICIAN_COMPLETION_MODES.keys()}"
-            )
+            assert (
+                self.physician_completions_mode in PHYSICIAN_COMPLETION_MODES
+            ), f"Invalid physician completions mode: {self.physician_completions_mode}; must be one of {PHYSICIAN_COMPLETION_MODES.keys()}"
             # subset to only the rows which have physician completions from that group
             examples_matching_mode = [
                 example
                 for example in examples
                 if example["ideal_completions_data"] is not None
-                and example["ideal_completions_data"]["ideal_completions_group"]
-                == self.physician_completions_mode
+                and example["ideal_completions_data"]["ideal_completions_group"] == self.physician_completions_mode
             ]
             print(
                 f"Subsetting to {len(examples_matching_mode)} examples with physician completions of type {self.physician_completions_mode} ({PHYSICIAN_COMPLETION_MODES[self.physician_completions_mode]['description']})"
@@ -302,28 +293,20 @@ class HealthBenchEval(Eval):
             examples = []
             if run_reference_completions:
                 for example in examples_matching_mode:
-                    for completion in example["ideal_completions_data"][
-                        "ideal_completions_ref_completions"
-                    ]:
+                    for completion in example["ideal_completions_data"]["ideal_completions_ref_completions"]:
                         new_example = copy.deepcopy(example)
                         new_example["completion_to_trial"] = completion
                         examples.append(new_example)
                 assert len(examples) == len(examples_matching_mode) * 4
-                print(
-                    f"Running four references for each example, for {len(examples)} total"
-                )
+                print(f"Running four references for each example, for {len(examples)} total")
             else:
                 for example in examples_matching_mode:
-                    example["completion_to_trial"] = example["ideal_completions_data"][
-                        "ideal_completion"
-                    ]
+                    example["completion_to_trial"] = example["ideal_completions_data"]["ideal_completion"]
                     examples.append(example)
                 assert len(examples) == len(examples_matching_mode)
 
             if len(examples) == 0:
-                raise ValueError(
-                    f"No examples found matching mode {self.physician_completions_mode}"
-                )
+                raise ValueError(f"No examples found matching mode {self.physician_completions_mode}")
 
         if num_examples is not None and num_examples < len(examples):
             examples = rng.sample(
@@ -346,12 +329,10 @@ class HealthBenchEval(Eval):
         convo_with_response = prompt + [dict(content=response_text, role="assistant")]
 
         def grade_rubric_item(rubric_item: RubricItem) -> dict:
-            convo_str = "\n\n".join(
-                [f"{m['role']}: {m['content']}" for m in convo_with_response]
+            convo_str = "\n\n".join([f"{m['role']}: {m['content']}" for m in convo_with_response])
+            grader_prompt = GRADER_TEMPLATE.replace("<<conversation>>", convo_str).replace(
+                "<<rubric_item>>", str(rubric_item)
             )
-            grader_prompt = GRADER_TEMPLATE.replace(
-                "<<conversation>>", convo_str
-            ).replace("<<rubric_item>>", str(rubric_item))
             messages: MessageList = [dict(content=grader_prompt, role="user")]
             while True:
                 sampler_response = self.grader_model(messages)
@@ -405,9 +386,7 @@ class HealthBenchEval(Eval):
         for rubric_item, grading_response in zip(rubric_items, grading_response_list):
             explanation = grading_response.get("explanation", "No explanation provided")
             criteria_met = grading_response["criteria_met"]
-            readable_explanation = (
-                f"[{criteria_met}] {rubric_item}\n\tExplanation: {explanation}"
-            )
+            readable_explanation = f"[{criteria_met}] {rubric_item}\n\tExplanation: {explanation}"
             readable_explanation_list.append(readable_explanation)
             rubric_items_with_grades.append(
                 {
@@ -417,9 +396,7 @@ class HealthBenchEval(Eval):
                 }
             )
 
-        readable_explanation_list.sort(
-            key=lambda x: x.startswith("[False]"), reverse=True
-        )
+        readable_explanation_list.sort(key=lambda x: x.startswith("[False]"), reverse=True)
         readable_explanation_str = "\n\n".join(readable_explanation_list)
         readable_explanation_str = f"\n\n{readable_explanation_str}"
 
@@ -437,18 +414,14 @@ class HealthBenchEval(Eval):
                 sampler_response = sampler(prompt_messages)
                 response_text = sampler_response.response_text
                 response_dict = sampler_response.response_metadata
-                actual_queried_prompt_messages = (
-                    sampler_response.actual_queried_message_list
-                )
+                actual_queried_prompt_messages = sampler_response.actual_queried_message_list
                 response_usage = response_dict.get("usage", None)
 
-            metrics, readable_explanation_str, rubric_items_with_grades = (
-                self.grade_sample(
-                    prompt=actual_queried_prompt_messages,
-                    response_text=response_text,
-                    rubric_items=row["rubrics"],
-                    example_tags=row["example_tags"],
-                )
+            metrics, readable_explanation_str, rubric_items_with_grades = self.grade_sample(
+                prompt=actual_queried_prompt_messages,
+                response_text=response_text,
+                rubric_items=row["rubrics"],
+                example_tags=row["example_tags"],
             )
 
             score = metrics["overall_score"]
@@ -466,9 +439,7 @@ class HealthBenchEval(Eval):
                 extracted_answer=response_text,
             )
 
-            convo = actual_queried_prompt_messages + [
-                dict(content=response_text, role="assistant")
-            ]
+            convo = actual_queried_prompt_messages + [dict(content=response_text, role="assistant")]
             return SingleEvalResult(
                 html=html,
                 score=score,
@@ -481,9 +452,7 @@ class HealthBenchEval(Eval):
                     "prompt": actual_queried_prompt_messages,
                     "completion": [dict(content=response_text, role="assistant")],
                     "prompt_id": row["prompt_id"],
-                    "completion_id": hashlib.sha256(
-                        (row["prompt_id"] + response_text).encode("utf-8")
-                    ).hexdigest(),
+                    "completion_id": hashlib.sha256((row["prompt_id"] + response_text).encode("utf-8")).hexdigest(),
                 },
             )
 
@@ -549,10 +518,7 @@ def physician_completions_main(
 
     merge_metrics = []
     for pc_mode in PHYSICIAN_COMPLETION_MODES.keys():
-        if (
-            run_reference_completions
-            and not PHYSICIAN_COMPLETION_MODES[pc_mode]["has_reference"]
-        ):
+        if run_reference_completions and not PHYSICIAN_COMPLETION_MODES[pc_mode]["has_reference"]:
             continue
 
         # run

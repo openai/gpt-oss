@@ -36,9 +36,7 @@ def _compute_stat(values: list, stat: str):
     elif stat == "n_samples":
         return len(values)
     elif stat == "bootstrap_std":
-        return np.std(
-            [np.mean(np.random.choice(values, len(values))) for _ in range(1000)]
-        )
+        return np.std([np.mean(np.random.choice(values, len(values))) for _ in range(1000)])
     else:
         raise ValueError(f"Unknown {stat =}")
 

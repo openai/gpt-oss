@@ -20,9 +20,7 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float], int]:
 
     tokens_so_far = []
 
-    def infer_next_token(
-        tokens: list[int], temperature: float = 0.0, new_request: bool = False
-    ) -> int:
+    def infer_next_token(tokens: list[int], temperature: float = 0.0, new_request: bool = False) -> int:
         """Infer next token using incremental LCP caching when possible."""
         nonlocal tokens_so_far
 
@@ -41,9 +39,7 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float], int]:
         prev_len = len(tokens_so_far)
         cur_len = len(tokens)
 
-        diverged_midstream = (ol < prev_len) and (
-            ol < cur_len
-        )  # mismatch not at the end
+        diverged_midstream = (ol < prev_len) and (ol < cur_len)  # mismatch not at the end
 
         if diverged_midstream:
             # safest: rebuild

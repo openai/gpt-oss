@@ -1,6 +1,6 @@
 """
 NOTE: this is a stiched together implementation that uses Ollama for inference. It's primarily used
-for testing and development. It does not leverage any prompt caching or other optimizations and 
+for testing and development. It does not leverage any prompt caching or other optimizations and
 can therefore be slow between turns.
 """
 
@@ -15,10 +15,10 @@ from openai_harmony import load_harmony_encoding, HarmonyEncodingName
 EOS_TOKEN = 200002  # only used on hard timeout
 
 # Tunables
-POLL_INTERVAL_S = 0.01           # 10ms between buffer checks
-CALL_MAX_WAIT_S = 0.250          # max time to block inside a single infer call
-NO_TOKEN_TIMEOUT_S = 15.0        # overall inactivity timeout before emitting EOS
-FIRST_BYTE_TIMEOUT_S = 30.0      # time to wait for first token before EOS
+POLL_INTERVAL_S = 0.01  # 10ms between buffer checks
+CALL_MAX_WAIT_S = 0.250  # max time to block inside a single infer call
+NO_TOKEN_TIMEOUT_S = 15.0  # overall inactivity timeout before emitting EOS
+FIRST_BYTE_TIMEOUT_S = 30.0  # time to wait for first token before EOS
 
 # Shared state
 _token_buffer: list[int] = []
@@ -26,8 +26,9 @@ _buffer_lock = threading.Lock()
 _stream_thread: Optional[threading.Thread] = None
 _stream_done = threading.Event()
 _stream_error: Optional[Exception] = None
-_last_progress_ts: float = 0.0    # updated whenever we enqueue or dequeue tokens
+_last_progress_ts: float = 0.0  # updated whenever we enqueue or dequeue tokens
 _previous_request_tokens: list[int] = []
+
 
 def lcp(cache: list[int], inp: list[int]) -> list[int]:
     i = 0
@@ -36,12 +37,15 @@ def lcp(cache: list[int], inp: list[int]) -> list[int]:
         i += 1
     return cache[:i]
 
+
 def _now():
     return time.monotonic()
+
 
 def _touch_progress():
     global _last_progress_ts
     _last_progress_ts = _now()
+
 
 def _reset_stream_state():
     global _token_buffer, _stream_thread, _stream_error
@@ -52,12 +56,14 @@ def _reset_stream_state():
     _stream_error = None
     _touch_progress()
 
+
 def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
     model_name = checkpoint
 
     def _start_stream(token_ids: list[int], temperature: float):
         prompt_text = encoding.decode(token_ids)
+
         def run():
             nonlocal prompt_text, temperature
             global _stream_error
@@ -121,9 +127,7 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
         t.start()
         return t
 
-    def infer_next_token(
-        tokens: list[int], temperature: float = 0.0, new_request: bool = False
-    ) -> int:
+    def infer_next_token(tokens: list[int], temperature: float = 0.0, new_request: bool = False) -> int:
         """
         - Starts a new Ollama stream on new_request.
         - Forwards tokens as they arrive.

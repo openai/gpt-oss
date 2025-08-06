@@ -35,7 +35,7 @@ static void u32_fill_random(benchmark::State& state) {
         const double elapsed_seconds = command_buffer.wait_completion();
         state.SetIterationTime(elapsed_seconds);
     }
-    
+
     const int64_t elements_per_iteration = numel;
     state.counters["elements"] =
         benchmark::Counter(state.iterations() * elements_per_iteration,

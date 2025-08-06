@@ -45,7 +45,7 @@ typedef struct gptoss_tokenizer* gptoss_tokenizer_t;
  * - Input tokens
  * - Distribution over the output tokens
  * - KV cache
- * 
+ *
  * Multiple contexts can be created and used with the same model.
  */
 typedef struct gptoss_context* gptoss_context_t;

@@ -23,7 +23,7 @@ class ResponsesSampler(SamplerBase):
         base_url: str = "http://localhost:8000/v1",
     ):
         self.api_key_name = "OPENAI_API_KEY"
-        self.client = OpenAI(base_url=base_url, timeout=24*60*60)
+        self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
         self.model = model
         self.developer_message = developer_message
         self.temperature = temperature
@@ -37,18 +37,12 @@ class ResponsesSampler(SamplerBase):
 
     def __call__(self, message_list: MessageList) -> SamplerResponse:
         if self.developer_message:
-            message_list = [
-                self._pack_message("developer", self.developer_message)
-            ] + message_list
+            message_list = [self._pack_message("developer", self.developer_message)] + message_list
         trial = 0
         while True:
             try:
                 if self.reasoning_model:
-                    reasoning = (
-                        {"effort": self.reasoning_effort}
-                        if self.reasoning_effort
-                        else None
-                    )
+                    reasoning = {"effort": self.reasoning_effort} if self.reasoning_effort else None
                     response = self.client.responses.create(
                         model=self.model,
                         input=message_list,

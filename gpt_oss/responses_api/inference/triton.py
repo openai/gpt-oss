@@ -1,20 +1,16 @@
-import datetime
 import os
 from typing import Callable
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import torch
-import torch.distributed as dist
 
-from gpt_oss.triton.model import Cache, ModelConfig, Transformer
+from gpt_oss.triton.model import Cache, Transformer
 
 DEFAULT_TEMPERATURE = 0.0
 CONTEXT = 16_384
 CONCURRENT_SESSIONS = 1
 
-rank = int(
-    os.environ.get("RANK", 0)
-)  # set this env var to another value to run on other GPUs
+rank = int(os.environ.get("RANK", 0))  # set this env var to another value to run on other GPUs
 
 
 def load_model(checkpoint: str):
@@ -32,14 +28,9 @@ def load_model(checkpoint: str):
 
 
 def get_infer_next_token(model, device):
-    caches = [
-        Cache(CONCURRENT_SESSIONS, CONTEXT, model.config.num_key_value_heads)
-        for _ in range(len(model.block))
-    ]
+    caches = [Cache(CONCURRENT_SESSIONS, CONTEXT, model.config.num_key_value_heads) for _ in range(len(model.block))]
     # offsets = torch.zeros(CONCURRENT_SESSIONS, dtype=torch.int32, device=device) # TBD
-    input_token = torch.zeros(
-        1, dtype=torch.int32, device=device
-    )  # add concurrent sessions support
+    input_token = torch.zeros(1, dtype=torch.int32, device=device)  # add concurrent sessions support
     tokens_so_far = []
 
     model.prefill(torch.zeros(1, 4, dtype=torch.int32, device=device), caches)
@@ -54,9 +45,7 @@ def get_infer_next_token(model, device):
             i += 1
         return cache[:i]
 
-    def sample_next_token(
-        logits: torch.Tensor, temperature: float = DEFAULT_TEMPERATURE
-    ) -> int:
+    def sample_next_token(logits: torch.Tensor, temperature: float = DEFAULT_TEMPERATURE) -> int:
         """Executed only on rank 0."""
         if temperature == 0.0:
             return torch.argmax(logits[-1, :], dim=-1).item()
@@ -73,7 +62,6 @@ def get_infer_next_token(model, device):
         tokens_so_far = lcp(tokens_so_far, tokens)
         for cache in caches:
             cache.truncate(len(tokens_so_far))
-        all_tokens = tokens  # for pdb
         tokens = tokens[len(tokens_so_far) :]
 
         if len(tokens) > 1:

@@ -29,9 +29,7 @@ if "model" not in st.session_state:
         st.session_state.model = "small"
 
 options = ["large", "small"]
-selection = st.sidebar.segmented_control(
-    "Model", options, selection_mode="single", default=st.session_state.model
-)
+selection = st.sidebar.segmented_control("Model", options, selection_mode="single", default=st.session_state.model)
 # st.session_state.model = selection
 st.query_params.update({"model": selection})
 
@@ -50,30 +48,22 @@ use_functions = st.sidebar.toggle("Use functions", value=False)
 
 if "show_browser" in st.query_params:
     st.sidebar.subheader("Built-in Tools")
-# Built-in Tools section
+    # Built-in Tools section
     use_browser_search = st.sidebar.toggle("Use browser search", value=False)
 else:
     use_browser_search = False
 
 if use_functions:
     function_name = st.sidebar.text_input("Function name", value="get_weather")
-    function_description = st.sidebar.text_area(
-        "Function description", value="Get the weather for a given city"
-    )
-    function_parameters = st.sidebar.text_area(
-        "Function parameters", value=DEFAULT_FUNCTION_PROPERTIES
-    )
+    function_description = st.sidebar.text_area("Function description", value="Get the weather for a given city")
+    function_parameters = st.sidebar.text_area("Function parameters", value=DEFAULT_FUNCTION_PROPERTIES)
 else:
     function_name = None
     function_description = None
     function_parameters = None
 st.sidebar.divider()
-temperature = st.sidebar.slider(
-    "Temperature", min_value=0.0, max_value=1.0, value=1.0, step=0.01
-)
-max_output_tokens = st.sidebar.slider(
-    "Max output tokens", min_value=1000, max_value=20000, value=1024, step=100
-)
+temperature = st.sidebar.slider("Temperature", min_value=0.0, max_value=1.0, value=1.0, step=0.01)
+max_output_tokens = st.sidebar.slider("Max output tokens", min_value=1000, max_value=20000, value=1024, step=100)
 st.sidebar.divider()
 debug_mode = st.sidebar.toggle("Debug mode", value=False)
 
@@ -83,11 +73,8 @@ if debug_mode:
 
 render_input = True
 
-URL = (
-    "http://localhost:8081/v1/responses"
-    if selection == options[1]
-    else "http://localhost:8000/v1/responses"
-)
+URL = "http://localhost:8081/v1/responses" if selection == options[1] else "http://localhost:8000/v1/responses"
+
 
 def trigger_fake_tool(container):
     function_output = st.session_state.get("function_output", "It's sunny!")
@@ -134,7 +121,6 @@ def run(container):
 
     text_delta = ""
 
-    current_output_index = 0
     for line in response.iter_lines(decode_unicode=True):
         if not line or not line.startswith("data:"):
             continue
@@ -147,9 +133,7 @@ def run(container):
             continue
 
         event_type = data.get("type", "")
-        output_index = data.get("output_index", 0)
         if event_type == "response.output_item.added":
-            current_output_index = output_index
             output_type = data.get("item", {}).get("type", "message")
             if output_type == "message":
                 output = container.chat_message("assistant")
@@ -159,7 +143,10 @@ def run(container):
                 placeholder = output.empty()
             elif output_type == "web_search_call":
                 output = container.chat_message("web_search_call", avatar="🌐")
-                output.code(json.dumps(data.get("item", {}).get("action", {}), indent=4), language="json")
+                output.code(
+                    json.dumps(data.get("item", {}).get("action", {}), indent=4),
+                    language="json",
+                )
                 placeholder = output.empty()
             text_delta = ""
         elif event_type == "response.reasoning_text.delta":
@@ -173,7 +160,7 @@ def run(container):
             item = data.get("item", {})
             if item.get("type") == "function_call":
                 with container.chat_message("function_call", avatar="🔨"):
-                    st.markdown(f"Called `{item.get("name")}`")
+                    st.markdown(f"Called `{item.get('name')}`")
                     st.caption("Arguments")
                     st.code(item.get("arguments", ""), language="json")
             if item.get("type") == "web_search_call":
@@ -187,15 +174,9 @@ def run(container):
             st.session_state.messages.extend(response.get("output", []))
             if st.session_state.messages[-1].get("type") == "function_call":
                 with container.form("function_output_form"):
-                    function_output = st.text_input(
+                    st.text_input(
                         "Enter function output",
                         value=st.session_state.get("function_output", "It's sunny!"),
-                        key="function_output",
-                    )
-                    st.form_submit_button(
-                        "Submit function output",
-                        on_click=trigger_fake_tool,
-                        args=[container],
                     )
             # Optionally handle other event types...
 
@@ -205,11 +186,7 @@ for msg in st.session_state.messages:
     if msg.get("type") == "message":
         with st.chat_message(msg["role"]):
             for item in msg["content"]:
-                if (
-                    item.get("type") == "text"
-                    or item.get("type") == "output_text"
-                    or item.get("type") == "input_text"
-                ):
+                if item.get("type") == "text" or item.get("type") == "output_text" or item.get("type") == "input_text":
                     st.markdown(item["text"])
                     if item.get("annotations"):
                         annotation_lines = "\n".join(
@@ -223,7 +200,7 @@ for msg in st.session_state.messages:
                     st.markdown(item["text"])
     elif msg.get("type") == "function_call":
         with st.chat_message("function_call", avatar="🔨"):
-            st.markdown(f"Called `{msg.get("name")}`")
+            st.markdown(f"Called `{msg.get('name')}`")
             st.caption("Arguments")
             st.code(msg.get("arguments", ""), language="json")
     elif msg.get("type") == "function_call_output":

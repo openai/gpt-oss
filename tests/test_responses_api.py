@@ -11,16 +11,12 @@ from gpt_oss.responses_api.api_server import create_api_server
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-fake_tokens = encoding.encode(
-    "<|channel|>final<|message|>Hey there<|return|>", allowed_special="all"
-)
+fake_tokens = encoding.encode("<|channel|>final<|message|>Hey there<|return|>", allowed_special="all")
 
 token_queue = fake_tokens.copy()
 
 
-def stub_infer_next_token(
-    tokens: list[int], temperature: float = 0.0, new_request: bool = False
-) -> int:
+def stub_infer_next_token(tokens: list[int], temperature: float = 0.0, new_request: bool = False) -> int:
     global token_queue
     next_tok = token_queue.pop(0)
     if len(token_queue) == 0:
@@ -31,9 +27,7 @@ def stub_infer_next_token(
 
 @pytest.fixture
 def test_client():
-    return TestClient(
-        create_api_server(infer_next_token=stub_infer_next_token, encoding=encoding)
-    )
+    return TestClient(create_api_server(infer_next_token=stub_infer_next_token, encoding=encoding))
 
 
 def test_health_check(test_client):

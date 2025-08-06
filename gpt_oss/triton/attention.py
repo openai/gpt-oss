@@ -111,7 +111,10 @@ def _attn_fwd(
     q = tl.load(Q_block_ptr)
 
     if BANDWIDTH:
-        lo, hi = tl.maximum(start_q, start_q + start_m * BLOCK_M - BANDWIDTH), (start_q + start_m + 1) * BLOCK_M
+        lo, hi = (
+            tl.maximum(start_q, start_q + start_m * BLOCK_M - BANDWIDTH),
+            (start_q + start_m + 1) * BLOCK_M,
+        )
     else:
         lo, hi = start_q, (start_q + start_m + 1) * BLOCK_M
 
@@ -285,7 +288,17 @@ def attention_ref(
 @pytest.mark.parametrize("sm_scale", [0.125])
 @pytest.mark.parametrize("sliding_window", [None, 128])
 @pytest.mark.parametrize("start_q", [0, 5])
-def test_eq(batch_size, num_queries, num_keys, num_key_value_heads, num_key_value_groups, head_dim, sm_scale, sliding_window, start_q):
+def test_eq(
+    batch_size,
+    num_queries,
+    num_keys,
+    num_key_value_heads,
+    num_key_value_groups,
+    head_dim,
+    sm_scale,
+    sliding_window,
+    start_q,
+):
     if num_queries > num_keys:
         pytest.skip("too many queries")
 

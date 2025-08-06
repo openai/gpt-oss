@@ -18,9 +18,7 @@ def main():
         description="Evaluate the models.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--list-models", action="store_true", help="List available models"
-    )
+    parser.add_argument("--list-models", action="store_true", help="List available models")
     parser.add_argument(
         "--model",
         type=str,
@@ -50,12 +48,8 @@ def main():
         default=1584,
         help="Number of threads to run.",
     )
-    parser.add_argument(
-        "--debug", action="store_true", help="Run in debug mode"
-    )
-    parser.add_argument(
-        "--examples", type=int, help="Number of examples to use (overrides default)"
-    )
+    parser.add_argument("--debug", action="store_true", help="Run in debug mode")
+    parser.add_argument("--examples", type=int, help="Number of examples to use (overrides default)")
 
     args = parser.parse_args()
 
@@ -127,9 +121,7 @@ def main():
     )
 
     def get_evals(eval_name, debug_mode):
-        num_examples = (
-            args.examples if args.examples is not None else (5 if debug_mode else None)
-        )
+        num_examples = args.examples if args.examples is not None else (5 if debug_mode else None)
         # Set num_examples = None to reproduce full evals
         match eval_name:
             case "gpqa":
@@ -230,9 +222,7 @@ def main():
         result = result.get("f1_score", result.get("score", None))
         eval_name = eval_model_name[: eval_model_name.find("_")]
         model_name = eval_model_name[eval_model_name.find("_") + 1 :]
-        merge_metrics.append(
-            {"eval_name": eval_name, "model_name": model_name, "metric": result}
-        )
+        merge_metrics.append({"eval_name": eval_name, "model_name": model_name, "metric": result})
     print(merge_metrics)
     return merge_metrics
 

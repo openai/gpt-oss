@@ -38,35 +38,20 @@ class RotaryEmbedding(torch.nn.Module):
 
     def _compute_concentration_and_inv_freq(self) -> torch.Tensor:
         """See YaRN paper: https://arxiv.org/abs/2309.00071"""
-        freq = self.base ** (
-            torch.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device)
-            / self.head_dim
-        )
+        freq = self.base ** (torch.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device) / self.head_dim)
         if self.scaling_factor > 1.0:
-            concentration = (
-                0.1 * math.log(self.scaling_factor) + 1.0
-            )  # YaRN concentration
+            concentration = 0.1 * math.log(self.scaling_factor) + 1.0  # YaRN concentration
 
             d_half = self.head_dim / 2
             # NTK by parts
-            low = (
-                d_half
-                * math.log(self.initial_context_length / (self.ntk_beta * 2 * math.pi))
-                / math.log(self.base)
-            )
-            high = (
-                d_half
-                * math.log(self.initial_context_length / (self.ntk_alpha * 2 * math.pi))
-                / math.log(self.base)
-            )
+            low = d_half * math.log(self.initial_context_length / (self.ntk_beta * 2 * math.pi)) / math.log(self.base)
+            high = d_half * math.log(self.initial_context_length / (self.ntk_alpha * 2 * math.pi)) / math.log(self.base)
             assert 0 < low < high < d_half - 1
 
             interpolation = 1.0 / (self.scaling_factor * freq)
             extrapolation = 1.0 / freq
 
-            ramp = (
-                torch.arange(d_half, dtype=torch.float32, device=freq.device) - low
-            ) / (high - low)
+            ramp = (torch.arange(d_half, dtype=torch.float32, device=freq.device) - low) / (high - low)
             mask = 1 - ramp.clamp(0, 1)
 
             inv_freq = interpolation * (1 - mask) + extrapolation * mask
@@ -119,7 +104,14 @@ class RotaryEmbedding(torch.nn.Module):
 
 
 class Cache:
-    def __init__(self, batch_size, n_ctx, n_kv_heads, d_head=64, device: torch.device | None = None):
+    def __init__(
+        self,
+        batch_size,
+        n_ctx,
+        n_kv_heads,
+        d_head=64,
+        device: torch.device | None = None,
+    ):
         self.k = torch.zeros((batch_size, n_ctx, n_kv_heads, d_head), dtype=torch.bfloat16, device=device)
         self.v = torch.zeros((batch_size, n_ctx, n_kv_heads, d_head), dtype=torch.bfloat16, device=device)
         self.offset = torch.zeros((1,), dtype=torch.long, device=device)
@@ -168,16 +160,10 @@ class AttentionBlock(torch.nn.Module):
         # Only apply sliding window to every other layer
         self.sliding_window = config.sliding_window if layer_idx % 2 == 0 else 0
         self.layer_idx = layer_idx
-        self.sinks = torch.nn.Parameter(
-            torch.empty(config.num_attention_heads, device=device, dtype=torch.bfloat16)
-        )
+        self.sinks = torch.nn.Parameter(torch.empty(config.num_attention_heads, device=device, dtype=torch.bfloat16))
         self.norm = RMSNorm(config.hidden_size, device=device)
-        qkv_dim = config.head_dim * (
-            config.num_attention_heads + 2 * config.num_key_value_heads
-        )
-        self.qkv = torch.nn.Linear(
-            config.hidden_size, qkv_dim, device=device, dtype=torch.bfloat16
-        )
+        qkv_dim = config.head_dim * (config.num_attention_heads + 2 * config.num_key_value_heads)
+        self.qkv = torch.nn.Linear(config.hidden_size, qkv_dim, device=device, dtype=torch.bfloat16)
         self.out = torch.nn.Linear(
             config.head_dim * config.num_attention_heads,
             config.hidden_size,
@@ -206,7 +192,7 @@ class AttentionBlock(torch.nn.Module):
             qkv_parts = (
                 self.num_attention_heads * self.head_dim,
                 self.num_key_value_heads * self.head_dim,
-                self.num_key_value_heads * self.head_dim
+                self.num_key_value_heads * self.head_dim,
             )
             q, k, v = torch.split(qkv, qkv_parts, dim=-1)
             q, k, v = q.contiguous(), k.contiguous(), v.contiguous()
@@ -283,22 +269,24 @@ class MLPBlock(torch.nn.Module):
         self.experts_per_token = config.experts_per_token
         self.swiglu_limit = config.swiglu_limit
         self.norm = RMSNorm(config.hidden_size, device=device)
-        self.gate = torch.nn.ParameterDict({
-            "weight": torch.nn.Parameter(
-                torch.empty(
-                    (config.hidden_size, config.num_experts),
-                    device=device,
-                    dtype=torch.bfloat16,
-                )
-            ),
-            "bias": torch.nn.Parameter(
-                torch.empty(
-                    (config.num_experts,),
-                    device=device,
-                    dtype=torch.bfloat16,
-                )
-            ),
-        })
+        self.gate = torch.nn.ParameterDict(
+            {
+                "weight": torch.nn.Parameter(
+                    torch.empty(
+                        (config.hidden_size, config.num_experts),
+                        device=device,
+                        dtype=torch.bfloat16,
+                    )
+                ),
+                "bias": torch.nn.Parameter(
+                    torch.empty(
+                        (config.num_experts,),
+                        device=device,
+                        dtype=torch.bfloat16,
+                    )
+                ),
+            }
+        )
         self.mlp1_weight_tensor, self.mlp1_weight_mx = quantize_mx4(
             torch.empty(
                 (
@@ -347,8 +335,10 @@ class MLPBlock(torch.nn.Module):
         t = moe(
             t,
             self.gate["weight"],
-            self.mlp1_weight_tensor, self.mlp1_weight_mx,
-            self.mlp2_weight_tensor, self.mlp2_weight_mx,
+            self.mlp1_weight_tensor,
+            self.mlp1_weight_mx,
+            self.mlp2_weight_tensor,
+            self.mlp2_weight_mx,
             self.gate["bias"].float(),
             self.mlp1_bias.float(),
             self.mlp2_bias.float(),
@@ -387,14 +377,9 @@ class Transformer(torch.nn.Module):
     ):
         super().__init__()
         self.config = config
-        self.embedding = torch.nn.Embedding(
-            config.vocab_size, config.hidden_size, device=device, dtype=torch.bfloat16
-        )
+        self.embedding = torch.nn.Embedding(config.vocab_size, config.hidden_size, device=device, dtype=torch.bfloat16)
         self.block = torch.nn.ModuleList(
-            [
-                TransformerBlock(config, layer_idx, device)
-                for layer_idx in range(config.num_hidden_layers)
-            ]
+            [TransformerBlock(config, layer_idx, device) for layer_idx in range(config.num_hidden_layers)]
         )
         self.norm = RMSNorm(config.hidden_size, device=device)
         self.unembedding = torch.nn.Linear(
@@ -406,7 +391,7 @@ class Transformer(torch.nn.Module):
         )
 
     def forward(self, x: torch.Tensor, caches: list[Cache] | None = None) -> torch.Tensor:
-        caches=caches or [None] * len(self.block)
+        caches = caches or [None] * len(self.block)
         with record_function("embedding"):
             x = self.embedding(x)
         for block, cache in zip(self.block, caches):
@@ -420,7 +405,9 @@ class Transformer(torch.nn.Module):
 
     @staticmethod
     def from_checkpoint(
-        path: str, config: ModelConfig | None = None, device: str | torch.device = "cuda",
+        path: str,
+        config: ModelConfig | None = None,
+        device: str | torch.device = "cuda",
     ) -> "Transformer":
         if not isinstance(device, torch.device):
             device = torch.device(device)
@@ -472,7 +459,10 @@ class TokenGenerator:
     def __init__(self, checkpoint: str, context: int, device: torch.device):
         self.device = device
         self.model = Transformer.from_checkpoint(checkpoint, device=self.device)
-        self.caches = [Cache(1, context, self.model.config.num_key_value_heads, device=self.device) for _ in range(len(self.model.block))]
+        self.caches = [
+            Cache(1, context, self.model.config.num_key_value_heads, device=self.device)
+            for _ in range(len(self.model.block))
+        ]
         self.input_token = torch.zeros(1, dtype=torch.int32, device=self.device)
         # warmup
         self.model(self.input_token[None, :], caches=self.caches)
@@ -482,12 +472,14 @@ class TokenGenerator:
             self.logits = self.model(self.input_token[None, :], caches=self.caches)[0]
 
     @torch.inference_mode()
-    def generate(self,
-                 prompt_tokens: list[int],
-                 stop_tokens: list[int] | None = None,
-                 temperature: float = 1.0,
-                 max_tokens: int = 0,
-                 return_logprobs: bool = False):
+    def generate(
+        self,
+        prompt_tokens: list[int],
+        stop_tokens: list[int] | None = None,
+        temperature: float = 1.0,
+        max_tokens: int = 0,
+        return_logprobs: bool = False,
+    ):
         stop_tokens = stop_tokens or []
         for cache in self.caches:
             cache.reset()

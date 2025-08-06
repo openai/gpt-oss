@@ -63,15 +63,18 @@ def main(args):
         case "triton":
             from gpt_oss.triton.model import TokenGenerator as TritonGenerator
             from gpt_oss.torch.utils import init_distributed
+
             device = init_distributed()
             generator = TritonGenerator(args.checkpoint, args.context, device)
         case "torch":
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
             from gpt_oss.torch.utils import init_distributed
+
             device = init_distributed()
             generator = TorchGenerator(args.checkpoint, device)
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
+
             generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
         case _:
             raise ValueError(f"Invalid backend: {args.backend}")
@@ -107,17 +110,19 @@ def main(args):
         developer_message_content = (
             DeveloperContent.new()
             .with_instructions(developer_message)
-            .with_function_tools([
-                ToolDescription.new(
-                    "apply_patch",
-                    "Patch a file",
-                    parameters={
-                        "type": "string",
-                        "description": "Formatted patch code",
-                        "default": "*** Begin Patch\n*** End Patch\n",
-                    }
-                ),
-            ])
+            .with_function_tools(
+                [
+                    ToolDescription.new(
+                        "apply_patch",
+                        "Patch a file",
+                        parameters={
+                            "type": "string",
+                            "description": "Formatted patch code",
+                            "default": "*** Begin Patch\n*** End Patch\n",
+                        },
+                    ),
+                ]
+            )
         )
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
     else:
@@ -135,13 +140,41 @@ def main(args):
     else:
         # System message
         print(termcolor.colored("System Message:", "cyan"), flush=True)
-        print(termcolor.colored("Model Identity:", "cyan"), system_message_content.model_identity, flush=True)
-        print(termcolor.colored("Reasoning Effort:", "cyan"), system_message_content.reasoning_effort, flush=True)
-        print(termcolor.colored("Conversation Start Date:", "cyan"), system_message_content.conversation_start_date, flush=True)
-        print(termcolor.colored("Knowledge Cutoff:", "cyan"), system_message_content.knowledge_cutoff, flush=True)
-        print(termcolor.colored("Browser Tool:", "cyan"), "Enabled" if args.browser else "Disabled", flush=True)
-        print(termcolor.colored("Python Tool:", "cyan"), "Enabled" if args.python else "Disabled", flush=True)
-        print(termcolor.colored("Apply Patch Function:", "cyan"), "Enabled" if args.apply_patch else "Disabled", flush=True)
+        print(
+            termcolor.colored("Model Identity:", "cyan"),
+            system_message_content.model_identity,
+            flush=True,
+        )
+        print(
+            termcolor.colored("Reasoning Effort:", "cyan"),
+            system_message_content.reasoning_effort,
+            flush=True,
+        )
+        print(
+            termcolor.colored("Conversation Start Date:", "cyan"),
+            system_message_content.conversation_start_date,
+            flush=True,
+        )
+        print(
+            termcolor.colored("Knowledge Cutoff:", "cyan"),
+            system_message_content.knowledge_cutoff,
+            flush=True,
+        )
+        print(
+            termcolor.colored("Browser Tool:", "cyan"),
+            "Enabled" if args.browser else "Disabled",
+            flush=True,
+        )
+        print(
+            termcolor.colored("Python Tool:", "cyan"),
+            "Enabled" if args.python else "Disabled",
+            flush=True,
+        )
+        print(
+            termcolor.colored("Apply Patch Function:", "cyan"),
+            "Enabled" if args.apply_patch else "Disabled",
+            flush=True,
+        )
         # Developer message
         print(termcolor.colored("Developer Message:", "yellow"), flush=True)
         print(developer_message_content.instructions, flush=True)
@@ -165,6 +198,7 @@ def main(args):
             if last_message.recipient.startswith("browser."):
                 assert args.browser, "Browser tool is not enabled"
                 tool_name = "Search"
+
                 async def run_tool():
                     results = []
                     async for msg in browser_tool.process(last_message):
@@ -176,6 +210,7 @@ def main(args):
             elif last_message.recipient.startswith("python"):
                 assert args.python, "Python tool is not enabled"
                 tool_name = "Python"
+
                 async def run_tool():
                     results = []
                     async for msg in python_tool.process(last_message):
@@ -193,6 +228,7 @@ def main(args):
                 if text.startswith("{"):
                     # this is json, try to extract the patch from it
                     import json
+
                     try:
                         some_dict = json.loads(text)
                         _, text = some_dict.popitem()
@@ -205,13 +241,10 @@ def main(args):
                     except Exception as e:
                         tool_output = f"Error applying patch: {e}"
 
-                message = (
-                    Message(
-                        author=Author.new(Role.TOOL, last_message.recipient),
-                        content=[TextContent(text=tool_output)]
-                    )
-                    .with_recipient("assistant")
-                )
+                message = Message(
+                    author=Author.new(Role.TOOL, last_message.recipient),
+                    content=[TextContent(text=tool_output)],
+                ).with_recipient("assistant")
                 if last_message.channel:
                     message = message.with_channel(last_message.channel)
 
@@ -224,16 +257,17 @@ def main(args):
                 rendered_result = encoding.render_conversation(Conversation.from_messages(result))
                 print(encoding.decode(rendered_result), flush=True, end="")
             else:
-                print(termcolor.colored(f"{tool_name} output:".ljust(MESSAGE_PADDING), "magenta"), flush=True)
+                print(
+                    termcolor.colored(f"{tool_name} output:".ljust(MESSAGE_PADDING), "magenta"),
+                    flush=True,
+                )
                 if tool_name == "Search" and not args.show_browser_results:
                     print("[Search results fed to the model]")
                 else:
                     print(result[0].content[0].text)
 
         conversation = Conversation.from_messages(messages)
-        tokens = encoding.render_conversation_for_completion(
-            conversation, Role.ASSISTANT
-        )
+        tokens = encoding.render_conversation_for_completion(conversation, Role.ASSISTANT)
 
         if args.raw:
             # Print the last two tokens, which are the start of the assistant message
@@ -261,15 +295,20 @@ def main(args):
                 if parser.current_channel == "final":
                     print(termcolor.colored("Assistant:", "green"), flush=True)
                 elif parser.current_recipient is not None:
-                    print(termcolor.colored(f"Tool call to {parser.current_recipient}:", "cyan"), flush=True)
+                    print(
+                        termcolor.colored(f"Tool call to {parser.current_recipient}:", "cyan"),
+                        flush=True,
+                    )
                 else:
                     print(termcolor.colored("CoT:", "yellow"), flush=True)
 
             should_send_output_text_delta = True
             output_text_delta_buffer += parser.last_content_delta
             if args.browser:
-                updated_output_text, _annotations, has_partial_citations = browser_tool.normalize_citations(current_output_text + output_text_delta_buffer)
-                output_text_delta_buffer = updated_output_text[len(current_output_text):]
+                updated_output_text, _annotations, has_partial_citations = browser_tool.normalize_citations(
+                    current_output_text + output_text_delta_buffer
+                )
+                output_text_delta_buffer = updated_output_text[len(current_output_text) :]
                 if has_partial_citations:
                     should_send_output_text_delta = False
             if should_send_output_text_delta:

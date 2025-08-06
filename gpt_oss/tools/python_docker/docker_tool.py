@@ -44,9 +44,7 @@ def call_python_script(script: str) -> str:
     tarstream.seek(0)
 
     # 2. Start the container
-    container = _docker_client.containers.create(
-        "python:3.11", command="sleep infinity", detach=True
-    )
+    container = _docker_client.containers.create("python:3.11", command="sleep infinity", detach=True)
     try:
         container.start()
         # 3. Put the script into the container
@@ -83,11 +81,7 @@ When you send a message containing python code to python, it will be executed in
 
     @property
     def tool_config(self) -> ToolNamespaceConfig:
-        return ToolNamespaceConfig(
-            name=self.get_tool_name(),
-            description=self.instruction,
-            tools=[]
-        )
+        return ToolNamespaceConfig(name=self.get_tool_name(), description=self.instruction, tools=[])
 
     def _make_response(
         self,
@@ -110,7 +104,7 @@ When you send a message containing python code to python, it will be executed in
         message = Message(
             author=author,
             content=[content],
-        ).with_recipient('assistant')
+        ).with_recipient("assistant")
 
         if channel:
             message = message.with_channel(channel)
