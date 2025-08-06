@@ -21,7 +21,7 @@ from openai_harmony import (
 )
 
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import JinaBackend
 
 from .events import (
     ResponseCompletedEvent,
@@ -748,7 +748,7 @@ def create_api_server(
         )
 
         if use_browser_tool:
-            backend = ExaBackend(
+            backend = JinaBackend(
                 source="web",
             )
             browser_tool = SimpleBrowserTool(backend=backend)

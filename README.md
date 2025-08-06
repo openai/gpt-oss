@@ -334,7 +334,7 @@ codex -p oss
 ### Browser
 
 > [!WARNING]
-> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`ExaBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment.
+> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`JinaBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment.
 
 Both gpt-oss models were trained with the capability to browse using the `browser` tool that exposes the following three methods:
 
@@ -349,13 +349,13 @@ To enable the browser tool, you'll have to place the definition into the `system
 ```python
 import datetime
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import JinaBackend
 from openai_harmony import SystemContent, Message, Conversation, Role, load_harmony_encoding, HarmonyEncodingName
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-# Exa backend requires you to have set the EXA_API_KEY environment variable
-backend = ExaBackend(
+# Jina backend requires you to have set the JINA_API_KEY environment variable
+backend = JinaBackend(
     source="web",
 )
 browser_tool = SimpleBrowserTool(backend=backend)
