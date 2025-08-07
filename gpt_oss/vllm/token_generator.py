@@ -1,4 +1,4 @@
-from vllm import LLMEngine, EngineArgs, SamplingParams, TokensPrompt
+from vllm import EngineArgs, LLMEngine, SamplingParams, TokensPrompt
 
 
 class TokenGenerator:
@@ -10,20 +10,24 @@ class TokenGenerator:
         self.engine = LLMEngine.from_engine_args(args)
         self.request_id = 0
 
-    def generate(self,
-                 prompt_tokens: list[int],
-                 stop_tokens: list[int] | None = None,
-                 temperature: float = 1.0,
-                 max_tokens: int = 0,
-                 return_logprobs: bool = False):
+    def generate(
+        self,
+        prompt_tokens: list[int],
+        stop_tokens: list[int] | None = None,
+        temperature: float = 1.0,
+        max_tokens: int = 0,
+        return_logprobs: bool = False,
+    ):
         if max_tokens == 0:
             max_tokens = None
         request_id = str(self.request_id)
         self.request_id += 1
-        sampling_params = SamplingParams(temperature=temperature,
-                                         max_tokens=max_tokens,
-                                         stop_token_ids=stop_tokens,
-                                         logprobs=0 if return_logprobs else None)
+        sampling_params = SamplingParams(
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stop_token_ids=stop_tokens,
+            logprobs=0 if return_logprobs else None,
+        )
         prompt = TokensPrompt(prompt_token_ids=prompt_tokens)
         self.engine.add_request(request_id, prompt, sampling_params)
         last_token_id = []
@@ -32,8 +36,12 @@ class TokenGenerator:
             output = step_outputs[0].outputs[0]
             token_ids = output.token_ids
             logprobs_list = output.logprobs if hasattr(output, "logprobs") else None
-            new_token_ids = token_ids[len(last_token_id):]
-            new_logprobs = logprobs_list[len(last_token_id):] if logprobs_list is not None else [None] * len(new_token_ids)
+            new_token_ids = token_ids[len(last_token_id) :]
+            new_logprobs = (
+                logprobs_list[len(last_token_id) :]
+                if logprobs_list is not None
+                else [None] * len(new_token_ids)
+            )
             for token_id, logprobs in zip(new_token_ids, new_logprobs):
                 last_token_id.append(token_id)
                 if return_logprobs:

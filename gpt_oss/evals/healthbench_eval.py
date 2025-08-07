@@ -26,10 +26,8 @@ import blobfile as bf
 import numpy as np
 
 from . import report
-from .chat_completions_sampler import (
-    OPENAI_SYSTEM_MESSAGE_API,
-    ChatCompletionsSampler,
-)
+from .chat_completions_sampler import (OPENAI_SYSTEM_MESSAGE_API,
+                                       ChatCompletionsSampler)
 from .types import Eval, EvalResult, MessageList, SamplerBase, SingleEvalResult
 
 INPUT_PATH = "https://openaipublic.blob.core.windows.net/simple-evals/healthbench/2025-05-07-06-14-12_oss_eval.jsonl"
@@ -257,14 +255,12 @@ class HealthBenchEval(Eval):
         subset_name: Literal["hard", "consensus"] | None = None,
     ):
         if run_reference_completions:
-            assert physician_completions_mode is not None, (
-                "physician_completions_mode must be provided if run_reference_completions is True"
-            )
+            assert (
+                physician_completions_mode is not None
+            ), "physician_completions_mode must be provided if run_reference_completions is True"
             assert PHYSICIAN_COMPLETION_MODES[physician_completions_mode][
                 "has_reference"
-            ], (
-                "physician_completions_mode must have reference completions if run_reference_completions is True"
-            )
+            ], "physician_completions_mode must have reference completions if run_reference_completions is True"
 
         if subset_name == "hard":
             input_path = INPUT_PATH_HARD
@@ -284,9 +280,9 @@ class HealthBenchEval(Eval):
         # physician completions mode
         self.physician_completions_mode = physician_completions_mode
         if self.physician_completions_mode is not None:
-            assert self.physician_completions_mode in PHYSICIAN_COMPLETION_MODES, (
-                f"Invalid physician completions mode: {self.physician_completions_mode}; must be one of {PHYSICIAN_COMPLETION_MODES.keys()}"
-            )
+            assert (
+                self.physician_completions_mode in PHYSICIAN_COMPLETION_MODES
+            ), f"Invalid physician completions mode: {self.physician_completions_mode}; must be one of {PHYSICIAN_COMPLETION_MODES.keys()}"
             # subset to only the rows which have physician completions from that group
             examples_matching_mode = [
                 example

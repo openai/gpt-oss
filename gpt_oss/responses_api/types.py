@@ -8,12 +8,14 @@ DEFAULT_TEMPERATURE = 0.0
 REASONING_EFFORT = ReasoningEffort.LOW
 DEFAULT_MAX_OUTPUT_TOKENS = 10_000
 
+
 class UrlCitation(BaseModel):
     type: Literal["url_citation"]
     end_index: int
     start_index: int
     url: str
     title: str
+
 
 class TextContentItem(BaseModel):
     type: Union[Literal["text"], Literal["input_text"], Literal["output_text"]]
@@ -61,24 +63,29 @@ class FunctionCallOutputItem(BaseModel):
     call_id: str = "call_1234"
     output: str
 
+
 class WebSearchActionSearch(BaseModel):
     type: Literal["search"]
     query: Optional[str] = None
 
+
 class WebSearchActionOpenPage(BaseModel):
     type: Literal["open_page"]
     url: Optional[str] = None
+
 
 class WebSearchActionFind(BaseModel):
     type: Literal["find"]
     pattern: Optional[str] = None
     url: Optional[str] = None
 
+
 class WebSearchCallItem(BaseModel):
     type: Literal["web_search_call"]
     id: str = "ws_1234"
     status: Literal["in_progress", "completed", "incomplete"] = "completed"
     action: Union[WebSearchActionSearch, WebSearchActionOpenPage, WebSearchActionFind]
+
 
 class Error(BaseModel):
     code: str
@@ -115,7 +122,16 @@ class ResponsesRequest(BaseModel):
     instructions: Optional[str] = None
     max_output_tokens: Optional[int] = DEFAULT_MAX_OUTPUT_TOKENS
     input: Union[
-        str, list[Union[Item, ReasoningItem, FunctionCallItem, FunctionCallOutputItem, WebSearchCallItem]]
+        str,
+        list[
+            Union[
+                Item,
+                ReasoningItem,
+                FunctionCallItem,
+                FunctionCallOutputItem,
+                WebSearchCallItem,
+            ]
+        ],
     ]
     model: Optional[str] = MODEL_IDENTIFIER
     stream: Optional[bool] = False
@@ -131,7 +147,15 @@ class ResponsesRequest(BaseModel):
 
 
 class ResponseObject(BaseModel):
-    output: list[Union[Item, ReasoningItem, FunctionCallItem, FunctionCallOutputItem, WebSearchCallItem]]
+    output: list[
+        Union[
+            Item,
+            ReasoningItem,
+            FunctionCallItem,
+            FunctionCallOutputItem,
+            WebSearchCallItem,
+        ]
+    ]
     created_at: int
     usage: Optional[Usage] = None
     status: Literal["completed", "failed", "incomplete", "in_progress"] = "in_progress"

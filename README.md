@@ -27,13 +27,13 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single H100 GPU and `gpt-oss-20b` to run within 16GB of memory..
+- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single H100 GPU and `gpt-oss-20b` to run within 16GB of memory.
 
 ### Inference examples
 
 #### Transformers
 
-You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use Transformers's chat template it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
+You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use Transformers' chat template it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
 
 ```python
 from transformers import pipeline
@@ -56,14 +56,14 @@ outputs = pipe(
     messages,
     max_new_tokens=256,
 )
-print(outputs[0]["generated_text"][-1])
+print(outputs[0]["generated_text"][-1]['content'])
 ```
 
 [Learn more about how to use gpt-oss with Transformers.](https://cookbook.openai.com/articles/gpt-oss/run-transformers)
 
 #### vLLM
 
-vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible webserver. The following command will automatically download the model and start the server.
+vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible web server. The following command will automatically download the model and start the server.
 
 ```bash
 uv pip install --pre vllm==0.10.1+gptoss \
@@ -130,7 +130,7 @@ This repository provides a collection of reference implementations:
 
 ### Requirements
 
-- python 3.12
+- Python 3.12
 - On macOS: Install the Xcode CLI tools --> `xcode-select --install`
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
@@ -171,7 +171,7 @@ huggingface-cli download openai/gpt-oss-20b --include "original/*" --local-dir g
 
 We include an inefficient reference PyTorch implementation in [gpt_oss/torch/model.py](gpt_oss/torch/model.py). This code uses basic PyTorch operators to show the exact model architecture, with a small addition of supporting tensor parallelism in MoE so that the larger model can run with this code (e.g., on 4xH100 or 2xH200). In this implementation, we upcast all weights to BF16 and run the model in BF16.
 
-To run the reference implementation. Install dependencies:
+To run the reference implementation, install the dependencies:
 
 ```shell
 pip install -e .[torch]
@@ -227,7 +227,7 @@ To perform inference you'll need to first convert the SafeTensor weights from Hu
 python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_file>
 ```
 
-Or downloaded the pre-converted weight:
+Or download the pre-converted weights:
 
 ```shell
 huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
@@ -237,7 +237,7 @@ huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-
 To test it you can run:
 
 ```shell
-python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/model.bin -p "why did the chicken cross the road?"
+python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/metal/model.bin -p "why did the chicken cross the road?"
 ```
 
 ## Harmony format & tools
@@ -250,7 +250,7 @@ We also include two system tools for the model: browsing and python container. C
 
 ### Terminal Chat
 
-The terminal chat application is a basic example on how to use the harmony format together with the PyTorch, Triton, and vLLM implementations. It also exposes both the python and browser tool as optional tools that can be used.
+The terminal chat application is a basic example of how to use the harmony format together with the PyTorch, Triton, and vLLM implementations. It also exposes both the python and browser tool as optional tools that can be used.
 
 ```bash
 usage: python -m gpt_oss.chat [-h] [-r REASONING_EFFORT] [-a] [-b] [--show-browser-results] [-p] [--developer-message DEVELOPER_MESSAGE] [-c CONTEXT] [--raw] [--backend {triton,torch,vllm}] FILE
@@ -289,7 +289,7 @@ You can start this server with the following inference backends:
 
 - `triton` — uses the triton implementation
 - `metal` — uses the metal implementation on Apple Silicon only
-- `ollama` — uses the Ollama /api/generate API as a inference solution
+- `ollama` — uses the Ollama /api/generate API as an inference solution
 - `vllm` — uses your installed vllm version to perform inference
 - `transformers` — uses your installed transformers version to perform local inference
 
@@ -468,10 +468,10 @@ if last_message.recipient == "python":
 
 We released the models with native quantization support. Specifically, we use [MXFP4](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) for the linear projection weights in the MoE layer. We store the MoE tensor in two parts:
 
-- `tensor.blocks` stores the actual fp4 values. We pack every two value in one `uint8` value.
+- `tensor.blocks` stores the actual fp4 values. We pack every two values in one `uint8` value.
 - `tensor.scales` stores the block scale. The block scaling is done among the last dimension for all MXFP4 tensors.
 
-All other tensors will be in BF16. We also recommend use BF16 as the activation precision for the model.
+All other tensors will be in BF16. We also recommend using BF16 as the activation precision for the model.
 
 ### Recommended Sampling Parameters
 

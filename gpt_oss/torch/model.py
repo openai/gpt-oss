@@ -420,8 +420,10 @@ class Transformer(torch.nn.Module):
             if "mlp1" in name:  # both weight and bias
                 loaded_tensor = loaded_tensor[
                     :,
-                    my_rank * 2
-                    * per_rank_intermediate_size : (my_rank + 1) * 2
+                    my_rank
+                    * 2
+                    * per_rank_intermediate_size : (my_rank + 1)
+                    * 2
                     * per_rank_intermediate_size,
                     ...,
                 ]
@@ -448,16 +450,20 @@ class TokenGenerator:
         self.model = Transformer.from_checkpoint(checkpoint, device=self.device)
 
     @torch.inference_mode()
-    def generate(self,
-                 prompt_tokens: list[int],
-                 stop_tokens: list[int],
-                 temperature: float = 1.0,
-                 max_tokens: int = 0,
-                 return_logprobs: bool = False):
+    def generate(
+        self,
+        prompt_tokens: list[int],
+        stop_tokens: list[int],
+        temperature: float = 1.0,
+        max_tokens: int = 0,
+        return_logprobs: bool = False,
+    ):
         tokens = list(prompt_tokens)
         num_generated_tokens = 0
         while max_tokens == 0 or num_generated_tokens < max_tokens:
-            logits = self.model(torch.as_tensor(tokens, dtype=torch.int32, device=self.device))[-1]
+            logits = self.model(
+                torch.as_tensor(tokens, dtype=torch.int32, device=self.device)
+            )[-1]
             if temperature == 0.0:
                 predicted_token = torch.argmax(logits, dim=-1).item()
             else:

@@ -2,10 +2,10 @@ import time
 from typing import Any
 
 import openai
+import structlog
 from openai import OpenAI
 
 from .types import MessageList, SamplerBase, SamplerResponse
-
 
 OPENAI_SYSTEM_MESSAGE_API = "You are a helpful assistant."
 OPENAI_SYSTEM_MESSAGE_CHATGPT = (
@@ -66,7 +66,9 @@ class ChatCompletionsSampler(SamplerBase):
                 choice = response.choices[0]
                 content = choice.message.content
                 if getattr(choice.message, "reasoning", None):
-                    message_list.append(self._pack_message("assistant", choice.message.reasoning))
+                    message_list.append(
+                        self._pack_message("assistant", choice.message.reasoning)
+                    )
 
                 if not content:
                     raise ValueError("OpenAI API returned empty response; retrying")
@@ -76,18 +78,35 @@ class ChatCompletionsSampler(SamplerBase):
                     actual_queried_message_list=message_list,
                 )
             except openai.BadRequestError as e:
-                print("Bad Request Error", e)
+                logger = structlog.get_logger()
+                logger.error("Bad request error from OpenAI API", error=str(e))
                 return SamplerResponse(
                     response_text="No response (bad request).",
                     response_metadata={"usage": None},
                     actual_queried_message_list=message_list,
                 )
-            except Exception as e:
-                exception_backoff = 2 ** trial  # exponential back off
-                print(
-                    f"Rate limit exception so wait and retry {trial} after {exception_backoff} sec",
-                    e,
+            except (
+                openai.RateLimitError,
+                openai.APITimeoutError,
+                openai.APIConnectionError,
+            ) as e:
+                exception_backoff = min(
+                    2**trial, 60
+                )  # exponential backoff with max 60s
+                logger = structlog.get_logger()
+                logger.warning(
+                    "API error, retrying",
+                    trial=trial,
+                    backoff_seconds=exception_backoff,
+                    error=str(e),
+                    error_type=type(e).__name__,
                 )
                 time.sleep(exception_backoff)
                 trial += 1
+            except Exception as e:
+                logger = structlog.get_logger()
+                logger.error(
+                    "Unexpected error during API call", error=str(e), trial=trial
+                )
+                raise  # Re-raise unexpected errors
             # unknown error shall throw exception

@@ -11,22 +11,12 @@ from urllib.parse import quote
 
 import chz
 from aiohttp import ClientSession, ClientTimeout
-from tenacity import (
-    after_log,
-    before_sleep_log,
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from tenacity import (after_log, before_sleep_log, retry,
+                      retry_if_exception_type, stop_after_attempt,
+                      wait_exponential)
 
-from .page_contents import (
-    Extract,
-    FetchResult,
-    PageContents,
-    get_domain,
-    process_html,
-)
+from .page_contents import (Extract, FetchResult, PageContents, get_domain,
+                            process_html)
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +98,11 @@ class ExaBackend(Backend):
 
     async def _post(self, session: ClientSession, endpoint: str, payload: dict) -> dict:
         headers = {"x-api-key": self._get_api_key()}
-        async with session.post(f"{self.BASE_URL}{endpoint}", json=payload, headers=headers) as resp:
+        async with session.post(
+            f"{self.BASE_URL}{endpoint}", json=payload, headers=headers
+        ) as resp:
             if resp.status != 200:
-                raise BackendError(
-                    f"Exa API error {resp.status}: {await resp.text()}"
-                )
+                raise BackendError(f"Exa API error {resp.status}: {await resp.text()}")
             return await resp.json()
 
     async def search(
@@ -121,7 +111,11 @@ class ExaBackend(Backend):
         data = await self._post(
             session,
             "/search",
-            {"query": query, "numResults": topn, "contents": {"text": True, "summary": True}},
+            {
+                "query": query,
+                "numResults": topn,
+                "contents": {"text": True, "summary": True},
+            },
         )
         # make a simple HTML page to work with browser format
         titles_and_urls = [
@@ -152,7 +146,7 @@ class ExaBackend(Backend):
         data = await self._post(
             session,
             "/contents",
-            {"urls": [url], "text": { "includeHtmlTags": True }},
+            {"urls": [url], "text": {"includeHtmlTags": True}},
         )
         results = data.get("results", [])
         if not results:

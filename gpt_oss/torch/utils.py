@@ -1,4 +1,5 @@
 import os
+
 import torch
 import torch.distributed as dist
 
@@ -6,10 +7,11 @@ import torch.distributed as dist
 def suppress_output(rank):
     """Suppress printing on the current device. Force printing with `force=True`."""
     import builtins as __builtin__
+
     builtin_print = __builtin__.print
 
     def print(*args, **kwargs):
-        force = kwargs.pop('force', False)
+        force = kwargs.pop("force", False)
         if force:
             builtin_print("rank #%d:" % rank, *args, **kwargs)
         elif rank == 0:
