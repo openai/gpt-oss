@@ -47,6 +47,41 @@ enum gptoss_status GPTOSS_ABI gptoss_context_create(
     atomic_store_explicit(&context->ref_count, 1, memory_order_relaxed);
     context->max_tokens = context_length;
 
+    // Activation buffers
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->embedding_dim * sizeof(float), NULL, &context->residual_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->embedding_dim * sizeof(float), NULL, &context->rmsnorm_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->head_dim * (model->num_heads + 2 * model->num_kv_heads) * sizeof(float), NULL, &context->qkv_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->head_dim * model->num_heads * sizeof(float), NULL, &context->sdpa_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_experts * sizeof(float), NULL, &context->gate_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_experts * sizeof(struct gptoss_expert_prediction), NULL, &context->expert_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_active_experts * model->mlp_dim * sizeof(float), NULL, &context->swiglu_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_active_experts * model->embedding_dim * sizeof(float), NULL, &context->moe_activation_buffer);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+
+    // Input/output buffers
     status = gptoss_metal_buffer_create(&model->device, context_length * sizeof(uint32_t), NULL, &context->token_buffer);
     if (status != gptoss_status_success) {
         goto cleanup;
@@ -73,7 +108,11 @@ enum gptoss_status GPTOSS_ABI gptoss_context_create(
     }
 
     context->kvcache_size = context->kvcache_buffer.size;
-    context->allocation_size = context->token_buffer.size + context->kvcache_buffer.size + context->score_buffer.size + context->argmax_buffer.size;
+    context->allocation_size = 
+        context->residual_activation_buffer.size + context->rmsnorm_activation_buffer.size +
+        context->qkv_activation_buffer.size + context->sdpa_activation_buffer.size +
+        context->gate_activation_buffer.size + context->expert_activation_buffer.size + context->swiglu_activation_buffer.size + context->moe_activation_buffer.size +
+        context->token_buffer.size + context->kvcache_buffer.size + context->score_buffer.size + context->argmax_buffer.size;
 
     context->model = model;
     gptoss_model_retain(model);
@@ -139,7 +178,7 @@ static enum gptoss_status process_batch(
         (context->num_tokens - context->num_batch_tokens) * sizeof(uint32_t),
         &model->shared_weight_buffer,
         /*weight_offset=*/0,
-        &model->residual_activation_buffer,
+        &context->residual_activation_buffer,
         /*output_offset=*/0,
         /*num_tokens=*/context->num_batch_tokens,
         /*num_channels=*/model->embedding_dim);
@@ -154,11 +193,11 @@ static enum gptoss_status process_batch(
         status = gptoss_metal_command_buffer_encode_launch_f32_bf16w_rmsnorm(
             &command_buffer,
             &model->f32_bf16w_rmsnorm_fn,
-            &model->residual_activation_buffer,
+            &context->residual_activation_buffer,
             /*input_offset=*/0,
             &model->shared_weight_buffer,
             /*weight_offset=*/model->attn_rmsnorm_gain_offset + model->per_block_shared_weights_size * n,
-            &model->rmsnorm_activation_buffer,
+            &context->rmsnorm_activation_buffer,
             /*output_offset=*/0,
             /*num_tokens=*/context->num_batch_tokens,
             /*num_channels=*/model->embedding_dim,
@@ -171,13 +210,13 @@ static enum gptoss_status process_batch(
             &command_buffer,
             &model->f32_bf16w_matmul_fn,
             /*threadgroup_size=*/256,
-            &model->rmsnorm_activation_buffer,
+            &context->rmsnorm_activation_buffer,
             /*input_offset=*/0,
             &model->shared_weight_buffer,
             /*weight_offset=*/model->attn_qkv_weight_offset + model->per_block_shared_weights_size * n,
             &model->shared_weight_buffer,
             /*bias_offset=*/model->attn_qkv_bias_offset + model->per_block_shared_weights_size * n,
-            &model->qkv_activation_buffer,
+            &context->qkv_activation_buffer,
             /*output_offset=*/0,
             /*num_tokens=*/context->num_batch_tokens,
             /*num_cols=*/model->embedding_dim,
@@ -191,7 +230,7 @@ static enum gptoss_status process_batch(
             &command_buffer,
             &model->f32_rope_fn,
             /*threadgroup_size=*/32,
-            &model->qkv_activation_buffer,
+            &context->qkv_activation_buffer,
             model->rope_theta,
             model->interpolation_scale,
             model->yarn_offset,
@@ -209,7 +248,7 @@ static enum gptoss_status process_batch(
         for (uint32_t t = 0; t < context->num_batch_tokens; t++) {
             status = gptoss_metal_command_buffer_encode_copy_buffer(
                 &command_buffer,
-                &model->qkv_activation_buffer,
+                &context->qkv_activation_buffer,
                 /*input_offset=*/(t * attn_qkv_dim + model->num_heads * model->head_dim) * sizeof(float),
                 &context->kvcache_buffer,
                 /*output_offset=*/(n * context->max_tokens + context->num_kv_tokens + t) * 2 * model->num_kv_heads * model->head_dim * sizeof(float),
@@ -223,7 +262,7 @@ static enum gptoss_status process_batch(
         status = gptoss_metal_command_buffer_encode_launch_f32_sdpa(
             &command_buffer,
             &model->f32_sdpa_q8_d64_fn,
-            &model->qkv_activation_buffer,
+            &context->qkv_activation_buffer,
             /*q_offset=*/attn_qkv_dim * (context->num_batch_tokens - num_output_tokens) * sizeof(float),
             &context->kvcache_buffer,
             /*k_offset=*/n * context->max_tokens * 2 * model->num_kv_heads * model->head_dim * sizeof(float),
@@ -231,7 +270,7 @@ static enum gptoss_status process_batch(
             /*v_offset=*/(n * context->max_tokens * 2 + 1) * model->num_kv_heads * model->head_dim * sizeof(float),
             &model->shared_weight_buffer,
             /*s_offset=*/model->attn_sdpa_sink_offset + model->per_block_shared_weights_size * n,
-            &model->sdpa_activation_buffer, /*output_offset=*/0,
+            &context->sdpa_activation_buffer, /*output_offset=*/0,
             /*window=*/n % 2 == 0 ? model->attention_window : UINT32_MAX,
             num_output_tokens, context->num_kv_tokens + (context->num_batch_tokens - num_output_tokens),
             model->num_heads, model->num_kv_heads, model->head_dim);
@@ -243,13 +282,13 @@ static enum gptoss_status process_batch(
             &command_buffer,
             &model->f32_bf16w_matmul_fn,
             /*threadgroup_size=*/256,
-            &model->sdpa_activation_buffer,
+            &context->sdpa_activation_buffer,
             /*input_offset=*/0,
             &model->shared_weight_buffer,
             /*weight_offset=*/model->attn_out_weight_offset + model->per_block_shared_weights_size * n,
             &model->shared_weight_buffer,
             /*bias_offset=*/model->attn_out_bias_offset + model->per_block_shared_weights_size * n,
-            &model->residual_activation_buffer,
+            &context->residual_activation_buffer,
             /*output_offset=*/model->embedding_dim * (context->num_batch_tokens - num_output_tokens) * sizeof(float),
             /*num_tokens=*/num_output_tokens,
             /*num_cols=*/model->num_heads * model->head_dim,
@@ -262,11 +301,11 @@ static enum gptoss_status process_batch(
         status = gptoss_metal_command_buffer_encode_launch_f32_bf16w_rmsnorm(
             &command_buffer,
             &model->f32_bf16w_rmsnorm_fn,
-            &model->residual_activation_buffer,
+            &context->residual_activation_buffer,
             /*input_offset=*/model->embedding_dim * (context->num_batch_tokens - num_output_tokens) * sizeof(float),
             &model->shared_weight_buffer,
             /*weight_offset=*/model->mlp_rmsnorm_gain_offset + model->per_block_shared_weights_size * n,
-            &model->rmsnorm_activation_buffer,
+            &context->rmsnorm_activation_buffer,
             /*output_offset=*/0,
             num_output_tokens,
             model->embedding_dim,
@@ -280,13 +319,13 @@ static enum gptoss_status process_batch(
             &command_buffer,
             &model->f32_bf16w_matmul_fn,
             /*threadgroup_size=*/256,
-            &model->rmsnorm_activation_buffer,
+            &context->rmsnorm_activation_buffer,
             /*input_offset=*/0,
             &model->shared_weight_buffer,
             /*weight_offset=*/model->mlp_gate_weight_offset + model->per_block_shared_weights_size * n,
             &model->shared_weight_buffer,
             /*bias_offset=*/model->mlp_gate_bias_offset + model->per_block_shared_weights_size * n,
-            &model->gate_activation_buffer,
+            &context->gate_activation_buffer,
             /*output_offset=*/0,
             /*num_tokens=*/num_output_tokens,
             /*num_cols=*/model->embedding_dim,
@@ -303,8 +342,8 @@ static enum gptoss_status process_batch(
                 status = gptoss_metal_command_buffer_encode_launch_f32_topk(
                     &command_buffer,
                     &model->f32_topk_softmax_e32_k4_fn,
-                    &model->gate_activation_buffer, /*input_offset=*/0,
-                    &model->expert_activation_buffer, /*output_offset=*/0,
+                    &context->gate_activation_buffer, /*input_offset=*/0,
+                    &context->expert_activation_buffer, /*output_offset=*/0,
                     num_output_tokens,
                     model->num_experts,
                     model->num_active_experts);
@@ -314,8 +353,8 @@ static enum gptoss_status process_batch(
                 status = gptoss_metal_command_buffer_encode_launch_f32_topk(
                     &command_buffer,
                     &model->f32_topk_softmax_e128_k4_fn,
-                    &model->gate_activation_buffer, /*input_offset=*/0,
-                    &model->expert_activation_buffer, /*output_offset=*/0,
+                    &context->gate_activation_buffer, /*input_offset=*/0,
+                    &context->expert_activation_buffer, /*output_offset=*/0,
                     num_output_tokens,
                     model->num_experts,
                     model->num_active_experts);
@@ -334,12 +373,12 @@ static enum gptoss_status process_batch(
             &command_buffer,
             &model->f32_mf4w_moe_matmul_swiglu_fn,
             /*threadgroup_size=*/512,
-            &model->rmsnorm_activation_buffer, /*input_offset=*/0,
-            &model->expert_activation_buffer, /*expert_offset=*/0,
+            &context->rmsnorm_activation_buffer, /*input_offset=*/0,
+            &context->expert_activation_buffer, /*expert_offset=*/0,
             &model->block_weight_buffers[n], /*weight_block_offset=*/0,
             &model->block_weight_buffers[n], /*weight_scale_offset=*/model->mlp_swiglu_scale_offset,
             &model->block_weight_buffers[n], /*bias_offset=*/model->mlp_swiglu_bias_offset,
-            &model->swiglu_activation_buffer, /*output_offset=*/0,
+            &context->swiglu_activation_buffer, /*output_offset=*/0,
             model->swiglu_limit,
             model->per_expert_block_weight_size,
             num_output_tokens,
@@ -355,12 +394,12 @@ static enum gptoss_status process_batch(
             &command_buffer,
             &model->f32_mf4w_moe_matmul_fn,
             /*threadgroup_size=*/512,
-            &model->swiglu_activation_buffer, /*input_offset=*/0,
-            &model->expert_activation_buffer, /*expert_offset=*/0,
+            &context->swiglu_activation_buffer, /*input_offset=*/0,
+            &context->expert_activation_buffer, /*expert_offset=*/0,
             &model->block_weight_buffers[n], /*weight_block_offset=*/model->mlp_out_block_offset,
             &model->block_weight_buffers[n], /*weight_scale_offset=*/model->mlp_out_scale_offset,
             &model->block_weight_buffers[n], /*bias_offset=*/model->mlp_out_bias_offset,
-            &model->moe_activation_buffer, /*output_offset=*/0,
+            &context->moe_activation_buffer, /*output_offset=*/0,
             model->per_expert_block_weight_size,
             num_output_tokens,
             model->num_active_experts,
@@ -376,11 +415,11 @@ static enum gptoss_status process_batch(
             &model->f32_accumulate_e4_fn,
             /*threadgroup_size=*/256,
             model->max_threadgroups,
-            &model->moe_activation_buffer,
+            &context->moe_activation_buffer,
             /*input_offset=*/0,
-            &model->expert_activation_buffer,
+            &context->expert_activation_buffer,
             /*expert_offset=*/0,
-            &model->residual_activation_buffer,
+            &context->residual_activation_buffer,
             /*output_offset=*/model->embedding_dim * (context->num_batch_tokens - num_output_tokens) * sizeof(float),
             model->embedding_dim,
             num_output_tokens,
@@ -395,11 +434,11 @@ static enum gptoss_status process_batch(
     status = gptoss_metal_command_buffer_encode_launch_f32_bf16w_rmsnorm(
         &command_buffer,
         &model->f32_bf16w_rmsnorm_fn,
-        &model->residual_activation_buffer,
+        &context->residual_activation_buffer,
         /*input_offset=*/model->embedding_dim * (context->num_batch_tokens - num_output_tokens) * sizeof(float),
         &model->shared_weight_buffer,
         /*weight_offset=*/model->rmsnorm_weight_offset,
-        &model->rmsnorm_activation_buffer,
+        &context->rmsnorm_activation_buffer,
         /*output_offset=*/0,
         /*num_tokens=*/num_output_tokens,
         /*num_channels=*/model->embedding_dim,
@@ -424,7 +463,7 @@ static enum gptoss_status process_batch(
         &model->f32_bf16w_unembedding_fn,
         /*threadgroup_size=*/256,
         model->max_threadgroups,
-        &model->rmsnorm_activation_buffer,
+        &context->rmsnorm_activation_buffer,
         /*input_offset=*/0,
         &model->shared_weight_buffer,
         /*weight_offset=*/model->unembedding_weight_offset,
@@ -700,6 +739,17 @@ enum gptoss_status GPTOSS_ABI gptoss_context_release(
 {
     if (context != NULL) {
         if (atomic_fetch_sub_explicit(&context->ref_count, 1, memory_order_acq_rel) == 1) {
+            // Activation buffers
+            gptoss_metal_buffer_release(&context->residual_activation_buffer);
+            gptoss_metal_buffer_release(&context->rmsnorm_activation_buffer);
+            gptoss_metal_buffer_release(&context->qkv_activation_buffer);
+            gptoss_metal_buffer_release(&context->sdpa_activation_buffer);
+            gptoss_metal_buffer_release(&context->gate_activation_buffer);
+            gptoss_metal_buffer_release(&context->expert_activation_buffer);
+            gptoss_metal_buffer_release(&context->swiglu_activation_buffer);
+            gptoss_metal_buffer_release(&context->moe_activation_buffer);
+
+            // Input/output buffers
             gptoss_metal_buffer_release(&context->token_buffer);
             gptoss_metal_buffer_release(&context->score_buffer);
             gptoss_metal_buffer_release(&context->prob_buffer);
