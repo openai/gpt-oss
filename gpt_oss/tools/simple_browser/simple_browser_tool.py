@@ -102,8 +102,8 @@ def max_chars_per_token(enc_name: str) -> int:
 def get_tokens(text: str, enc_name: str) -> Tokens:
     encoding = tiktoken.get_encoding(enc_name)
     tokens = encoding.encode(text, disallowed_special=())
-    _vocabulary_lenghts = _tiktoken_vocabulary_lengths(enc_name)
-    tok2idx = [0] + list(itertools.accumulate(_vocabulary_lenghts[i] for i in tokens))[
+    _vocabulary_lengths = _tiktoken_vocabulary_lengths(enc_name)
+    tok2idx = [0] + list(itertools.accumulate(_vocabulary_lengths[i] for i in tokens))[
         :-1
     ]
     result = Tokens(tokens=tokens, tok2idx=tok2idx)
