@@ -161,10 +161,10 @@ You can download the model weights from the [Hugging Face Hub](https://huggingfa
 
 ```shell
 # gpt-oss-120b
-huggingface-cli download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
+hf download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
 
 # gpt-oss-20b
-huggingface-cli download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
+hf download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
 ```
 
 ## Reference PyTorch implementation
@@ -174,7 +174,7 @@ We include an inefficient reference PyTorch implementation in [gpt_oss/torch/mod
 To run the reference implementation. Install dependencies:
 
 ```shell
-pip install -e .[torch]
+pip install -e ".[torch]"
 ```
 
 And then run:
@@ -198,7 +198,7 @@ pip install -r python/requirements.txt
 pip install -e . --verbose --no-build-isolation
 
 # Install the gpt-oss triton implementation
-pip install -e .[triton]
+pip install -e ".[triton]"
 ```
 
 And then run:
@@ -218,7 +218,7 @@ Additionally we are providing a reference implementation for Metal to run on App
 The implementation will get automatically compiled when running the `.[metal]` installation on an Apple Silicon device:
 
 ```shell
-pip install -e .[metal]
+pip install -e ".[metal]"
 ```
 
 To perform inference you'll need to first convert the SafeTensor weights from Hugging Face into the right format using:
@@ -230,8 +230,8 @@ python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_fil
 Or downloaded the pre-converted weight:
 
 ```shell
-huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
-huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
+hf download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
+hf download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
 ```
 
 To test it you can run:
