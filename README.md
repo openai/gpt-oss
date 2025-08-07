@@ -130,7 +130,7 @@ This repository provides a collection of reference implementations:
 
 ### Requirements
 
-- python 3.12
+- Python 3.12
 - On macOS: Install the Xcode CLI tools --> `xcode-select --install`
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
@@ -209,7 +209,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 python -m gpt_oss.generate --backend triton gpt-oss-120b/original/
 ```
 
-If you encounter `torch.OutOfMemoryError` make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
+If you encounter `torch.OutOfMemoryError`, make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
 
 ## Reference Metal implementation
 
@@ -227,7 +227,7 @@ To perform inference you'll need to first convert the SafeTensor weights from Hu
 python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_file>
 ```
 
-Or downloaded the pre-converted weight:
+Or downloaded the pre-converted weights:
 
 ```shell
 huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
