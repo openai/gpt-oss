@@ -227,7 +227,7 @@ To perform inference you'll need to first convert the SafeTensor weights from Hu
 python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_file>
 ```
 
-Or downloaded the pre-converted weight:
+Or download the pre-converted weight:
 
 ```shell
 huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
