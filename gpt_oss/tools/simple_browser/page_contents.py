@@ -87,13 +87,13 @@ def mark_lines(text: str) -> str:
 
 
 @functools.cache
-def _tiktoken_vocabulary_lenghts(enc_name: str) -> list[int]:
+def _tiktoken_vocabulary_lengths(enc_name: str) -> list[int]:
     encoding = tiktoken.get_encoding(enc_name)
     return [len(encoding.decode([i])) for i in range(encoding.n_vocab)]
 
 
 def warmup_caches(enc_names: list[str]) -> None:
-    for _ in map(_tiktoken_vocabulary_lenghts, enc_names):
+    for _ in map(_tiktoken_vocabulary_lengths, enc_names):
         pass
 
 
