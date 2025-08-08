@@ -20,7 +20,7 @@ Use this tool to execute Python code in your chain of thought. The code will not
 When you send a message containing python code to python, it will be executed in a stateless docker container, and the stdout of that process will be returned to you.
     """,
     annotations={
-        # Harmony format don't wnat this schema to be part of it because it's simple text in text out
+        # Harmony format don't want this schema to be part of it because it's simple text in text out
         "include_in_prompt": False,
     })
 async def python(code: str) -> str:
