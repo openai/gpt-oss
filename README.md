@@ -6,7 +6,7 @@
   <a href="https://openai.com/index/introducing-gpt-oss/"><strong>OpenAI blog</strong></a>
 </p>
 <p align="center">
-  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</a></strong>
+  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</strong>
 </p>
 
 <br>

@@ -173,7 +173,7 @@ def run(container):
             item = data.get("item", {})
             if item.get("type") == "function_call":
                 with container.chat_message("function_call", avatar="🔨"):
-                    st.markdown(f"Called `{item.get("name")}`")
+                    st.markdown(f"Called `{item.get('name')}`")
                     st.caption("Arguments")
                     st.code(item.get("arguments", ""), language="json")
             if item.get("type") == "web_search_call":
@@ -223,7 +223,7 @@ for msg in st.session_state.messages:
                     st.markdown(item["text"])
     elif msg.get("type") == "function_call":
         with st.chat_message("function_call", avatar="🔨"):
-            st.markdown(f"Called `{msg.get("name")}`")
+            st.markdown(f"Called `{msg.get('name')}`")
             st.caption("Arguments")
             st.code(msg.get("arguments", ""), language="json")
     elif msg.get("type") == "function_call_output":
