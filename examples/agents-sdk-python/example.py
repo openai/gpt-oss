@@ -59,14 +59,14 @@ async def main():
 
     # Define weather tool
     @function_tool
-    async def search_tool(location: str) -> str:
+    async def get_weather(location: str) -> str:
         return f"The weather in {location} is sunny."
 
     # Create agent
     agent = Agent(
         name="My Agent",
         instructions="You are a helpful assistant.",
-        tools=[search_tool],
+        tools=[get_weather],
         model="gpt-oss:20b-test",
         mcp_servers=[mcp_server],
     )
