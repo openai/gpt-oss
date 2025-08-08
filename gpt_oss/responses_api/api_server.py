@@ -64,10 +64,11 @@ DEFAULT_TEMPERATURE = 0.0
 def get_reasoning_effort(effort: Literal["low", "medium", "high"]) -> ReasoningEffort:
     if effort == "low":
         return ReasoningEffort.LOW
-    elif effort == "medium":
+    if effort == "medium":
         return ReasoningEffort.MEDIUM
-    elif effort == "high":
+    if effort == "high":
         return ReasoningEffort.HIGH
+    raise ValueError(f"Invalid reasoning effort: {effort}")
 
 
 def is_not_builtin_tool(recipient: str) -> bool:
@@ -784,7 +785,12 @@ def create_api_server(
         )
         
         if body.reasoning is not None:
-            reasoning_effort = get_reasoning_effort(body.reasoning.effort)
+            try:
+
+                reasoning_effort = get_reasoning_effort(body.reasoning.effect)
+            except ValueError as e:
+                from fastapi import HTTP Exception
+                raise HTTPException(status_code=422, detail=str(e))
             system_message_content = system_message_content.with_reasoning_effort(reasoning_effort)
 
         if use_browser_tool:
