@@ -1,7 +1,7 @@
 import datetime
 import asyncio
 
-from gpt_oss.tokenizer import tokenizer
+from gpt_oss.tokenizer import get_tokenizer
 
 from openai_harmony import (
     Conversation,
@@ -66,6 +66,7 @@ def post_process_tools_description(
 
     return list_tools_result
 
+tokenizer = get_tokenizer()
 
 tools_urls = [
     "http://localhost:8001/sse",  # browser
