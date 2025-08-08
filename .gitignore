@@ -5,3 +5,4 @@ __pycache__
 *.egg*
 node_modules/
 *.log
+.venv/
