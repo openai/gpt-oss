@@ -22,11 +22,14 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
     if not message.strip():
         return history, ""
     
-    # Build messages list from history + current message  
+    # Append user message and empty assistant placeholder (idiomatic Gradio pattern)
+    history = history + [[message, ""]]
+    
+    # Build messages list from history (excluding the empty assistant placeholder)
     messages = []
     
-    # Convert history to messages format
-    for user_msg, assistant_msg in history:
+    # Convert history to messages format (excluding the last empty assistant message)
+    for user_msg, assistant_msg in history[:-1]:
         if user_msg:
             messages.append({
                 "type": "message",
@@ -40,7 +43,7 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
                 "content": [{"type": "output_text", "text": assistant_msg}]
             })
     
-    # Add current message
+    # Add current user message
     messages.append({
         "type": "message",
         "role": "user",
@@ -64,12 +67,13 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
         tools.append({"type": "browser_search"})
     
     # Get URL based on model (matching streamlit logic)
-    url = ("http://localhost:8081/v1/responses" if model_choice == "small" 
+    options = ["large", "small"]
+    URL = ("http://localhost:8081/v1/responses" if model_choice == options[1] 
            else "http://localhost:8000/v1/responses")
     
     try:
         response = requests.post(
-            url,
+            URL,
             json={
                 "input": messages,
                 "stream": True,
@@ -83,7 +87,10 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
             stream=True,
         )
         
-        assistant_content = ""
+        full_content = ""
+        text_delta = ""
+        current_output_index = 0
+        in_reasoning = False
         
         for line in response.iter_lines(decode_unicode=True):
             if not line or not line.startswith("data:"):
@@ -98,32 +105,75 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
                 continue
             
             event_type = data.get("type", "")
+            output_index = data.get("output_index", 0)
             
-            if event_type == "response.reasoning_text.delta":
-                assistant_content += data.get("delta", "")
+            if event_type == "response.output_item.added":
+                current_output_index = output_index
+                output_type = data.get("item", {}).get("type", "message")
+                text_delta = ""
+                
+                if output_type == "reasoning":
+                    if not in_reasoning:
+                        full_content += "🤔 **Thinking...**\n"
+                        in_reasoning = True
+                elif output_type == "message":
+                    if in_reasoning:
+                        full_content += "\n\n"
+                        in_reasoning = False
+                
+            elif event_type == "response.reasoning_text.delta":
+                delta = data.get("delta", "")
+                full_content += delta
+                
+                # Update last assistant message (idiomatic Gradio pattern)
+                history[-1][1] = full_content
+                yield history, ""
+                
             elif event_type == "response.output_text.delta":
-                assistant_content += data.get("delta", "")
+                delta = data.get("delta", "")
+                full_content += delta
+                
+                # Update last assistant message (idiomatic Gradio pattern)  
+                history[-1][1] = full_content
+                yield history, ""
+                
             elif event_type == "response.output_item.done":
                 item = data.get("item", {})
                 if item.get("type") == "function_call":
-                    assistant_content += f"\n\n🔨 Called `{item.get('name')}`\n**Arguments**\n```json\n{item.get('arguments', '')}\n```"
+                    function_call_text = f"\n\n🔨 Called `{item.get('name')}`\n**Arguments**\n```json\n{item.get('arguments', '')}\n```"
+                    full_content += function_call_text
+                    
+                    # Update last assistant message (idiomatic Gradio pattern)
+                    history[-1][1] = full_content
+                    yield history, ""
+                    
                 elif item.get("type") == "web_search_call":
-                    assistant_content += f"\n\n🌐 **Web Search**\n```json\n{json.dumps(item.get('action', {}), indent=2)}\n```\n✅ Done"
+                    web_search_text = f"\n\n🌐 **Web Search**\n```json\n{json.dumps(item.get('action', {}), indent=2)}\n```\n✅ Done"
+                    full_content += web_search_text
+                    
+                    # Update last assistant message (idiomatic Gradio pattern)
+                    history[-1][1] = full_content
+                    yield history, ""
+                    
             elif event_type == "response.completed":
                 response_data = data.get("response", {})
                 if debug_mode:
                     debug_info = response_data.get("metadata", {}).get("__debug", "")
                     if debug_info:
-                        assistant_content += f"\n\n**Debug**\n```\n{debug_info}\n```"
+                        full_content += f"\n\n**Debug**\n```\n{debug_info}\n```"
+                        
+                        # Update last assistant message (idiomatic Gradio pattern)
+                        history[-1][1] = full_content
+                        yield history, ""
                 break
         
-        new_history = history + [[message, assistant_content]]
-        return new_history, ""
+        # Return final history and empty string to clear textbox
+        return history, ""
         
     except Exception as e:
         error_message = f"❌ Error: {str(e)}"
-        new_history = history + [[message, error_message]]
-        return new_history, ""
+        history[-1][1] = error_message
+        return history, ""
 
 
 # Create the Gradio interface
@@ -166,6 +216,9 @@ with gr.Blocks(title="💬 Chatbot") as demo:
                     lines=6
                 )
             
+            # Conditional browser search (matching Streamlit logic)
+            # In Streamlit: if "show_browser" in st.query_params:
+            # For Gradio, we'll always show it (simplified)
             gr.Markdown("#### Built-in Tools") 
             use_browser_search = gr.Checkbox(label="Use browser search", value=False)
             
