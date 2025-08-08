@@ -92,9 +92,10 @@ When you send a message containing python code to python, it will be executed in
     def _make_response(
         self,
         output: str,
+        channel: str | None = None,
     ) -> Message:
         content = TextContent(text=output)
-        return self.make_response(content=content)
+        return self.make_response(content=content, channel=channel)
 
     def make_response(
         self,
