@@ -44,17 +44,23 @@ PyMODINIT_FUNC PyInit__metal(void) {
         goto error;
     }
 
-    if (PyModule_AddObject(module, "Model", model_type) < 0) {
+    // Use PyModule_AddObjectRef to handle reference counting correctly
+    if (PyModule_AddObjectRef(module, "Model", model_type) < 0) {
         goto error;
     }
 
-    if (PyModule_AddObject(module, "Tokenizer", tokenizer_type) < 0) {
+    if (PyModule_AddObjectRef(module, "Tokenizer", tokenizer_type) < 0) {
         goto error;
     }
 
-    if (PyModule_AddObject(module, "Context", context_type) < 0) {
+    if (PyModule_AddObjectRef(module, "Context", context_type) < 0) {
         goto error;
     }
+
+    // Decrement reference counts since PyModule_AddObjectRef increments them
+    Py_DECREF(model_type);
+    Py_DECREF(tokenizer_type);
+    Py_DECREF(context_type);
 
     return module;
 
