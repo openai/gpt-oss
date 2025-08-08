@@ -45,7 +45,10 @@ def call_python_script(script: str) -> str:
 
     # 2. Start the container
     container = _docker_client.containers.create(
-        "python:3.11", command="sleep infinity", detach=True
+        "python:3.11",
+        command="sleep infinity",
+        detach=True,
+        network_disabled=True,
     )
     try:
         container.start()
