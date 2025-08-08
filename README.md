@@ -6,7 +6,7 @@
   <a href="https://openai.com/index/introducing-gpt-oss/"><strong>OpenAI blog</strong></a>
 </p>
 <p align="center">
-  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</a></strong>
+  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</strong>
 </p>
 
 <br>
@@ -33,7 +33,7 @@ Both models were trained using our [harmony response format][harmony] and should
 
 #### Transformers
 
-You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use Transformers' chat template it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
+You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use the Transformers chat template it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
 
 ```python
 from transformers import pipeline
@@ -398,7 +398,7 @@ if last_message.recipient.startswith("browser"):
 
 #### Details
 
-To control the context window size this tool use a scrollable window of text that the model can interact with. So it might fetch the first 50 lines of a page and then scroll to the next 20 lines after that. The model has also been trained to then use citations from this tool in its answers.
+To control the context window size this tool uses a scrollable window of text that the model can interact with. So it might fetch the first 50 lines of a page and then scroll to the next 20 lines after that. The model has also been trained to then use citations from this tool in its answers.
 
 To improve performance the tool caches requests so that the model can revisit a different part of a page without having to reload the page. For that reason you should create a new browser instance for every request.
 
