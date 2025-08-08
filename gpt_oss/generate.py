@@ -32,16 +32,18 @@ def main(args):
 
     tokenizer = get_tokenizer()
     tokens = tokenizer.encode(args.prompt)
+    max_tokens = None if args.limit == 0 else args.limit
     for token, logprob in generator.generate(
         tokens,
         stop_tokens=[tokenizer.eot_token],
         temperature=args.temperature,
-        max_tokens=args.limit,
+        max_tokens=max_tokens,
         return_logprobs=True,
     ):
         tokens.append(token)
         decoded_token = tokenizer.decode([token])
         print(f"Generated token: {repr(decoded_token)}, logprob: {logprob}")
+
 
 
 if __name__ == "__main__":
