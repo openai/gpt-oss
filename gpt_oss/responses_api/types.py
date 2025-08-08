@@ -1,7 +1,7 @@
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
@@ -112,6 +112,13 @@ class ReasoningConfig(BaseModel):
 
 
 class ResponsesRequest(BaseModel):
+    """Primary request schema for /v1/responses
+
+    Backwards compatibility notes:
+    - Accepts legacy field `reasoning_effort` (string) and maps it to `reasoning.effort`.
+    - Accepts alias `response_id` for `previous_response_id` to match some client patterns.
+    - Allows optional `session_id` (currently unused but often expected by clients).
+    """
     instructions: Optional[str] = None
     max_output_tokens: Optional[int] = DEFAULT_MAX_OUTPUT_TOKENS
     input: Union[
@@ -121,13 +128,49 @@ class ResponsesRequest(BaseModel):
     stream: Optional[bool] = False
     tools: Optional[list[Union[FunctionToolDefinition, BrowserToolConfig]]] = []
     reasoning: Optional[ReasoningConfig] = ReasoningConfig()
+    # legacy single field support – user may pass reasoning_effort instead of nested structure
+    reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
     metadata: Optional[Dict[str, Any]] = {}
     tool_choice: Optional[Literal["auto", "none"]] = "auto"
     parallel_tool_calls: Optional[bool] = False
     store: Optional[bool] = False
-    previous_response_id: Optional[str] = None
+    # Accept both previous_response_id and response_id (alias)
+    previous_response_id: Optional[str] = Field(
+        default=None, alias="response_id", description="Alias: response_id"
+    )
     temperature: Optional[float] = DEFAULT_TEMPERATURE
     include: Optional[list[str]] = None
+    # Optional session identifier (not yet used for server-side state but accepted)
+    session_id: Optional[str] = None
+
+    @field_validator("temperature")
+    @classmethod
+    def _validate_temperature(cls, v):  # noqa: D401
+        """Validate temperature is within a reasonable range (0-2 inclusive)."""
+        if v is None:
+            return v
+        if not (0.0 <= v <= 2.0):
+            raise ValueError("temperature must be between 0.0 and 2.0 inclusive")
+        return v
+
+    @field_validator("max_output_tokens")
+    @classmethod
+    def _validate_max_output_tokens(cls, v):
+        if v is None:
+            return v
+        if v <= 0:
+            raise ValueError("max_output_tokens must be > 0")
+        return v
+
+    @model_validator(mode="after")
+    def _apply_reasoning_effort_legacy(self):
+        # If user provided standalone reasoning_effort, map it into reasoning.effort
+        if self.reasoning_effort is not None:
+            if self.reasoning is None:
+                self.reasoning = ReasoningConfig(effort=self.reasoning_effort)
+            else:
+                self.reasoning.effort = self.reasoning_effort  # type: ignore
+        return self
 
 
 class ResponseObject(BaseModel):
