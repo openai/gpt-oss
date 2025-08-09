@@ -56,7 +56,7 @@ outputs = pipe(
     messages,
     max_new_tokens=256,
 )
-print(outputs[0]["generated_text"][-1])
+print(outputs[0]["generated_text"][-1]['content'])
 ```
 
 [Learn more about how to use gpt-oss with Transformers.](https://cookbook.openai.com/articles/gpt-oss/run-transformers)
