@@ -33,7 +33,11 @@ from importlib import import_module
 from typing import Any, Mapping, Sequence
 
 
-TRUE_VALUES = {"1", "true", "TRUE", "on", "ON", "yes", "YES"}
+TRUE_VALUES = {
+    "1", "true", "True", "TRUE",
+    "on", "ON",
+    "yes", "YES",
+}
 
 
 def _use_metal_backend() -> bool:
