@@ -2,6 +2,7 @@
 
 This script uses the Agents SDK in TypeScript and the underlying OpenAI client to verify the shape of the API calls but also whether the API performs tool calling.
 
+0. Run `npm install` in this directory.
 1. Update `providers.ts` to create an entry for the API to test. Change `vllm` to the provider name of your choice
 2. Run an initial quick test to make sure things work. This will only run one test
 
