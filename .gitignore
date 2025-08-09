@@ -5,3 +5,17 @@ __pycache__
 *.egg*
 node_modules/
 *.log
+
+# Development environment
+venv/
+.env
+
+# AI assistant folders
+.claude/
+.cursor/
+.vscode/
+
+# Model weights (large files)
+*.bin
+*.safetensors
+gpt-oss-*/
