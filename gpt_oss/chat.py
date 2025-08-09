@@ -24,6 +24,7 @@ import asyncio
 import datetime
 import os
 from pathlib import Path
+import sys
 
 try:
     import gnureadline as readline
@@ -109,8 +110,8 @@ def main(args):
             generator = TorchGenerator(args.checkpoint, device)
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
-            # FIXME: Hardcoded tensor_parallel_size=2 should be configurable
-            generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
+            # Use configurable tensor parallel size
+            generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=args.tensor_parallel_size)
         case _:
             raise ValueError(f"Invalid backend: {args.backend}")
 
@@ -454,7 +455,20 @@ if __name__ == "__main__":
         choices=["triton", "torch", "vllm"],
         help="Choose the inference backend for token generation",
     )
+    # Add tensor parallel size (CLI overrides env TP)
+    parser.add_argument(
+        "--tensor-parallel-size", "--tp",
+        dest="tensor_parallel_size",
+        type=int,
+        default=int(os.environ.get("TP", "2")),
+        help="Tensor parallel size (overrides env TP; default from TP or 2)",
+    )
     args = parser.parse_args()
+
+    # Validate TP value
+    if args.tensor_parallel_size < 1:
+        print("Error: --tensor-parallel-size must be >= 1", file=sys.stderr)
+        sys.exit(2)
 
     # Set up readline history for better user experience
     # Only do this for single-process execution (not distributed)
