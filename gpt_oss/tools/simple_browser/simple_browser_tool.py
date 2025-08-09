@@ -12,24 +12,12 @@ import pydantic
 import structlog
 import tiktoken
 from aiohttp import ClientSession
-from openai_harmony import (
-    Author,
-    Content,
-    Message,
-    Role,
-    TextContent,
-    ToolNamespaceConfig
-)
+from openai_harmony import (Author, Content, Message, Role, TextContent,
+                            ToolNamespaceConfig)
 
 from ..tool import Tool
-
 # from functions import Function, from_python
-from .backend import (
-    VIEW_SOURCE_PREFIX,
-    Backend,
-    BackendError,
-    maybe_truncate,
-)
+from .backend import VIEW_SOURCE_PREFIX, Backend, BackendError, maybe_truncate
 from .page_contents import Extract, PageContents
 
 logger = structlog.stdlib.get_logger(component=__name__)
@@ -44,7 +32,9 @@ PARTIAL_FINAL_LINK_PATTERN = re.compile(
 )
 LINK_PATTERN = re.compile(r"【\d+†(?P<content>[^†】]+)(?:†[^†】]+)?】")
 
-CITATION_OUTPUT_PATTERN = re.compile(r"【(?P<cursor>\d+)†(?P<content>[^†】]+)(?:†[^†】]+)?】")
+CITATION_OUTPUT_PATTERN = re.compile(
+    r"【(?P<cursor>\d+)†(?P<content>[^†】]+)(?:†[^†】]+)?】"
+)
 
 CallParams = ParamSpec("CallParams")
 
@@ -352,12 +342,15 @@ class SimpleBrowserTool(Tool):
     def tool_config(self) -> ToolNamespaceConfig:
         config = ToolNamespaceConfig.browser()
         config.name = self.name
-        config.description = """Tool for browsing.
+        config.description = (
+            """Tool for browsing.
 The `cursor` appears in brackets before each browsing display: `[{cursor}]`.
 Cite information from the tool using the following format:
 `【{cursor}†L{line_start}(-L{line_end})?】`, for example: `【6†L9-L11】` or `【8†L3】`.
 Do not quote more than 10 words directly from the tool output.
-sources=""" + self.backend.source
+sources="""
+            + self.backend.source
+        )
         return config
 
     @property
@@ -616,8 +609,9 @@ sources=""" + self.backend.source
         else:
             raise ValueError("should not be here")
 
-
-    def normalize_citations(self, old_content: str, hide_partial_citations: bool = False) -> tuple[str, list[dict[str, Any]], bool]:
+    def normalize_citations(
+        self, old_content: str, hide_partial_citations: bool = False
+    ) -> tuple[str, list[dict[str, Any]], bool]:
         """
         Returns a tuple of (new_message, annotations, has_partial_citations)
         - new_message: Message with citations replaced by ([domain](url))
@@ -625,7 +619,9 @@ sources=""" + self.backend.source
         - has_partial_citations: whether the text includes an unfinished citation
         """
 
-        has_partial_citations = PARTIAL_FINAL_LINK_PATTERN.search(old_content) is not None
+        has_partial_citations = (
+            PARTIAL_FINAL_LINK_PATTERN.search(old_content) is not None
+        )
         if hide_partial_citations and has_partial_citations:
             old_content = PARTIAL_FINAL_LINK_PATTERN.sub("", old_content)
 
@@ -635,12 +631,14 @@ sources=""" + self.backend.source
             content = match.group("content")
             start_idx = match.start()
             end_idx = match.end()
-            matches.append({
-                "cursor": cursor,
-                "content": content,
-                "start": start_idx,
-                "end": end_idx
-            })
+            matches.append(
+                {
+                    "cursor": cursor,
+                    "content": content,
+                    "start": start_idx,
+                    "end": end_idx,
+                }
+            )
 
         # Build a mapping from cursor to url
         cursor_to_url = {}
@@ -673,13 +671,15 @@ sources=""" + self.backend.source
                 # The start and end indices in the new content
                 start_index = len(new_content)
                 end_index = start_index + len(replacement)
-                annotations.append({
-                    "start_index": start_index,
-                    "end_index": end_index,
-                    "title": domain,
-                    "url": url,
-                    "type": "url_citation",
-                })
+                annotations.append(
+                    {
+                        "start_index": start_index,
+                        "end_index": end_index,
+                        "title": domain,
+                        "url": url,
+                        "type": "url_citation",
+                    }
+                )
                 new_content += replacement
             else:
                 # Keep the original citation format if cursor is missing
@@ -693,4 +693,3 @@ sources=""" + self.backend.source
 
         new_content += old_content[last_idx:]
         return new_content, annotations, has_partial_citations
-

@@ -2,10 +2,9 @@
 
 import argparse
 import sys
-
 from datetime import date
-from gpt_oss.metal import Context, Model
 
+from gpt_oss.metal import Context, Model
 
 DEFAULT_PROMPT = f"""You are ChatGPT, a large language model trained by OpenAI.
 Knowledge cutoff: 2024-06
@@ -16,8 +15,16 @@ reasoning effort high
 # Valid channels: analysis, final. Channel must be included for every message."""
 
 
-parser = argparse.ArgumentParser(description="Chat with gpt-oss", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("model", metavar="PATH", type=str, help="Path to gpt-oss model in Metal inference format")
+parser = argparse.ArgumentParser(
+    description="Chat with gpt-oss",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
+parser.add_argument(
+    "model",
+    metavar="PATH",
+    type=str,
+    help="Path to gpt-oss model in Metal inference format",
+)
 parser.add_argument("--prompt", type=str, default=DEFAULT_PROMPT, help="System prompt")
 parser.add_argument(
     "--context-length", type=int, default=0, help="The maximum context length"
@@ -25,9 +32,7 @@ parser.add_argument(
 parser.add_argument(
     "--temperature", type=float, default=1.0, help="Sampling temperature"
 )
-parser.add_argument(
-    "--seed", type=int, default=0, help="Sampling seed"
-)
+parser.add_argument("--seed", type=int, default=0, help="Sampling seed")
 
 
 GREY = "\33[90m"

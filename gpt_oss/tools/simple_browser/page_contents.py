@@ -16,7 +16,6 @@ import lxml
 import lxml.etree
 import lxml.html
 import pydantic
-
 import tiktoken
 
 logger = logging.getLogger(__name__)

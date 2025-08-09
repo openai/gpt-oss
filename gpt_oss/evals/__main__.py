@@ -3,14 +3,12 @@ import json
 from datetime import datetime
 
 from . import report
-from .basic_eval import BasicEval
-from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
+from .basic_eval import BasicEval
+from .chat_completions_sampler import (OPENAI_SYSTEM_MESSAGE_API,
+                                       ChatCompletionsSampler)
+from .gpqa_eval import GPQAEval
 from .healthbench_eval import HealthBenchEval
-from .chat_completions_sampler import (
-    OPENAI_SYSTEM_MESSAGE_API,
-    ChatCompletionsSampler,
-)
 from .responses_sampler import ResponsesSampler
 
 
@@ -62,16 +60,16 @@ def main():
         default=1584,
         help="Number of threads to run.",
     )
-    parser.add_argument(
-        "--debug", action="store_true", help="Run in debug mode"
-    )
+    parser.add_argument("--debug", action="store_true", help="Run in debug mode")
     parser.add_argument(
         "--examples", type=int, help="Number of examples to use (overrides default)"
     )
 
     args = parser.parse_args()
 
-    sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
+    sampler_cls = (
+        ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
+    )
 
     models = {}
     for model_name in args.model.split(","):
@@ -192,7 +190,8 @@ def main():
     merge_metrics = []
     for eval_model_name, result_filename in mergekey2resultpath.items():
         try:
-            result = json.load(open(result_filename, "r+"))
+            with open(result_filename, "r") as f:
+                result = json.load(f)
         except Exception as e:
             print(e, result_filename)
             continue

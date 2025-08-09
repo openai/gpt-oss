@@ -4,25 +4,47 @@ import os
 import torch
 from safetensors import safe_open
 
-
 # Bytes per MXFP4 block: 32 FP4 numbers packed in 16 bytes
 BYTES_PER_BLOCK = 16
 
 FP4_VALUES = [
-    +0.0, +0.5, +1.0, +1.5, +2.0, +3.0, +4.0, +6.0,
-    -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
+    +0.0,
+    +0.5,
+    +1.0,
+    +1.5,
+    +2.0,
+    +3.0,
+    +4.0,
+    +6.0,
+    -0.0,
+    -0.5,
+    -1.0,
+    -1.5,
+    -2.0,
+    -3.0,
+    -4.0,
+    -6.0,
 ]
 
 # Map the names assumed in this implementation to the checkpoint names.
-PARAM_NAME_MAP = {
-    f"block.{n}.mlp.mlp1_bias": f"block.{n}.mlp.mlp1_bias" for n in range(36)
-} | {
-    f"block.{n}.mlp.mlp1_weight": (f"block.{n}.mlp.mlp1_weight.blocks", f"block.{n}.mlp.mlp1_weight.scales") for n in range(36)
-} | {
-    f"block.{n}.mlp.mlp2_bias": f"block.{n}.mlp.mlp2_bias" for n in range(36)
-} | {
-    f"block.{n}.mlp.mlp2_weight": (f"block.{n}.mlp.mlp2_weight.blocks", f"block.{n}.mlp.mlp2_weight.scales") for n in range(36)
-}
+PARAM_NAME_MAP = (
+    {f"block.{n}.mlp.mlp1_bias": f"block.{n}.mlp.mlp1_bias" for n in range(36)}
+    | {
+        f"block.{n}.mlp.mlp1_weight": (
+            f"block.{n}.mlp.mlp1_weight.blocks",
+            f"block.{n}.mlp.mlp1_weight.scales",
+        )
+        for n in range(36)
+    }
+    | {f"block.{n}.mlp.mlp2_bias": f"block.{n}.mlp.mlp2_bias" for n in range(36)}
+    | {
+        f"block.{n}.mlp.mlp2_weight": (
+            f"block.{n}.mlp.mlp2_weight.blocks",
+            f"block.{n}.mlp.mlp2_weight.scales",
+        )
+        for n in range(36)
+    }
+)
 
 
 class Checkpoint:
@@ -53,13 +75,17 @@ class Checkpoint:
         match PARAM_NAME_MAP.get(name, name):
             case (blocks_name, scales_name):
                 # MoE weights: are in block-based MXFP4 format
-                return self._get_mxfp4_tensor(blocks_name, scales_name, dtype=torch.bfloat16)
+                return self._get_mxfp4_tensor(
+                    blocks_name, scales_name, dtype=torch.bfloat16
+                )
             case tensor_name:
                 # MoE biases and other weights
                 return self._get_tensor(tensor_name)
 
     def _get_tensor(self, name: str) -> str:
-        assert name in self.tensor_name_to_file, f"Tensor {name} not found in checkpoint."
+        assert (
+            name in self.tensor_name_to_file
+        ), f"Tensor {name} not found in checkpoint."
         with safe_open(
             self.tensor_name_to_file[name], framework="pt", device=self.device_str
         ) as f:
@@ -73,24 +99,24 @@ class Checkpoint:
         dtype: torch.dtype = torch.bfloat16,
         rows_per_chunk: int = 16384 * 512,
     ) -> torch.Tensor:
-        assert blocks_name in self.tensor_name_to_file, (
-            f"Blocks tensor {blocks_name} not found in checkpoint."
-        )
-        assert scales_name in self.tensor_name_to_file, (
-            f"Scales tensor {scales_name} not found in checkpoint."
-        )
+        assert (
+            blocks_name in self.tensor_name_to_file
+        ), f"Blocks tensor {blocks_name} not found in checkpoint."
+        assert (
+            scales_name in self.tensor_name_to_file
+        ), f"Scales tensor {scales_name} not found in checkpoint."
 
         blocks = self._get_tensor(blocks_name)
         scales = self._get_tensor(scales_name).to(torch.int32) - 127
 
-        assert blocks.shape[:-1] == scales.shape, (
-            f"{blocks.shape=} does not match {scales.shape=}"
-        )
+        assert (
+            blocks.shape[:-1] == scales.shape
+        ), f"{blocks.shape=} does not match {scales.shape=}"
 
         lut = torch.tensor(FP4_VALUES, dtype=dtype, device=blocks.device)
 
         *prefix_shape, G, B = blocks.shape
-        rows_total   = math.prod(prefix_shape) * G
+        rows_total = math.prod(prefix_shape) * G
 
         blocks = blocks.reshape(rows_total, B)
         scales = scales.reshape(rows_total, 1)
@@ -116,7 +142,9 @@ class Checkpoint:
 
         return out.reshape(*prefix_shape, G, B * 2).view(*prefix_shape, G * B * 2)
 
-    def _get_mxfp4_tensor_copy(self, blocks_name: str, scales_name: str, dtype: torch.dtype = torch.bfloat16):
+    def _get_mxfp4_tensor_copy(
+        self, blocks_name: str, scales_name: str, dtype: torch.dtype = torch.bfloat16
+    ):
         "short version that uses a lot of memory"
 
         loaded_blocks = self._get_tensor(blocks_name)
@@ -124,7 +152,9 @@ class Checkpoint:
         loaded_blocks_lo = loaded_blocks & 0x0F
         loaded_blocks_hi = loaded_blocks >> 4
         loaded_blocks = torch.stack((loaded_blocks_lo, loaded_blocks_hi), dim=-1)
-        loaded_blocks = loaded_blocks.view(*loaded_blocks.shape[:-2], loaded_blocks.shape[-2] * 2)
+        loaded_blocks = loaded_blocks.view(
+            *loaded_blocks.shape[:-2], loaded_blocks.shape[-2] * 2
+        )
 
         loaded_scales = self._get_tensor(scales_name)
         # Upcast to int32 and subtract bias
@@ -132,6 +162,8 @@ class Checkpoint:
 
         # Convert MXFP4 numbers into target dtype
         fp4_values = torch.tensor(FP4_VALUES, dtype=dtype, device=self.device_str)
-        loaded_tensor = torch.ldexp(fp4_values[loaded_blocks.int()], loaded_scales.unsqueeze(-1))
+        loaded_tensor = torch.ldexp(
+            fp4_values[loaded_blocks.int()], loaded_scales.unsqueeze(-1)
+        )
         loaded_tensor = loaded_tensor.view(*loaded_tensor.shape[:-2], -1)
         return loaded_tensor

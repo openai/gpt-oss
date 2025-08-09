@@ -8,7 +8,7 @@ from torch.profiler import record_function
 from gpt_oss.torch.model import ModelConfig, RMSNorm
 from gpt_oss.torch.weights import Checkpoint
 from gpt_oss.triton.attention import attention, attention_ref
-from gpt_oss.triton.moe import quantize_mx4, moe
+from gpt_oss.triton.moe import moe, quantize_mx4
 
 
 class RotaryEmbedding(torch.nn.Module):
@@ -78,7 +78,9 @@ class RotaryEmbedding(torch.nn.Module):
 
     def _compute_cos_sin(self, start: int, num_tokens: int):
         concentration, inv_freq = self._compute_concentration_and_inv_freq()
-        t = torch.arange(start, start + num_tokens, dtype=torch.float32, device=self.device)
+        t = torch.arange(
+            start, start + num_tokens, dtype=torch.float32, device=self.device
+        )
         freqs = torch.einsum("i,j->ij", t, inv_freq)
         cos = freqs.cos() * concentration
         sin = freqs.sin() * concentration
@@ -119,9 +121,20 @@ class RotaryEmbedding(torch.nn.Module):
 
 
 class Cache:
-    def __init__(self, batch_size, n_ctx, n_kv_heads, d_head=64, device: torch.device | None = None):
-        self.k = torch.zeros((batch_size, n_ctx, n_kv_heads, d_head), dtype=torch.bfloat16, device=device)
-        self.v = torch.zeros((batch_size, n_ctx, n_kv_heads, d_head), dtype=torch.bfloat16, device=device)
+    def __init__(
+        self,
+        batch_size,
+        n_ctx,
+        n_kv_heads,
+        d_head=64,
+        device: torch.device | None = None,
+    ):
+        self.k = torch.zeros(
+            (batch_size, n_ctx, n_kv_heads, d_head), dtype=torch.bfloat16, device=device
+        )
+        self.v = torch.zeros(
+            (batch_size, n_ctx, n_kv_heads, d_head), dtype=torch.bfloat16, device=device
+        )
         self.offset = torch.zeros((1,), dtype=torch.long, device=device)
 
     def reset(self):
@@ -147,7 +160,9 @@ class Cache:
     def extend(self, k, v):
         batch_size, n_ctx, *_rest = k.shape
         assert batch_size == self.k.shape[0]
-        indices = torch.arange(0, n_ctx, device=k.device, dtype=torch.long) + self.offset
+        indices = (
+            torch.arange(0, n_ctx, device=k.device, dtype=torch.long) + self.offset
+        )
         self.k.index_copy_(1, indices, k)
         self.v.index_copy_(1, indices, v)
         self.offset.add_(n_ctx)
@@ -206,7 +221,7 @@ class AttentionBlock(torch.nn.Module):
             qkv_parts = (
                 self.num_attention_heads * self.head_dim,
                 self.num_key_value_heads * self.head_dim,
-                self.num_key_value_heads * self.head_dim
+                self.num_key_value_heads * self.head_dim,
             )
             q, k, v = torch.split(qkv, qkv_parts, dim=-1)
             q, k, v = q.contiguous(), k.contiguous(), v.contiguous()
@@ -283,22 +298,24 @@ class MLPBlock(torch.nn.Module):
         self.experts_per_token = config.experts_per_token
         self.swiglu_limit = config.swiglu_limit
         self.norm = RMSNorm(config.hidden_size, device=device)
-        self.gate = torch.nn.ParameterDict({
-            "weight": torch.nn.Parameter(
-                torch.empty(
-                    (config.hidden_size, config.num_experts),
-                    device=device,
-                    dtype=torch.bfloat16,
-                )
-            ),
-            "bias": torch.nn.Parameter(
-                torch.empty(
-                    (config.num_experts,),
-                    device=device,
-                    dtype=torch.bfloat16,
-                )
-            ),
-        })
+        self.gate = torch.nn.ParameterDict(
+            {
+                "weight": torch.nn.Parameter(
+                    torch.empty(
+                        (config.hidden_size, config.num_experts),
+                        device=device,
+                        dtype=torch.bfloat16,
+                    )
+                ),
+                "bias": torch.nn.Parameter(
+                    torch.empty(
+                        (config.num_experts,),
+                        device=device,
+                        dtype=torch.bfloat16,
+                    )
+                ),
+            }
+        )
         self.mlp1_weight_tensor, self.mlp1_weight_mx = quantize_mx4(
             torch.empty(
                 (
@@ -310,7 +327,9 @@ class MLPBlock(torch.nn.Module):
                 dtype=torch.bfloat16,
             ),
         )
-        self.mlp1_weight = torch.nn.Parameter(self.mlp1_weight_tensor.storage.data, requires_grad=False)
+        self.mlp1_weight = torch.nn.Parameter(
+            self.mlp1_weight_tensor.storage.data, requires_grad=False
+        )
         self.mlp1_bias = torch.nn.Parameter(
             torch.empty(
                 (config.num_experts, config.intermediate_size * 2),
@@ -329,7 +348,9 @@ class MLPBlock(torch.nn.Module):
                 dtype=torch.bfloat16,
             ),
         )
-        self.mlp2_weight = torch.nn.Parameter(self.mlp2_weight_tensor.storage.data, requires_grad=False)
+        self.mlp2_weight = torch.nn.Parameter(
+            self.mlp2_weight_tensor.storage.data, requires_grad=False
+        )
         self.mlp2_bias = torch.nn.Parameter(
             torch.empty(
                 (config.num_experts, config.hidden_size),
@@ -347,8 +368,10 @@ class MLPBlock(torch.nn.Module):
         t = moe(
             t,
             self.gate["weight"],
-            self.mlp1_weight_tensor, self.mlp1_weight_mx,
-            self.mlp2_weight_tensor, self.mlp2_weight_mx,
+            self.mlp1_weight_tensor,
+            self.mlp1_weight_mx,
+            self.mlp2_weight_tensor,
+            self.mlp2_weight_mx,
             self.gate["bias"].float(),
             self.mlp1_bias.float(),
             self.mlp2_bias.float(),
@@ -405,8 +428,10 @@ class Transformer(torch.nn.Module):
             dtype=torch.bfloat16,
         )
 
-    def forward(self, x: torch.Tensor, caches: list[Cache] | None = None) -> torch.Tensor:
-        caches=caches or [None] * len(self.block)
+    def forward(
+        self, x: torch.Tensor, caches: list[Cache] | None = None
+    ) -> torch.Tensor:
+        caches = caches or [None] * len(self.block)
         with record_function("embedding"):
             x = self.embedding(x)
         for block, cache in zip(self.block, caches):
@@ -420,7 +445,9 @@ class Transformer(torch.nn.Module):
 
     @staticmethod
     def from_checkpoint(
-        path: str, config: ModelConfig | None = None, device: str | torch.device = "cuda",
+        path: str,
+        config: ModelConfig | None = None,
+        device: str | torch.device = "cuda",
     ) -> "Transformer":
         if not isinstance(device, torch.device):
             device = torch.device(device)
@@ -472,7 +499,10 @@ class TokenGenerator:
     def __init__(self, checkpoint: str, context: int, device: torch.device):
         self.device = device
         self.model = Transformer.from_checkpoint(checkpoint, device=self.device)
-        self.caches = [Cache(1, context, self.model.config.num_key_value_heads, device=self.device) for _ in range(len(self.model.block))]
+        self.caches = [
+            Cache(1, context, self.model.config.num_key_value_heads, device=self.device)
+            for _ in range(len(self.model.block))
+        ]
         self.input_token = torch.zeros(1, dtype=torch.int32, device=self.device)
         # warmup
         self.model(self.input_token[None, :], caches=self.caches)
@@ -482,16 +512,20 @@ class TokenGenerator:
             self.logits = self.model(self.input_token[None, :], caches=self.caches)[0]
 
     @torch.inference_mode()
-    def generate(self,
-                 prompt_tokens: list[int],
-                 stop_tokens: list[int] | None = None,
-                 temperature: float = 1.0,
-                 max_tokens: int = 0,
-                 return_logprobs: bool = False):
+    def generate(
+        self,
+        prompt_tokens: list[int],
+        stop_tokens: list[int] | None = None,
+        temperature: float = 1.0,
+        max_tokens: int = 0,
+        return_logprobs: bool = False,
+    ):
         stop_tokens = stop_tokens or []
         for cache in self.caches:
             cache.reset()
-        prompt_tokens = torch.as_tensor(prompt_tokens, dtype=torch.int32, device=self.device)
+        prompt_tokens = torch.as_tensor(
+            prompt_tokens, dtype=torch.int32, device=self.device
+        )
         self.model(prompt_tokens[None, :-1], self.caches)
         predicted_token = prompt_tokens[-1]
         num_generated_tokens = 0

@@ -6,13 +6,13 @@ one token at a time to mimic the behavior of the Triton implementation.
 import os
 from typing import Callable, List
 
+import torch
 # Transformers imports
 from transformers import AutoModelForCausalLM, PreTrainedModel
-import torch
-
 
 DEFAULT_TEMPERATURE = 0.0
 TP = os.environ.get("TP", 2)
+
 
 def load_model(checkpoint: str):
     """
@@ -41,10 +41,15 @@ def get_infer_next_token(model: PreTrainedModel):
     def infer_next_token(
         tokens: List[int],
         temperature: float = DEFAULT_TEMPERATURE,
-        new_request: bool = False, # kept for interface compatibility; unused here
+        new_request: bool = False,  # kept for interface compatibility; unused here
     ) -> int:
         tokens = torch.tensor([tokens], dtype=torch.int64, device=model.device)
-        output = model.generate(tokens, max_new_tokens=1, do_sample=temperature != 0, temperature=temperature)
+        output = model.generate(
+            tokens,
+            max_new_tokens=1,
+            do_sample=temperature != 0,
+            temperature=temperature,
+        )
         return output[0, -1].tolist()
 
     return infer_next_token

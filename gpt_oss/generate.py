@@ -11,17 +11,21 @@ from gpt_oss.tokenizer import get_tokenizer
 def main(args):
     match args.backend:
         case "torch":
-            from gpt_oss.torch.utils import init_distributed
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
+            from gpt_oss.torch.utils import init_distributed
+
             device = init_distributed()
             generator = TorchGenerator(args.checkpoint, device=device)
         case "triton":
             from gpt_oss.torch.utils import init_distributed
             from gpt_oss.triton.model import TokenGenerator as TritonGenerator
+
             device = init_distributed()
             generator = TritonGenerator(args.checkpoint, context=4096, device=device)
         case "vllm":
-            from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
+            from gpt_oss.vllm.token_generator import \
+                TokenGenerator as VLLMGenerator
+
             generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
         case _:
             raise ValueError(f"Invalid backend: {args.backend}")
@@ -29,12 +33,17 @@ def main(args):
     tokenizer = get_tokenizer()
     tokens = tokenizer.encode(args.prompt)
     max_tokens = None if args.limit == 0 else args.limit
-    for token, logprob in generator.generate(tokens, stop_tokens=[tokenizer.eot_token], temperature=args.temperature, max_tokens=max_tokens, return_logprobs=True):
+    for token, logprob in generator.generate(
+        tokens,
+        stop_tokens=[tokenizer.eot_token],
+        temperature=args.temperature,
+        max_tokens=max_tokens,
+        return_logprobs=True,
+    ):
         tokens.append(token)
         decoded_token = tokenizer.decode([token])
-        print(
-            f"Generated token: {repr(decoded_token)}, logprob: {logprob}"
-        )
+        print(f"Generated token: {repr(decoded_token)}, logprob: {logprob}")
+
 
 
 if __name__ == "__main__":

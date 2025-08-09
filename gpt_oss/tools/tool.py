@@ -1,13 +1,8 @@
 from abc import ABC, abstractmethod
-from uuid import UUID, uuid4
 from typing import AsyncIterator
+from uuid import UUID, uuid4
 
-from openai_harmony import (
-    Author,
-    Role,
-    Message,
-    TextContent,
-)
+from openai_harmony import Author, Message, Role, TextContent
 
 
 def _maybe_update_inplace_and_validate_channel(
@@ -63,13 +58,17 @@ class Tool(ABC):
         """
         async for m in self._process(message):
             if self.output_channel_should_match_input_channel:
-                _maybe_update_inplace_and_validate_channel(input_message=message, tool_message=m)
+                _maybe_update_inplace_and_validate_channel(
+                    input_message=message, tool_message=m
+                )
             yield m
 
     @abstractmethod
     async def _process(self, message: Message) -> AsyncIterator[Message]:
         """Override this method to provide the implementation of the tool."""
-        if False:  # This is to convince the type checker that this is an async generator.
+        if (
+            False
+        ):  # This is to convince the type checker that this is an async generator.
             yield  # type: ignore[unreachable]
         _ = message  # Stifle "unused argument" warning.
         raise NotImplementedError
@@ -94,7 +93,6 @@ class Tool(ABC):
         return Message(
             id=id if id else uuid4(),
             author=Author(role=Role.TOOL, name=self.name),
-            content=TextContent(text=error_message), # TODO: Use SystemError instead
+            content=TextContent(text=f"Error: {error_message}"),
             channel=channel,
         ).with_recipient("assistant")
-
