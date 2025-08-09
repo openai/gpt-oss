@@ -33,7 +33,7 @@ Both models were trained using our [harmony response format][harmony] and should
 
 #### Transformers
 
-You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use the Transformers chat template it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
+You can use `gpt-oss-120b` and `gpt-oss-20b` with the Transformers library. If you use Transformers' chat template, it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
 
 ```python
 from transformers import pipeline
@@ -171,7 +171,7 @@ huggingface-cli download openai/gpt-oss-20b --include "original/*" --local-dir g
 
 We include an inefficient reference PyTorch implementation in [gpt_oss/torch/model.py](gpt_oss/torch/model.py). This code uses basic PyTorch operators to show the exact model architecture, with a small addition of supporting tensor parallelism in MoE so that the larger model can run with this code (e.g., on 4xH100 or 2xH200). In this implementation, we upcast all weights to BF16 and run the model in BF16.
 
-To run the reference implementation. Install dependencies:
+To run the reference implementation, install the dependencies:
 
 ```shell
 pip install -e .[torch]
@@ -227,7 +227,7 @@ To perform inference you'll need to first convert the SafeTensor weights from Hu
 python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_file>
 ```
 
-Or downloaded the pre-converted weight:
+Or download the pre-converted weight:
 
 ```shell
 huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
@@ -279,7 +279,7 @@ options:
 ```
 
 > [!NOTE]
-> The torch and triton implementation requires original checkpoint under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `gpt-oss-120b/` and `gpt-oss-20b/` root directory respectively.
+> The torch and triton implementations require original checkpoint under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `gpt-oss-120b/` and `gpt-oss-20b/` root directory respectively.
 
 ### Responses API
 
@@ -468,10 +468,10 @@ if last_message.recipient == "python":
 
 We released the models with native quantization support. Specifically, we use [MXFP4](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) for the linear projection weights in the MoE layer. We store the MoE tensor in two parts:
 
-- `tensor.blocks` stores the actual fp4 values. We pack every two value in one `uint8` value.
+- `tensor.blocks` stores the actual fp4 values. We pack every two values in one `uint8` value.
 - `tensor.scales` stores the block scale. The block scaling is done among the last dimension for all MXFP4 tensors.
 
-All other tensors will be in BF16. We also recommend use BF16 as the activation precision for the model.
+All other tensors will be in BF16. We also recommend using BF16 as the activation precision for the model.
 
 ### Recommended Sampling Parameters
 
