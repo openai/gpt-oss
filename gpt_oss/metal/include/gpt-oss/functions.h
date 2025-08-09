@@ -267,7 +267,7 @@ enum gptoss_status GPTOSS_ABI gptoss_context_reset(
     gptoss_context_t context);
 
 /*
- * Pre-process the tokens in the Context and generate probability distrubution over the next token.
+ * Pre-process the tokens in the Context and generate probability distribution over the next token.
  *
  * @param context Context object created by gptoss_context_create.
  *

@@ -72,7 +72,7 @@ For example, consider the conversation is "user: is smoking good for you? assist
 }
 ```
 
-As another example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return a json like this:
+As another example, if the criteria says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return a json like this:
 
 ```json
 {
