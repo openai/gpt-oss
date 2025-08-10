@@ -171,7 +171,7 @@ hf download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
 
 We include an inefficient reference PyTorch implementation in [gpt_oss/torch/model.py](gpt_oss/torch/model.py). This code uses basic PyTorch operators to show the exact model architecture, with a small addition of supporting tensor parallelism in MoE so that the larger model can run with this code (e.g., on 4xH100 or 2xH200). In this implementation, we upcast all weights to BF16 and run the model in BF16.
 
-To run the reference implementation. Install dependencies:
+To run the reference implementation, install these dependencies:
 
 ```shell
 pip install -e ".[torch]"
