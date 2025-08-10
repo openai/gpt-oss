@@ -75,17 +75,6 @@ struct gptoss_model {
     struct gptoss_metal_function f32_sdpa_q8_d64_fn;
     struct gptoss_metal_function f32_softmax_fn;
 
-    // Activation buffers.
-    // TODO: merge into a single buffer.
-    struct gptoss_metal_buffer residual_activation_buffer;  // Residual stream
-    struct gptoss_metal_buffer rmsnorm_activation_buffer;  // Both attention & MLP RMSNorm output
-    struct gptoss_metal_buffer qkv_activation_buffer;  // QKV projection output
-    struct gptoss_metal_buffer sdpa_activation_buffer;  // SDPA output
-    struct gptoss_metal_buffer gate_activation_buffer;  // MoE gating output
-    struct gptoss_metal_buffer expert_activation_buffer;  // MoE expert predictions
-    struct gptoss_metal_buffer swiglu_activation_buffer;  // MLP+SwiGLU output
-    struct gptoss_metal_buffer moe_activation_buffer;  // MoE MLP output (per-active expert)
-
     size_t per_block_shared_weights_size;
     size_t per_expert_block_weight_size;
 
@@ -135,6 +124,18 @@ struct gptoss_context {
     size_t kvcache_size;
     size_t allocation_size;
 
+    // Activation buffers.
+    // TODO: merge into a single buffer.
+    struct gptoss_metal_buffer residual_activation_buffer;  // Residual stream
+    struct gptoss_metal_buffer rmsnorm_activation_buffer;  // Both attention & MLP RMSNorm output
+    struct gptoss_metal_buffer qkv_activation_buffer;  // QKV projection output
+    struct gptoss_metal_buffer sdpa_activation_buffer;  // SDPA output
+    struct gptoss_metal_buffer gate_activation_buffer;  // MoE gating output
+    struct gptoss_metal_buffer expert_activation_buffer;  // MoE expert predictions
+    struct gptoss_metal_buffer swiglu_activation_buffer;  // MLP+SwiGLU output
+    struct gptoss_metal_buffer moe_activation_buffer;  // MoE MLP output (per-active expert)
+
+    // Input/output buffers.
     struct gptoss_metal_buffer token_buffer;  // uint32 token IDs
     struct gptoss_metal_buffer score_buffer;  // unembedding outputs
     struct gptoss_metal_buffer prob_buffer;

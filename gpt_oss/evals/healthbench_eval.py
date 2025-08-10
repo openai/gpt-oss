@@ -26,9 +26,9 @@ import blobfile as bf
 import numpy as np
 
 from . import report
-from .chat_completion_sampler import (
+from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
-    ChatCompletionSampler,
+    ChatCompletionsSampler,
 )
 from .types import Eval, EvalResult, MessageList, SamplerBase, SingleEvalResult
 
@@ -540,10 +540,11 @@ def physician_completions_main(
     now = datetime.now()
     date_str = now.strftime("%Y%m%d_%H%M")
 
-    grading_sampler = ChatCompletionSampler(
+    grading_sampler = ChatCompletionsSampler(
         model="gpt-4.1-2025-04-14",
         system_message=OPENAI_SYSTEM_MESSAGE_API,
         max_tokens=2048,
+        base_url="https://api.openai.com/v1",
     )
     dummy_sampler = SamplerBase()
 
