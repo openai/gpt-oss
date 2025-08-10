@@ -20,7 +20,9 @@ from transformers.models.gpt_oss.modeling_gpt_oss import GptOssForCausalLM
 from safetensors.torch import load_file, save_file
 
 
+# NOTE (yiakwy) : for quick verification purpose
 # from simple_py_mxfp4 import quantize_bf16_mxfp4
+
 from gpt_oss_triton_mxfp4 import quantize_bf16_mxfp4
 
 def has_tensor(weight_map, loaded_files, mxfp4_path, tensor_name):
@@ -89,7 +91,6 @@ def quantize(bf16_path, mxfp4_path, ref_weights_scale_inv_map_path=None):
             else:
                 print(f"skipping {weight_name} dtype={weight.dtype}...")
                 new_state_dict[weight_name] = weight
-                pass
 
         new_safetensor_file = os.path.join(mxfp4_path, file_name)
         save_file(new_state_dict, new_safetensor_file)
@@ -115,7 +116,6 @@ def quantize(bf16_path, mxfp4_path, ref_weights_scale_inv_map_path=None):
 
     with open(new_model_index_file, "w") as f:
         json.dump({"metadata": {}, "weight_map": weight_map}, f, indent=2)
-    pass
 
 
 def read_mxfp4_list(bf16_path):
