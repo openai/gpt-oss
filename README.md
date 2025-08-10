@@ -33,7 +33,7 @@ Both models were trained using our [harmony response format][harmony] and should
 
 #### Transformers
 
-You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use the Transformers chat template it will automatically apply the [Harmony response format][harmony]. If you use `model.generate` directly, you need to apply the Harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
+You can use `gpt-oss-120b` and `gpt-oss-20b` with the Transformers library. If you use the Transformers chat template, it will automatically apply the [Harmony response format][harmony]. If you use `model.generate` directly, you need to apply the Harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
 
 ```python
 from transformers import pipeline
@@ -63,7 +63,7 @@ print(outputs[0]["generated_text"][-1])
 
 #### vLLM
 
-vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible webserver. The following command will automatically download the model and start the server.
+vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible web server. The following command will automatically download the model and start the server.
 
 ```bash
 uv pip install --pre vllm==0.10.1+gptoss \
@@ -116,7 +116,7 @@ Check out our [awesome list](./awesome-gpt-oss.md) for a broader collection of g
 This repository provides a collection of reference implementations:
 
 - **Inference:**
-  - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4x H100s because it's not optimized
+  - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4× H100 GPUs due to lack of optimization.
   - [`triton`](#reference-triton-implementation-single-gpu) — a more optimized implementation using [PyTorch](https://pytorch.org/) & [Triton](https://github.com/triton-lang/triton) incl. using CUDA graphs and basic caching
   - [`metal`](#reference-metal-implementation) — a Metal-specific implementation for running the models on Apple Silicon hardware
 - **Tools:**
@@ -130,7 +130,7 @@ This repository provides a collection of reference implementations:
 
 ### Requirements
 
-- python 3.12
+- Python 3.12
 - On macOS: Install the Xcode CLI tools --> `xcode-select --install`
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
@@ -161,20 +161,20 @@ You can download the model weights from the [Hugging Face Hub](https://huggingfa
 
 ```shell
 # gpt-oss-120b
-huggingface-cli download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
+hf download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
 
 # gpt-oss-20b
-huggingface-cli download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
+hf download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
 ```
 
 ## Reference PyTorch implementation
 
 We include an inefficient reference PyTorch implementation in [gpt_oss/torch/model.py](gpt_oss/torch/model.py). This code uses basic PyTorch operators to show the exact model architecture, with a small addition of supporting tensor parallelism in MoE so that the larger model can run with this code (e.g., on 4xH100 or 2xH200). In this implementation, we upcast all weights to BF16 and run the model in BF16.
 
-To run the reference implementation, install dependencies:
+To run the reference implementation, install the dependencies:
 
 ```shell
-pip install -e .[torch]
+pip install -e ".[torch]"
 ```
 
 And then run:
@@ -198,7 +198,7 @@ pip install -r python/requirements.txt
 pip install -e . --verbose --no-build-isolation
 
 # Install the gpt-oss triton implementation
-pip install -e .[triton]
+pip install -e ".[triton]"
 ```
 
 And then run:
@@ -209,7 +209,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 python -m gpt_oss.generate --backend triton gpt-oss-120b/original/
 ```
 
-If you encounter `torch.OutOfMemoryError` make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
+If you encounter `torch.OutOfMemoryError`, make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
 
 ## Reference Metal implementation
 
@@ -218,7 +218,7 @@ Additionally we are providing a reference implementation for Metal to run on App
 The implementation will get automatically compiled when running the `.[metal]` installation on an Apple Silicon device:
 
 ```shell
-pip install -e .[metal]
+pip install -e ".[metal]"
 ```
 
 To perform inference you'll need to first convert the SafeTensors weights from Hugging Face into the right format using:
@@ -230,8 +230,8 @@ python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_fil
 Or download the pre-converted weights:
 
 ```shell
-huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
-huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
+hf download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
+hf download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
 ```
 
 To test it you can run:
@@ -250,7 +250,7 @@ We also include two system tools for the model: browsing and python container. C
 
 ### Terminal Chat
 
-The terminal chat application is a basic example on how to use the harmony format together with the PyTorch, Triton, and vLLM implementations. It also exposes both the python and browser tool as optional tools that can be used.
+The terminal chat application is a basic example of how to use the harmony format together with the PyTorch, Triton, and vLLM implementations. It also exposes both the python and browser tool as optional tools that can be used.
 
 ```bash
 usage: python -m gpt_oss.chat [-h] [-r REASONING_EFFORT] [-a] [-b] [--show-browser-results] [-p] [--developer-message DEVELOPER_MESSAGE] [-c CONTEXT] [--raw] [--backend {triton,torch,vllm}] FILE
@@ -279,7 +279,7 @@ options:
 ```
 
 > [!NOTE]
-> The torch and Triton implementations require the original checkpoints under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. vLLM uses the Hugging Face–converted checkpoints under the `gpt-oss-120b/` and `gpt-oss-20b/` root directories.
+> The torch and Triton implementations require the original checkpoints under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face–converted checkpoints under the `gpt-oss-120b/` and `gpt-oss-20b/` root directories.
 
 ### Responses API
 
@@ -468,10 +468,10 @@ if last_message.recipient == "python":
 
 We released the models with native quantization support. Specifically, we use [MXFP4](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) for the linear projection weights in the MoE layer. We store each MoE tensor in two parts:
 
-- `tensor.blocks` stores the actual FP4 values. We pack every two values into one `uint8`.
+- `tensor.blocks` stores the actual FP4 values. We pack every two values into one `uint8` value.
 - `tensor.scales` stores the block scale. The block scaling is done among the last dimension for all MXFP4 tensors.
 
-All other tensors are in BF16. We also recommend using BF16 for activations.
+All other tensors are in BF16. We also recommend using BF16 for activations precision for the model.
 
 ### Recommended Sampling Parameters
 
