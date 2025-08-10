@@ -137,11 +137,9 @@ def read_mxfp4_list(bf16_path):
         current_state_dict = load_file(safetensor_file, device="cuda")
         loaded_files[file_name] = current_state_dict
 
-        new_state_dict = {}
         for weight_name, weight in current_state_dict.items():
             if weight_name.endswith("scales"):
                 print(f"skipping {weight_name} dtype={weight.dtype}...")
-                # new_state_dict[weight_name] = weight
                 continue
             elif weight.element_size() == 1: # MXFP4
                 scale_name = weight_name.replace("blocks", "scales")
@@ -155,10 +153,8 @@ def read_mxfp4_list(bf16_path):
                     print(
                         f"Warning: Missing scales tensor for {weight_name}, skipping conversion ..."
                     )
-                    new_state_dict[weight_name] = weight
             else:
                 print(f"skipping {weight_name} dtype={weight.dtype}...")
-                pass
 
         if len(loaded_files) > 2:
             oldest_file = next(iter(loaded_files))
@@ -168,12 +164,12 @@ def read_mxfp4_list(bf16_path):
     weights_with_scale_inv = os.path.join(
         bf16_path, "weight_with_scale_inv_map.index.json"
     )
-    # with open(weights_with_scale_inv, "w") as f:
-    #     json.dump(
-    #         {"metadata": {}, "weight_with_scale_inv_map": mxfp4_weights_inv_map},
-    #         f,
-    #         indent=2,
-    #     )
+    with open(weights_with_scale_inv, "w") as f:
+        json.dump(
+            {"metadata": {}, "weight_with_scale_inv_map": mxfp4_weights_inv_map},
+            f,
+            indent=2,
+        )
 
 
 def _verify_tokenizer_and_model(hf_tokenizer, model):
@@ -232,4 +228,3 @@ if __name__ == "__main__":
             load_and_verify_hf_model(args.source_model)
     else:
         quantize(args.source_model, args.output_dir, ref_weights_scale_inv_map_path="/root/models/gpt-oss-120b")
-        pass
