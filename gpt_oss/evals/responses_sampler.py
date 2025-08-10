@@ -17,12 +17,11 @@ class ResponsesSampler(SamplerBase):
         model: str,
         developer_message: str | None = None,
         temperature: float = 1.0,
-        max_tokens: int = 1024,
+        max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
         base_url: str = "http://localhost:8000/v1",
     ):
-        self.api_key_name = "OPENAI_API_KEY"
         self.client = OpenAI(base_url=base_url, timeout=24*60*60)
         self.model = model
         self.developer_message = developer_message

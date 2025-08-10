@@ -793,16 +793,16 @@ def create_api_server(
         system_message = Message.from_role_and_content(
             Role.SYSTEM, system_message_content
         )
+        messages = [system_message]
 
-        developer_message_content = DeveloperContent.new().with_instructions(
-            body.instructions
-        )
+        if body.instructions or body.tools:
+            developer_message_content = DeveloperContent.new().with_instructions(
+                body.instructions
+            )
 
-        tools = []
-        if body.tools:
+            tools = []
             for tool in body.tools:
                 if tool.type == "function":
-                    has_functions = True
                     tools.append(
                         ToolDescription.new(
                             tool.name,
@@ -810,17 +810,17 @@ def create_api_server(
                             tool.parameters,
                         )
                     )
-        
-        if len(tools) > 0:
-            developer_message_content = developer_message_content.with_function_tools(
-                tools
+
+            if tools:
+                developer_message_content = developer_message_content.with_function_tools(
+                    tools
+                )
+
+            developer_message = Message.from_role_and_content(
+                Role.DEVELOPER, developer_message_content
             )
 
-        developer_message = Message.from_role_and_content(
-            Role.DEVELOPER, developer_message_content
-        )
-
-        messages = [system_message, developer_message]
+            messages.append(developer_message)
 
         if isinstance(body.input, str):
             user_message = Message.from_role_and_content(Role.USER, body.input)
