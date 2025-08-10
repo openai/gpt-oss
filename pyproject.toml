@@ -34,8 +34,8 @@ requires = ["setuptools>=68"]
 build-backend = "gpt_oss_build_backend.backend"
 backend-path = ["_build"]
 
-[tool.setuptools]
-packages = ["gpt_oss"]
+[tool.setuptools.packages.find]
+include = ["gpt_oss*"]
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt
