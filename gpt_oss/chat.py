@@ -72,7 +72,10 @@ def main(args):
             generator = TorchGenerator(args.checkpoint, device)
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
-            generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
+            generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=args.tensor_parallel_size)
+        case "sglang":
+            from gpt_oss.sglang.token_generator import TokenGenerator as SGLangGenerator
+            generator = SGLangGenerator(args.checkpoint, tensor_parallel_size=args.tensor_parallel_size)
         case _:
             raise ValueError(f"Invalid backend: {args.backend}")
 
@@ -351,8 +354,16 @@ if __name__ == "__main__":
         "--backend",
         type=str,
         default="triton",
-        choices=["triton", "torch", "vllm"],
+        choices=["triton", "torch", "vllm", "sglang"],
         help="Inference backend",
+    )
+    parser.add_argument(
+        "-tp",
+        "--tensor-parallel-size",
+        metavar="TP",
+        type=int,
+        default=1,
+        help="Inference backend tensor parallel size",
     )
     args = parser.parse_args()
 
