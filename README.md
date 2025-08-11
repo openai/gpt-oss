@@ -76,6 +76,9 @@ vllm serve openai/gpt-oss-20b
 
 [Learn more about how to use gpt-oss with vLLM.](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 
+#### SGLang
+see [GPT OSS Usage](https://docs.sglang.ai/basic_usage/gpt_oss.html)
+
 #### PyTorch / Triton / Metal
 
 These implementations are largely reference implementations for educational purposes and are not expected to be run in production.
