@@ -6,11 +6,14 @@ import {
   RunResult,
   StreamedRunResult,
   FunctionTool,
+  setTracingDisabled,
 } from "@openai/agents";
 import { Ajv } from "ajv";
 import { OpenAI } from "openai";
 import { PROVIDERS } from "./providers";
 import { TOOLS_MAP } from "./tools";
+
+setTracingDisabled(true);
 
 const ajv = new Ajv();
 
@@ -59,7 +62,7 @@ export async function runCase(
 
   const client = new OpenAI({
     apiKey: config.apiKey,
-    baseURL: config.baseUrl,
+    baseURL: config.apiBaseUrl,
   });
 
   const summaries: RunCaseSummary[] = [];

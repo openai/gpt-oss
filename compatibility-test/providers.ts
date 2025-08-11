@@ -1,7 +1,7 @@
 export const PROVIDERS = {
   vllm: {
     apiBaseUrl: "http://localhost:8000/v1",
-    apiKey: process.env["SOME_API_KEY"],
+    apiKey: "vllm",
     apiType: ["responses", "chat"], // choose from responses, chat, or both
     modelName: "openai/gpt-oss-120b",
     providerDetails: {
