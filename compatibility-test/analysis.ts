@@ -9,6 +9,10 @@ export function analyze(caseResults: any[], tries: number) {
   // Count wrong-input tool calls (schema correct but incorrect arguments)
   let wrongInputToolCalls = 0;
 
+  // Count invalid response shapes per API type
+  const totalByApiType: Record<string, number> = {};
+  const invalidByApiType: Record<string, number> = {};
+
   for (const r of caseResults) {
     if (!r?.result || typeof r.result.apiType !== "string") continue;
 
@@ -38,6 +42,14 @@ export function analyze(caseResults: any[], tries: number) {
       !calledToolWithRightArguments
     ) {
       wrongInputToolCalls++;
+    }
+
+    // Track invalid/total per apiType for response shape
+    const apiType = r.result.apiType as string;
+    totalByApiType[apiType] = (totalByApiType[apiType] ?? 0) + 1;
+    const isValidResponse = r.result.validResponse === true;
+    if (!isValidResponse) {
+      invalidByApiType[apiType] = (invalidByApiType[apiType] ?? 0) + 1;
     }
   }
 
@@ -80,6 +92,9 @@ export function analyze(caseResults: any[], tries: number) {
     passAtK,
     passHatK,
     wrongInputToolCalls,
+    // New stats for invalid response shapes per API
+    invalidByApiType,
+    totalByApiType,
   };
 }
 
@@ -104,6 +119,19 @@ export function printAnalysis(
   console.log(`  Tries: ${tries}`);
   console.log(`  Total tasks: ${stats.totalTasks}`);
   console.log(`  Total runs: ${caseResults.length}`);
+  // Conditionally print invalid response shape stats per API type
+  if ((stats.totalByApiType["responses"] ?? 0) > 0) {
+    const bad = stats.invalidByApiType["responses"] ?? 0;
+    const tot = stats.totalByApiType["responses"] ?? 0;
+    console.log(`  Invalid Responses API responses: ${bad} (out of ${tot})`);
+  }
+  if ((stats.totalByApiType["chat"] ?? 0) > 0) {
+    const bad = stats.invalidByApiType["chat"] ?? 0;
+    const tot = stats.totalByApiType["chat"] ?? 0;
+    console.log(
+      `  Invalid Chat Completions API responses: ${bad} (out of ${tot})`
+    );
+  }
   console.log(`  pass@k (k=1..${tries}): ${formatPerK(stats.passAtKByK)}`);
   console.log(`  pass^k (k=1..${tries}): ${formatPerK(stats.passHatKByK)}`);
   console.log(`  pass@k (k=${tries}): ${stats.passAtK.toFixed(3)}`);

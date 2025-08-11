@@ -139,4 +139,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 rollout_*.jsonl
-analysis_*.jsonl
+analysis_*.json

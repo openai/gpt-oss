@@ -105,7 +105,8 @@ export async function runCase(
 
     const { validResponse, details } = testOutputData(
       apiType,
-      result.rawResponses
+      result.rawResponses,
+      streaming
     );
 
     const { validEvents, details: eventsDetails } = streaming
@@ -189,14 +190,21 @@ function testToolCall(apiType, caseData, result, strict) {
 function testEvents(apiType, events) {
   // In an ideal world we would check all the events to follow and reconstruct the final response
   // and then compare it against the final response in the response.completed event
+  // for now we just check that certain events are present
 
   let details: Record<string, boolean> = {};
   let validEvents: boolean = false;
 
-  // for now we just check that certain events are present
   if (apiType === "chat") {
-    // todo
-    validEvents = true;
+    let hasReasoningDeltas = false;
+    for (const event of events) {
+      hasReasoningDeltas =
+        hasReasoningDeltas ||
+        (typeof event.choices[0].delta.reasoning === "string" &&
+          event.choices[0].delta.reasoning.length > 0);
+    }
+    details.hasReasoningDeltas = hasReasoningDeltas;
+    validEvents = hasReasoningDeltas;
   }
 
   if (apiType === "responses") {
@@ -227,14 +235,23 @@ function testEvents(apiType, events) {
   };
 }
 
-function testOutputData(apiType, rawResponses) {
+function testOutputData(apiType, rawResponses, streaming) {
   let details: Record<string, boolean> = {};
   let validResponse: boolean = false;
 
   if (apiType === "chat") {
     for (const response of rawResponses) {
-      // this is the actual HTTP response from the provider
+      if (streaming && !response.providerData) {
+        // with Chat Completions we don't have a final response object that's native so we skip this test
+        return {
+          validResponse: true,
+          details: {
+            skippedBecauseStreaming: true,
+          },
+        };
+      }
 
+      // this is the actual HTTP response from the provider
       // Since it's not guaranteed that every response has a reasoning field, we check if it's present
       // at least once across all responses
       const data = response.providerData;
