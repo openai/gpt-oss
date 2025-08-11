@@ -1,6 +1,6 @@
 # API Compatibility Test
 
-This script uses the Agents SDK in TypeScript and the underlying OpenAI client to verify the shape of the API calls but also whether the API performs tool calling.\
+This script uses the Agents SDK in TypeScript and the underlying OpenAI client to verify the shape of the API calls but also whether the API performs tool calling.
 
 ## What it tests
 
