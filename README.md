@@ -211,6 +211,7 @@ git clone https://github.com/triton-lang/triton
 cd triton/
 pip install -r python/requirements.txt
 pip install -e . --verbose --no-build-isolation
+pip install -e python/triton_kernels
 
 # Install the gpt-oss triton implementation
 pip install -e ".[triton]"
