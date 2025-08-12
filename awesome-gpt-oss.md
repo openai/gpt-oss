@@ -45,7 +45,6 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 - AMD
   - [Running the Latest Open Models from OpenAI on AMD AI Hardware](https://rocm.blogs.amd.com/ecosystems-and-partners/openai-day-0/README.html)
 
-
 ### Cloud
 
 - Groq
