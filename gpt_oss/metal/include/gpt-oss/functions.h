@@ -218,7 +218,7 @@ enum gptoss_status GPTOSS_ABI gptoss_context_get_max_tokens(
  *
  * On success, returns gptoss_status_success and stores cached token IDs in the tokens_out argument and the number of
  * cached tokens in the num_tokens_out argument.
- * On failure, returns an error code and leaves the values specified by tokend_out and num_tokens_out unchanged.
+ * On failure, returns an error code and leaves the values specified by tokens_out and num_tokens_out unchanged.
  */
 enum gptoss_status GPTOSS_ABI gptoss_context_get_tokens(
     gptoss_context_t context,
@@ -267,7 +267,7 @@ enum gptoss_status GPTOSS_ABI gptoss_context_reset(
     gptoss_context_t context);
 
 /*
- * Pre-process the tokens in the Context and generate probability distrubution over the next token.
+ * Pre-process the tokens in the Context and generate probability distribution over the next token.
  *
  * @param context Context object created by gptoss_context_create.
  *
