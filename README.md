@@ -233,7 +233,7 @@ Additionally we are providing a reference implementation for Metal to run on App
 The implementation will get automatically compiled when running the `.[metal]` installation on an Apple Silicon device:
 
 ```shell
-pip install -e ".[metal]"
+GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
 To perform inference you'll need to first convert the SafeTensor weights from Hugging Face into the right format using:
