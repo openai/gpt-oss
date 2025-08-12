@@ -57,7 +57,7 @@ const agent = new Agent({
   name: "My Agent",
   instructions: "You are a helpful assistant.",
   tools: [searchTool],
-  model: "gpt-oss:20b-test",
+  model: "gpt-oss:20b",
   mcpServers: [mcpServer],
 });
 

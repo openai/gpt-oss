@@ -61,5 +61,5 @@ You can modify the example by:
 ## Troubleshooting
 
 - Make sure Ollama is running on `localhost:11434`
-- Ensure you have the correct model name (`gpt-oss:20b-test` or `gpt-oss:20b`)
+- Ensure you have the correct model name (`gpt-oss:20b`)
 - Check that npx is available for the MCP filesystem server
