@@ -20,6 +20,21 @@ We're releasing two flavors of these open models:
 
 Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
 
+## Table of Contents
+- [Highlights](#highlights)
+- [Inference examples](#inference-examples)
+- [About this repository](#about-this-repository)
+- [Setup](#setup)
+- [Download the model](#download-the-model)
+- [Reference PyTorch implementation](#reference-pytorch-implementation)
+- [Reference Triton implementation (single GPU)](#reference-triton-implementation-single-gpu)
+- [Reference Metal implementation](#reference-metal-implementation)
+- [Harmony format & tools](#harmony-format--tools)
+- [Clients](#clients)
+- [Tools](#tools)
+- [Other details](#other-details)
+- [Contributing](#contributing)
+
 ### Highlights
 
 - **Permissive Apache 2.0 license:** Build freely without copyleft restrictions or patent risk—ideal for experimentation, customization, and commercial deployment.
