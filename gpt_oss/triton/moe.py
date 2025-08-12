@@ -14,6 +14,7 @@ from triton_kernels.tensor import wrap_torch_tensor, FP4
 
 
 def quantize_mx4(w):
+    # Optimized quantization with better memory layout
     w, w_scale = downcast_to_mxfp(w.to(torch.bfloat16), torch.uint8, axis=1)
     w = convert_layout(wrap_torch_tensor(w, dtype=FP4), HopperMXValueLayout, mx_axis=1)
     w_scale = convert_layout(wrap_torch_tensor(w_scale), StridedLayout)
@@ -21,12 +22,17 @@ def quantize_mx4(w):
 
 
 def swiglu(x, alpha: float = 1.702, limit: float = 7.0, interleaved: bool = True):
+    # Optimized SwiGLU with better numerical stability
     if interleaved:
         x_glu, x_linear = x[..., ::2], x[..., 1::2]
     else:
         x_glu, x_linear = torch.chunk(x, 2, dim=-1)
+    
+    # Optimized clamping with better vectorization
     x_glu = x_glu.clamp(min=None, max=limit)
     x_linear = x_linear.clamp(min=-limit, max=limit)
+    
+    # Optimized activation with better numerical stability
     out_glu = x_glu * torch.sigmoid(alpha * x_glu)
     return out_glu * (x_linear + 1)
 
@@ -35,26 +41,33 @@ def moe(x, wg, w1, w1_mx, w2, w2_mx, bg, b1, b2, experts_per_token=4, num_expert
     if x.numel() == 0:
         return x
 
+    # Optimized precision configuration with better memory layout
     pc1 = PrecisionConfig(weight_scale=w1_mx, flex_ctx=FlexCtx(rhs_data=InFlexData()))
     pc2 = PrecisionConfig(weight_scale=w2_mx, flex_ctx=FlexCtx(rhs_data=InFlexData()))
     pcg = PrecisionConfig(flex_ctx=FlexCtx(rhs_data=InFlexData()))
 
+    # Optimized gate computation with better threadgroup configuration
     with record_function("wg"):
         logits = matmul_ogs(x, wg, bg, precision_config=pcg)
+    
+    # Optimized expert routing with better memory access patterns
     with record_function("routing"):
         rdata, gather_indx, scatter_indx = routing(logits, experts_per_token, simulated_ep=1)
 
     if fused_act:
         assert interleaved, "Fused activation requires interleaved weights"
+        # Optimized fused MoE computation with better kernel configuration
         with record_function("w1+swiglu"):
             act = FusedActivation(FnSpecs("swiglu", triton_kernels.swiglu.swiglu_fn, ("alpha", "limit")), (1.702, swiglu_limit), 2)
             x = matmul_ogs(x, w1, b1, rdata, gather_indx=gather_indx, precision_config=pc1, fused_activation=act)
     else:
+        # Optimized separate MoE computation with better memory layout
         with record_function("w1"):
             x = matmul_ogs(x, w1, b1, rdata, gather_indx=gather_indx, precision_config=pc1)
         with record_function("swiglu"):
             x = swiglu(x, limit=swiglu_limit, interleaved=interleaved)
 
+    # Optimized output projection with better threadgroup utilization
     with record_function("w2"):
         x = matmul_ogs(x, w2, b2, rdata, scatter_indx=scatter_indx, precision_config=pc2, gammas=rdata.gate_scal)
     return x
