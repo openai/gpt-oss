@@ -13,11 +13,6 @@ from agents import (
     function_tool,
 )
 from agents.mcp import MCPServerStdio
-from pydantic import BaseModel
-
-
-class WeatherParams(BaseModel):
-    location: str
 
 
 async def prompt_user(question: str) -> str:
