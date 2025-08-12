@@ -226,6 +226,8 @@ def _aggregate_get_clipped_mean(
             name2values[name].append(value)
         if single_eval_result.score is not None:
             name2values["score"].append(single_eval_result.score)
+        name2values["input_tokens"].append(single_eval_result.response.input_tokens)
+        name2values["output_tokens"].append(single_eval_result.response.output_tokens)
         htmls.append(single_eval_result.html)
         convos.append(single_eval_result.convo)
         metadata.append(single_eval_result.example_level_metadata)
@@ -247,8 +249,8 @@ class HealthBenchEval(Eval):
     def __init__(
         self,
         grader_model: SamplerBase,
-        num_examples: int | None = None,
-        n_repeats: int = 1,
+        n_examples: int | None = None,
+        n_repeats: int | None = None,  # default to 1
         # If set, evaluate human completions or reference completions instead of model completions.
         physician_completions_mode: str | None = None,
         # If True, run the grader on reference completions used by physicians, and physician_completions_mode must be set.
@@ -256,6 +258,8 @@ class HealthBenchEval(Eval):
         n_threads: int = 120,
         subset_name: Literal["hard", "consensus"] | None = None,
     ):
+        n_repeats = n_repeats or 1
+
         if run_reference_completions:
             assert physician_completions_mode is not None, (
                 "physician_completions_mode must be provided if run_reference_completions is True"
@@ -325,10 +329,10 @@ class HealthBenchEval(Eval):
                     f"No examples found matching mode {self.physician_completions_mode}"
                 )
 
-        if num_examples is not None and num_examples < len(examples):
+        if n_examples is not None and n_examples < len(examples):
             examples = rng.sample(
                 examples,
-                num_examples,
+                n_examples,
             )
 
         self.examples = examples * n_repeats
@@ -438,7 +442,7 @@ class HealthBenchEval(Eval):
                 response_text = sampler_response.response_text
                 response_dict = sampler_response.response_metadata
                 actual_queried_prompt_messages = (
-                    sampler_response.actual_queried_message_list
+                    sampler_response.messages
                 )
                 response_usage = response_dict.get("usage", None)
 
@@ -561,7 +565,7 @@ def physician_completions_main(
             grader_model=grading_sampler,
             physician_completions_mode=pc_mode,
             run_reference_completions=run_reference_completions,
-            num_examples=num_examples,
+            n_examples=num_examples,
             n_threads=n_threads,
         )
         result = eval(dummy_sampler)

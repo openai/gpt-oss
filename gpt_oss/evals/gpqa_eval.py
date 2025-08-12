@@ -32,12 +32,13 @@ def format_multichoice_question(row):
 class GPQAEval(Eval):
     def __init__(
         self,
-        n_repeats: int = 8,
+        n_repeats: int | None = None,  # default to 8
         variant: str = "diamond",
-        num_examples: int | None = None,  # restrict to a subset of the data for debugging
+        n_examples: int | None = None,  # restrict to a subset of the data for debugging
         debug: bool = False,
         n_threads: int = 1,
     ):
+        n_repeats = n_repeats or 8
         df = pandas.read_csv(
             f"https://openaipublic.blob.core.windows.net/simple-evals/gpqa_{variant}.csv"
         )
@@ -47,9 +48,9 @@ class GPQAEval(Eval):
             examples = [row.to_dict() for _, row in df.iterrows() if "ESPRESSO spectrograph, please" in row["Question"]]
         else:
             examples = [row.to_dict() for _, row in df.iterrows()]
-            if num_examples:
+            if n_examples:
                 assert n_repeats == 1, "n_repeats only supported for num_examples = None"
-                examples = rng.sample(examples, num_examples)
+                examples = rng.sample(examples, n_examples)
 
         examples = examples * n_repeats
         examples = [example | {"permutation": rng.sample(range(4), 4)} for example in examples]
@@ -78,7 +79,7 @@ class GPQAEval(Eval):
             ]
             sampler_response = sampler(prompt_messages)
             response_text = sampler_response.response_text
-            actual_queried_prompt_messages = sampler_response.actual_queried_message_list
+            actual_queried_prompt_messages = sampler_response.messages
             extracted_answer = extract_abcd(response_text)
             score = 1.0 if extracted_answer == correct_answer else 0.0
             html = report.jinja_env.from_string(report.HTML_JINJA).render(
@@ -90,7 +91,7 @@ class GPQAEval(Eval):
             )
             convo = actual_queried_prompt_messages + [dict(content=response_text, role="assistant")]
             return SingleEvalResult(
-                html=html, score=score, convo=convo, metrics={"chars": len(response_text)}
+                response=sampler_response, html=html, score=score, convo=convo
             )
 
         results = report.map_with_progress(fn, self.examples, num_threads=self.n_threads)

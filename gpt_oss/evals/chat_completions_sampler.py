@@ -3,6 +3,7 @@ from typing import Any
 
 import openai
 from openai import OpenAI
+from openai.types import CompletionUsage
 
 from .types import MessageList, SamplerBase, SamplerResponse
 
@@ -70,17 +71,20 @@ class ChatCompletionsSampler(SamplerBase):
 
                 if not content:
                     raise ValueError("OpenAI API returned empty response; retrying")
+
+                usage: CompletionUsage = response.usage
                 return SamplerResponse(
                     response_text=content,
-                    response_metadata={"usage": response.usage},
-                    actual_queried_message_list=message_list,
+                    input_tokens=usage.prompt_tokens,
+                    output_tokens=usage.total_tokens - usage.prompt_tokens,
+                    messages=message_list,
                 )
             except openai.BadRequestError as e:
                 print("Bad Request Error", e)
                 return SamplerResponse(
-                    response_text="No response (bad request).",
-                    response_metadata={"usage": None},
-                    actual_queried_message_list=message_list,
+                    response_text="",
+                    messages=message_list,
+                    error=str(e),
                 )
             except Exception as e:
                 exception_backoff = 2 ** trial  # exponential back off

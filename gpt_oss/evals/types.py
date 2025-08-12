@@ -12,8 +12,11 @@ class SamplerResponse:
     Response from a sampler.
     """
     response_text: str
-    actual_queried_message_list: MessageList
-    response_metadata: dict[str, Any]
+    messages: MessageList
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    error: str | None = None
+
 
 class SamplerBase:
     """
@@ -47,6 +50,7 @@ class SingleEvalResult:
     Result of evaluating a single sample
     """
 
+    response: SamplerResponse
     score: float | None
     metrics: dict[str, float] = field(default_factory=dict)
     html: str | None = None

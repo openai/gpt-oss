@@ -7,12 +7,74 @@ from .basic_eval import BasicEval
 from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
 from .healthbench_eval import HealthBenchEval
+from .hle_eval import HLEEval
 from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
 from .responses_sampler import ResponsesSampler
 
+
+def get_eval(eval_name, n_repeats=None, n_examples=None, n_threads=1584):
+    grading_sampler = ChatCompletionsSampler(
+        model="gpt-4.1-2025-04-14",
+        system_message=OPENAI_SYSTEM_MESSAGE_API,
+        max_tokens=2048,
+        base_url="https://api.openai.com/v1",
+    )
+
+    match eval_name:
+        case "basic":
+            return BasicEval(
+                n_repeats=n_repeats,
+                n_examples=n_examples,
+                n_threads=n_threads,
+            )
+        case "gpqa":
+            return GPQAEval(
+                n_repeats=n_repeats,
+                n_examples=n_examples,
+                n_threads=n_threads,
+            )
+        case "healthbench":
+            return HealthBenchEval(
+                grader_model=grading_sampler,
+                n_examples=n_examples,
+                n_repeats=n_repeats,
+                n_threads=n_threads,
+                subset_name=None,
+            )
+        case "healthbench_hard":
+            return HealthBenchEval(
+                grader_model=grading_sampler,
+                n_examples=n_examples,
+                n_repeats=n_repeats,
+                n_threads=n_threads,
+                subset_name="hard",
+            )
+        case "healthbench_consensus":
+            return HealthBenchEval(
+                grader_model=grading_sampler,
+                n_examples=n_examples,
+                n_repeats=n_repeats,
+                n_threads=n_threads,
+                subset_name="consensus",
+            )
+        case "aime25":
+            return AIME25Eval(
+                n_repeats=n_repeats,
+                n_examples=n_examples,
+                n_threads=n_threads,
+            )
+        case "hle":
+            return HLEEval(
+                grader_model=grading_sampler,
+                n_repeats=n_repeats,
+                n_examples=n_examples,
+                n_threads=n_threads,
+            )
+        case _:
+            raise Exception(f"Unrecognized eval type: {eval_name}")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -63,10 +125,14 @@ def main():
         help="Number of threads to run.",
     )
     parser.add_argument(
-        "--debug", action="store_true", help="Run in debug mode"
+        "--repeats",
+        type=int,
+        help="Number of repeats to run (overrides default).",
     )
     parser.add_argument(
-        "--examples", type=int, help="Number of examples to use (overrides default)"
+        "--examples",
+        type=int,
+        help="Number of examples to use (overrides default)",
     )
 
     args = parser.parse_args()
@@ -87,67 +153,15 @@ def main():
 
     print(f"Running with args {args}")
 
-    grading_sampler = ChatCompletionsSampler(
-        model="gpt-4.1-2025-04-14",
-        system_message=OPENAI_SYSTEM_MESSAGE_API,
-        max_tokens=2048,
-        base_url="https://api.openai.com/v1",
-    )
-
-    def get_evals(eval_name, debug_mode):
-        num_examples = (
-            args.examples if args.examples is not None else (5 if debug_mode else None)
-        )
-        # Set num_examples = None to reproduce full evals
-        match eval_name:
-            case "basic":
-                return BasicEval()
-            case "gpqa":
-                return GPQAEval(
-                    n_repeats=1 if args.debug else 8,
-                    num_examples=num_examples,
-                    debug=debug_mode,
-                    n_threads=args.n_threads or 1,
-                )
-            case "healthbench":
-                return HealthBenchEval(
-                    grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
-                    n_threads=args.n_threads or 1,
-                    subset_name=None,
-                )
-            case "healthbench_hard":
-                return HealthBenchEval(
-                    grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
-                    n_threads=args.n_threads or 1,
-                    subset_name="hard",
-                )
-            case "healthbench_consensus":
-                return HealthBenchEval(
-                    grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
-                    n_threads=args.n_threads or 1,
-                    subset_name="consensus",
-                )
-            case "aime25":
-                return AIME25Eval(
-                    n_repeats=1 if args.debug else 8,
-                    num_examples=num_examples,
-                    n_threads=args.n_threads or 1,
-                )
-            case _:
-                raise Exception(f"Unrecognized eval type: {eval_name}")
-
     evals = {}
     for eval_name in args.eval.split(","):
-        evals[eval_name] = get_evals(eval_name, args.debug)
+        evals[eval_name] = get_eval(
+            eval_name,
+            n_repeats=args.repeats,
+            n_examples=args.examples,
+            n_threads=args.n_threads,
+        )
 
-    debug_suffix = "_DEBUG" if args.debug else ""
-    print(debug_suffix)
     mergekey2resultpath = {}
     print(f"Running the following evals: {evals}")
     print(f"Running evals for the following models: {models}")
@@ -161,7 +175,7 @@ def main():
             file_stem = f"{eval_name}_{model_name}_temp{args.temperature}"
             # file stem should also include the year, month, day, and time in hours and minutes
             file_stem += f"_{date_str}"
-            report_filename = f"/tmp/{file_stem}{debug_suffix}.html"
+            report_filename = f"/tmp/{file_stem}.html"
             print(f"Writing report to {report_filename}")
             with open(report_filename, "w") as fh:
                 fh.write(report.make_report(result))
@@ -170,12 +184,12 @@ def main():
             # Sort metrics by key
             metrics = dict(sorted(metrics.items()))
             print(metrics)
-            result_filename = f"/tmp/{file_stem}{debug_suffix}.json"
+            result_filename = f"/tmp/{file_stem}.json"
             with open(result_filename, "w") as f:
                 f.write(json.dumps(metrics, indent=2))
             print(f"Writing results to {result_filename}")
 
-            full_result_filename = f"/tmp/{file_stem}{debug_suffix}_allresults.json"
+            full_result_filename = f"/tmp/{file_stem}_allresults.json"
             with open(full_result_filename, "w") as f:
                 result_dict = {
                     "score": result.score,

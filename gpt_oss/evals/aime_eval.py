@@ -40,10 +40,12 @@ def normalize_number(s):
 class AIME25Eval(Eval):
     def __init__(
         self,
-        n_repeats: int = 4,
-        num_examples: int | None = None,  # restrict to a subset of the data for debugging
+        n_repeats: int | None = None,  # default to 16
+        n_examples: int | None = None,  # restrict to a subset of the data for debugging
         n_threads: int = 1,
     ):
+        n_repeats = n_repeats or 16
+
         path1 = f"https://huggingface.co/datasets/opencompass/AIME2025/raw/main/aime2025-I.jsonl"
         df1 = pandas.read_json(path1, lines=True)
         path2 = f"https://huggingface.co/datasets/opencompass/AIME2025/raw/main/aime2025-II.jsonl"
@@ -54,9 +56,8 @@ class AIME25Eval(Eval):
             "answer": normalize_number(row["answer"]) if isinstance(row["answer"], str) else row["answer"],
         } for row in examples]
         rng = random.Random(0)
-        if num_examples:
-            assert n_repeats == 1, "n_repeats only supported for num_examples = None"
-            examples = rng.sample(examples, num_examples)
+        if n_examples:
+            examples = rng.sample(examples, n_examples)
         examples = examples * n_repeats
         examples = [example | {"permutation": rng.sample(range(4), 4)} for example in examples]
         self.examples = examples
@@ -72,7 +73,7 @@ class AIME25Eval(Eval):
             ]
             sampler_response = sampler(prompt_messages)
             response_text = sampler_response.response_text
-            actual_queried_prompt_messages = sampler_response.actual_queried_message_list
+            actual_queried_prompt_messages = sampler_response.messages
             extracted_answer = extract_boxed_text(response_text)
             correct_answer = int(row["answer"])
             try: # All AIME answers are integers, so we convert the extracted answer to an integer
@@ -89,7 +90,10 @@ class AIME25Eval(Eval):
             )
             convo = actual_queried_prompt_messages + [dict(content=response_text, role="assistant")]
             return SingleEvalResult(
-                html=html, score=score, convo=convo, metrics={"chars": len(response_text)}
+                response=sampler_response,
+                score=score,
+                html=html,
+                convo=convo,
             )
 
         results = report.map_with_progress(fn, self.examples, num_threads=self.n_threads)

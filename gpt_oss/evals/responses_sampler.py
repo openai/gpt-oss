@@ -3,6 +3,7 @@ from typing import Any
 
 import openai
 from openai import OpenAI
+from openai.types.responses import ResponseReasoningItem
 
 from .types import MessageList, SamplerBase, SamplerResponse
 
@@ -62,24 +63,29 @@ class ResponsesSampler(SamplerBase):
                     )
 
                 for output in response.output:
-                    if hasattr(output, "text"):
-                        message_list.append(self._pack_message(getattr(output, "role", "assistant"), output.text))
-                    elif hasattr(output, "content"):
-                        for c in output.content:
-                            # c.text handled below
-                            pass
+                    match output:
+                        case ResponseReasoningItem(content=[{'text': str(text)}]):
+                            message_list.append(self._pack_message("reasoning", text))
+                        case _:
+                            if hasattr(output, "text"):
+                                message_list.append(self._pack_message(getattr(output, "role", "assistant"), output.text))
+                            elif hasattr(output, "content"):
+                                for c in output.content:
+                                    # c.text handled below
+                                    pass
 
                 return SamplerResponse(
                     response_text=response.output_text,
-                    response_metadata={"usage": response.usage},
-                    actual_queried_message_list=message_list,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    messages=message_list,
                 )
             except openai.BadRequestError as e:
                 print("Bad Request Error", e)
                 return SamplerResponse(
                     response_text="",
-                    response_metadata={"usage": None},
-                    actual_queried_message_list=message_list,
+                    messages=message_list,
+                    error=str(e),
                 )
             except Exception as e:
                 exception_backoff = 2**trial  # expontial back off
