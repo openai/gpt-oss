@@ -1,5 +1,6 @@
 import re
 import sys
+from typing import Optional
 
 
 _PATTERNS = [
@@ -30,32 +31,32 @@ _PATTERNS = [
     ''', re.MULTILINE),
 
     # 1) Answer: (C)   or   Answers: (B)
-    re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*\(\s*([ABCD])\s*\)'),
+    re.compile(r'\bAnswer[s]?\b\s*[:\-–]?\s*\(\s*([ABCD])\s*\)', re.IGNORECASE),
 
     # 2) Answer: C    or   Answers – D
-    re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*([ABCD])\b'),
+    re.compile(r'\bAnswer[s]?\b\s*[:\-–]?\s*([ABCD])\b', re.IGNORECASE),
 
     # 3) Option B   or   Choice: C
-    re.compile(r'(?ix)\b(?:Option|Choice)\b\s*[:\-–]?\s*([ABCD])\b'),
+    re.compile(r'\b(?:Option|Choice)\b\s*[:\-–]?\s*([ABCD])\b', re.IGNORECASE),
 
     # 7) LaTeX \boxed{...A...}, catches both \boxed{A} and
     #    \boxed{\text{A } 2.08\times10^{-6}\,\mathrm{m}} etc.
-    re.compile(r'(?x)\\boxed\{[^}]*?([ABCD])[^}]*\}', re.MULTILINE),
+    re.compile(r'\\boxed\{[^}]*?([ABCD])[^}]*\}', re.MULTILINE | re.VERBOSE),
 
     # 7.5) LaTeX \boxed{\textbf{...C...}}
-    re.compile(r'(?x)\\boxed\{[^}]*?\\textbf\{[^}]*?([ABCD])[^}]*\}[^}]*\}', re.MULTILINE),
+    re.compile(r'\\boxed\{[^}]*?\\textbf\{[^}]*?([ABCD])[^}]*\}[^}]*\}', re.MULTILINE | re.VERBOSE),
 
     # 7.51) LaTeX \boxed{\text{...C...}}
-    re.compile(r'(?x)\\boxed\{[^}]*?\\text\{[^}]*?([ABCD])[^}]*\}[^}]*\}', re.MULTILINE),
+    re.compile(r'\\boxed\{[^}]*?\\text\{[^}]*?([ABCD])[^}]*\}[^}]*\}', re.MULTILINE | re.VERBOSE),
 
     # 4) bare singletons:  (A)  [B]
-    re.compile(r'(?x)(?<![A-Za-z0-9])[\(\[]\s*([ABCD])\s*[\)\]](?![A-Za-z0-9])'),
+    re.compile(r'(?<![A-Za-z0-9])[\(\[]\s*([ABCD])\s*[\)\]](?![A-Za-z0-9])', re.VERBOSE),
 
     # 5) Markdown‐wrapped: *A*  **B**  _C_  __D__
-    re.compile(r'(?x)(?<![A-Za-z0-9])(?:\*{1,2}|_{1,2})([ABCD])(?:\*{1,2}|_{1,2})(?![A-Za-z0-9])'),
+    re.compile(r'(?<![A-Za-z0-9])(?:\*{1,2}|_{1,2})([ABCD])(?:\*{1,2}|_{1,2})(?![A-Za-z0-9])', re.VERBOSE),
 
     # 6) LaTeX \textbf{...C...}
-    re.compile(r'(?x)\\textbf\{[^}]*?([ABCD])[^}]*\}'),
+    re.compile(r'\\textbf\{[^}]*?([ABCD])[^}]*\}', re.VERBOSE),
 
     # 8) markdown‐wrapped answer plus “)” plus description, e.g. **D) …**
     re.compile(r'''(?x)                        # ignore whitespace in pattern
@@ -78,7 +79,7 @@ _PATTERNS = [
 ]
 
 
-def extract_abcd(text: str) -> str | None:
+def extract_abcd(text: str) -> Optional[str]:
     """
     Scan text (with Markdown/LaTeX wrappers intact) and return
     'A', 'B', 'C', or 'D' if a correct-answer declaration is found.
@@ -101,19 +102,22 @@ def extract_abcd(text: str) -> str | None:
     return text.removeprefix('**')[:1]
 
 
-def main():
+def main() -> None:
     if len(sys.argv) > 1:
         # Process files
         for fn in sys.argv[1:]:
-            with open(fn, encoding='utf8') as fp:
-                text = fp.read()
-            ans = extract_abcd(text)
-            print(f"{fn} ➜ {ans!r}")
+            try:
+                with open(fn, encoding='utf8') as fp:
+                    text = fp.read()
+                ans = extract_abcd(text)
+                print(f"{fn} ➜ {ans!r}")
+            except (FileNotFoundError, IOError) as e:
+                print(f"Error reading {fn}: {e}")
     else:
         # Read from stdin
         for line in sys.stdin:
-            ans = extract_abcd(line)
-            print(f"{line} ➜ {ans!r}")
+            ans = extract_abcd(line.rstrip('\n'))
+            print(f"{line.rstrip()} ➜ {ans!r}")
 
 
 if __name__ == "__main__":
