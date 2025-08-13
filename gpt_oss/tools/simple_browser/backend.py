@@ -1,16 +1,12 @@
-"""
-Simple backend for the simple browser tool.
-"""
+"""Simple backend for the simple browser tool."""
 
-import functools
 import logging
 import os
 from abc import abstractmethod
 from typing import Callable, ParamSpec, TypeVar
-from urllib.parse import quote
 
 import chz
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession
 from tenacity import (
     after_log,
     before_sleep_log,
@@ -20,13 +16,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from .page_contents import (
-    Extract,
-    FetchResult,
-    PageContents,
-    get_domain,
-    process_html,
-)
+from .page_contents import PageContents, process_html
 
 logger = logging.getLogger(__name__)
 
