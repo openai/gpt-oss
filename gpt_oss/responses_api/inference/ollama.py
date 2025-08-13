@@ -8,7 +8,8 @@ import json
 import threading
 import time
 from typing import Callable, Optional
-import requests
+
+from gpt_oss.utils import request_with_retry
 
 from openai_harmony import load_harmony_encoding, HarmonyEncodingName
 
@@ -85,8 +86,10 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
                     "options": {"temperature": temperature},
                 }
 
-                with requests.post(url, json=payload, stream=True, timeout=60) as resp:
-                    resp.raise_for_status()
+                resp = request_with_retry(
+                    "POST", url, json=payload, stream=True, timeout=60
+                )
+                with resp:
                     for line in resp.iter_lines(decode_unicode=True):
                         if not line:
                             continue
