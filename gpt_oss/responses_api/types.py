@@ -1,7 +1,7 @@
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
@@ -37,7 +37,7 @@ class ReasoningItem(BaseModel):
     id: str = "rs_1234"
     type: Literal["reasoning"]
     summary: list[SummaryTextContentItem]
-    content: Optional[list[ReasoningTextContentItem]] = []
+    content: Optional[list[ReasoningTextContentItem]] = Field(default_factory=list)
 
 
 class Item(BaseModel):
@@ -119,9 +119,9 @@ class ResponsesRequest(BaseModel):
     ]
     model: Optional[str] = MODEL_IDENTIFIER
     stream: Optional[bool] = False
-    tools: Optional[list[Union[FunctionToolDefinition, BrowserToolConfig]]] = []
+    tools: Optional[list[Union[FunctionToolDefinition, BrowserToolConfig]]] = Field(default_factory=list)
     reasoning: Optional[ReasoningConfig] = ReasoningConfig()
-    metadata: Optional[Dict[str, Any]] = {}
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     tool_choice: Optional[Literal["auto", "none"]] = "auto"
     parallel_tool_calls: Optional[bool] = False
     store: Optional[bool] = False
@@ -141,7 +141,7 @@ class ResponseObject(BaseModel):
     instructions: Optional[str] = None
     max_output_tokens: Optional[int] = None
     max_tool_calls: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = {}
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
     model: Optional[str] = MODEL_IDENTIFIER
     parallel_tool_calls: Optional[bool] = False
     previous_response_id: Optional[str] = None
