@@ -789,7 +789,7 @@ def create_api_server(
 
                 reasoning_effort = get_reasoning_effort(body.reasoning.effect)
             except ValueError as e:
-                from fastapi import HTTP Exception
+                from fastapi import HTTPException
                 raise HTTPException(status_code=422, detail=str(e))
             system_message_content = system_message_content.with_reasoning_effort(reasoning_effort)
 
