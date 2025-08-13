@@ -394,9 +394,11 @@ def prepare_metadata_for_build_wheel(
 # Optional hooks
 
 def build_editable(
+    main
     wheel_directory: str, 
     config_settings: Optional[Mapping[str, Any]] = None,
     metadata_directory: Optional[str] = None,
+
 ) -> str:
     """
     Build an editable wheel in the specified directory.

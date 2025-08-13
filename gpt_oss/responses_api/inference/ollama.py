@@ -1,6 +1,6 @@
 """
-NOTE: this is a stiched together implementation that uses Ollama for inference. It's primarily used
-for testing and development. It does not leverage any prompt caching or other optimizations and
+NOTE: this is a stitched together implementation that uses Ollama for inference. It's primarily used
+for testing and development. It does not leverage any prompt caching or other optimizations and 
 can therefore be slow between turns.
 """
 

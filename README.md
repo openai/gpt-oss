@@ -20,6 +20,21 @@ We're releasing two flavors of these open models:
 
 Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
 
+## Table of Contents
+- [Highlights](#highlights)
+- [Inference examples](#inference-examples)
+- [About this repository](#about-this-repository)
+- [Setup](#setup)
+- [Download the model](#download-the-model)
+- [Reference PyTorch implementation](#reference-pytorch-implementation)
+- [Reference Triton implementation (single GPU)](#reference-triton-implementation-single-gpu)
+- [Reference Metal implementation](#reference-metal-implementation)
+- [Harmony format & tools](#harmony-format--tools)
+- [Clients](#clients)
+- [Tools](#tools)
+- [Other details](#other-details)
+- [Contributing](#contributing)
+
 ### Highlights
 
 - **Permissive Apache 2.0 license:** Build freely without copyleft restrictions or patent risk—ideal for experimentation, customization, and commercial deployment.
@@ -27,7 +42,7 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and `gpt-oss-20b` to run within 16GB of memory.
+- **MXFP4 quantization:** The models were post-trained with MXFP4 quantization of the MoE weights, making `gpt-oss-120b` run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and the `gpt-oss-20b` model run within 16GB of memory. All evals were performed with the same MXFP4 quantization.
 
 ### Inference examples
 
@@ -196,6 +211,7 @@ git clone https://github.com/triton-lang/triton
 cd triton/
 pip install -r python/requirements.txt
 pip install -e . --verbose --no-build-isolation
+pip install -e python/triton_kernels
 
 # Install the gpt-oss triton implementation
 pip install -e ".[triton]"
@@ -218,7 +234,7 @@ Additionally we are providing a reference implementation for Metal to run on App
 The implementation will get automatically compiled when running the `.[metal]` installation on an Apple Silicon device:
 
 ```shell
-pip install -e ".[metal]"
+GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
 To perform inference you'll need to first convert the SafeTensor weights from Hugging Face into the right format using:
