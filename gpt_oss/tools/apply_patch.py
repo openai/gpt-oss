@@ -12,14 +12,7 @@ from __future__ import annotations
 import pathlib
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 
 # --------------------------------------------------------------------------- #
@@ -493,11 +486,10 @@ def remove_file(path: str) -> None:
     pathlib.Path(path).unlink(missing_ok=True)
 
 
-
 def apply_patch(
     text: str,
     open_fn: Callable[[str], str] = open_file,
-    write_fn: Callable[[str, str], None] = write_file, 
+    write_fn: Callable[[str, str], None] = write_file,
     remove_fn: Callable[[str], None] = remove_file,
 ) -> str:
     if not text.startswith("*** Begin Patch"):

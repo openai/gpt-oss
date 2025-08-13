@@ -71,7 +71,7 @@ outputs = pipe(
     messages,
     max_new_tokens=256,
 )
-print(outputs[0]["generated_text"][-1])
+print(outputs[0]["generated_text"][-1]['content'])
 ```
 
 [Learn more about how to use gpt-oss with Transformers.](https://cookbook.openai.com/articles/gpt-oss/run-transformers)
@@ -253,7 +253,7 @@ hf download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal
 To test it you can run:
 
 ```shell
-python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/model.bin -p "why did the chicken cross the road?"
+python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/metal/model.bin -p "why did the chicken cross the road?"
 ```
 
 ## Harmony format & tools

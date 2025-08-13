@@ -2,10 +2,7 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
-from openai_harmony import (
-    HarmonyEncodingName,
-    load_harmony_encoding,
-)
+from openai_harmony import HarmonyEncodingName, load_harmony_encoding
 
 from gpt_oss.responses_api.api_server import create_api_server
 

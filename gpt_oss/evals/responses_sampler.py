@@ -22,7 +22,7 @@ class ResponsesSampler(SamplerBase):
         reasoning_effort: str | None = None,
         base_url: str = "http://localhost:8000/v1",
     ):
-        self.client = OpenAI(base_url=base_url, timeout=24*60*60)
+        self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
         self.model = model
         self.developer_message = developer_message
         self.temperature = temperature
@@ -63,7 +63,11 @@ class ResponsesSampler(SamplerBase):
 
                 for output in response.output:
                     if hasattr(output, "text"):
-                        message_list.append(self._pack_message(getattr(output, "role", "assistant"), output.text))
+                        message_list.append(
+                            self._pack_message(
+                                getattr(output, "role", "assistant"), output.text
+                            )
+                        )
                     elif hasattr(output, "content"):
                         for c in output.content:
                             # c.text handled below

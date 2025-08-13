@@ -3,10 +3,7 @@
 import argparse
 
 import uvicorn
-from openai_harmony import (
-    HarmonyEncodingName,
-    load_harmony_encoding,
-)
+from openai_harmony import HarmonyEncodingName, load_harmony_encoding
 
 from .api_server import create_api_server
 

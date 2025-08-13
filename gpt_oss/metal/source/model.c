@@ -112,19 +112,7 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     }
     file_offset += sizeof(file_header);
 
-    if (file_header.magic[0] != 'G' ||
-        file_header.magic[1] != 'P' ||
-        file_header.magic[2] != 'T' ||
-        file_header.magic[3] != '-' ||
-        file_header.magic[4] != 'O' ||
-        file_header.magic[5] != 'S' ||
-        file_header.magic[6] != 'S' ||
-        file_header.magic[7] != ' ' ||
-        file_header.magic[8] != 'v' ||
-        file_header.magic[9] != '1' ||
-        file_header.magic[10] != '.' ||
-        file_header.magic[11] != '0' ||
-        file_header.zero != 0)
+    if (memcmp(file_header.magic, "GPT-OSS v1.0", 12) != 0 || file_header.zero != 0)
     {
         GPTOSS_LOG_ERROR("invalid magic in file %s", path);
         status = gptoss_status_invalid_argument;

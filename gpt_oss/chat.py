@@ -2,9 +2,9 @@
 Harmony chat with tools
 """
 
-import atexit
 import argparse
 import asyncio
+import atexit
 import datetime
 import os
 from pathlib import Path
@@ -14,14 +14,8 @@ try:
 except ImportError:
     import readline
 
-import torch
 import termcolor
-
-from gpt_oss.tools import apply_patch
-from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
-from gpt_oss.tools.python_docker.docker_tool import PythonTool
-
+import torch
 from openai_harmony import (
     Author,
     Conversation,
@@ -38,6 +32,10 @@ from openai_harmony import (
     load_harmony_encoding,
 )
 
+from gpt_oss.tools import apply_patch
+from gpt_oss.tools.python_docker.docker_tool import PythonTool
+from gpt_oss.tools.simple_browser import SimpleBrowserTool
+from gpt_oss.tools.simple_browser.backend import ExaBackend
 
 REASONING_EFFORT = {
     "high": ReasoningEffort.HIGH,
@@ -49,7 +47,10 @@ REASONING_EFFORT = {
 def get_user_input():
     rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
     if rank == 0:
-        user_input = input()
+        try:
+            user_input = input()
+        except EOFError:
+            return "/exit"
     else:
         user_input = ""
     user_input_list = [user_input]
@@ -59,35 +60,42 @@ def get_user_input():
 
 
 def main(args):
+    # --- Backend & generator init
     match args.backend:
         case "triton":
-            from gpt_oss.triton.model import TokenGenerator as TritonGenerator
             from gpt_oss.torch.utils import init_distributed
+            from gpt_oss.triton.model import TokenGenerator as TritonGenerator
+
             device = init_distributed()
             generator = TritonGenerator(args.checkpoint, args.context, device)
         case "torch":
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
             from gpt_oss.torch.utils import init_distributed
+
             device = init_distributed()
             generator = TorchGenerator(args.checkpoint, device)
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
-            generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
+
+            generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=args.tp_size)
         case _:
             raise ValueError(f"Invalid backend: {args.backend}")
 
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
+    # --- System message
     system_message_content = (
         SystemContent.new()
         .with_reasoning_effort(REASONING_EFFORT[args.reasoning_effort])
         .with_conversation_start_date(datetime.datetime.now().strftime("%Y-%m-%d"))
     )
 
+    # Tools
+    browser_tool = None
+    python_tool = None
+
     if args.browser:
-        backend = ExaBackend(
-            source="web",
-        )
+        backend = ExaBackend(source="web")
         browser_tool = SimpleBrowserTool(backend=backend)
         system_message_content = system_message_content.with_tools(browser_tool.tool_config)
 
@@ -98,34 +106,35 @@ def main(args):
     system_message = Message.from_role_and_content(Role.SYSTEM, system_message_content)
     messages = [system_message]
 
+    # --- Developer message (resolved)
+    developer_message_content = None
     if args.apply_patch:
         apply_patch_instructions = Path(apply_patch.__file__).parent / "apply_patch.md"
-        developer_message = ""
-        if args.developer_message:
-            developer_message = args.developer_message + "\n"
+        developer_message = (args.developer_message + "\n") if args.developer_message else ""
         developer_message += apply_patch_instructions.read_text()
         developer_message_content = (
             DeveloperContent.new()
             .with_instructions(developer_message)
-            .with_function_tools([
-                ToolDescription.new(
-                    "apply_patch",
-                    "Patch a file",
-                    parameters={
-                        "type": "string",
-                        "description": "Formatted patch code",
-                        "default": "*** Begin Patch\n*** End Patch\n",
-                    }
-                ),
-            ])
+            .with_function_tools(
+                [
+                    ToolDescription.new(
+                        "apply_patch",
+                        "Patch a file",
+                        parameters={
+                            "type": "string",
+                            "description": "Formatted patch code",
+                            "default": "*** Begin Patch\n*** End Patch\n",
+                        },
+                    ),
+                ]
+            )
         )
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
     elif args.developer_message:
         developer_message_content = DeveloperContent.new().with_instructions(args.developer_message)
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
-    else:
-        developer_message_content = None
 
+    # --- Raw vs pretty headers
     if args.raw:
         conversation = Conversation.from_messages(messages)
         tokens = encoding.render_conversation(conversation)
@@ -135,7 +144,6 @@ def main(args):
         user_message_start = encoding.decode(empty_user_message_tokens[:-1])
         user_message_end = encoding.decode(empty_user_message_tokens[-1:])
     else:
-        # System message
         print(termcolor.colored("System Message:", "cyan"), flush=True)
         print(termcolor.colored("Model Identity:", "cyan"), system_message_content.model_identity, flush=True)
         print(termcolor.colored("Reasoning Effort:", "cyan"), system_message_content.reasoning_effort, flush=True)
@@ -148,138 +156,159 @@ def main(args):
             print(termcolor.colored("Developer Message:", "yellow"), flush=True)
             print(developer_message_content.instructions, flush=True)
 
-    # Print the system message and the user message start
+    # --- REPL
     MESSAGE_PADDING = 12
-    while True:
-        last_message = messages[-1]
-        if last_message.recipient is None:
-            if args.raw:
-                print(user_message_start, end="", flush=True)
-                user_message = get_user_input()
-                print(user_message_end, flush=True, end="")
+    try:
+        while True:
+            last_message = messages[-1]
+            if last_message.recipient is None:
+                # Get user input
+                if args.raw:
+                    print(user_message_start, end="", flush=True)
+                    user_text = get_user_input()
+                    print(user_message_end, flush=True, end="")
+                else:
+                    print(termcolor.colored("User:".ljust(MESSAGE_PADDING), "red"), flush=True)
+                    user_text = get_user_input()
+
+                if user_text.strip().lower() in {"/exit", "exit", ":q", "quit"}:
+                    print(termcolor.colored("Bye!", "cyan"))
+                    break
+
+                user_message = Message.from_role_and_content(Role.USER, user_text)
+                messages.append(user_message)
             else:
-                print(termcolor.colored("User:".ljust(MESSAGE_PADDING), "red"), flush=True)
-                user_message = get_user_input()
-            user_message = Message.from_role_and_content(Role.USER, user_message)
-            messages.append(user_message)
-        else:
-            # Tool or function call
-            if last_message.recipient.startswith("browser."):
-                assert args.browser, "Browser tool is not enabled"
-                tool_name = "Search"
-                async def run_tool():
-                    results = []
-                    async for msg in browser_tool.process(last_message):
-                        results.append(msg)
-                    return results
+                # Tool/function dispatch
+                if last_message.recipient.startswith("browser."):
+                    assert args.browser, "Browser tool is not enabled"
+                    tool_name = "Search"
 
-                result = asyncio.run(run_tool())
-                messages += result
-            elif last_message.recipient.startswith("python"):
-                assert args.python, "Python tool is not enabled"
-                tool_name = "Python"
-                async def run_tool():
-                    results = []
-                    async for msg in python_tool.process(last_message):
-                        results.append(msg)
-                    return results
+                    async def run_tool():
+                        results = []
+                        async for msg in browser_tool.process(last_message):
+                            results.append(msg)
+                        return results
 
-                result = asyncio.run(run_tool())
-                messages += result
-            elif last_message.recipient == "functions.apply_patch":
-                assert args.apply_patch, "Apply patch tool is not enabled"
-                tool_name = "Apply Patch"
-                text = last_message.content[0].text
-                tool_output = None
+                    result = asyncio.run(run_tool())
+                    messages += result
+                elif last_message.recipient.startswith("python"):
+                    assert args.python, "Python tool is not enabled"
+                    tool_name = "Python"
 
-                if text.startswith("{"):
-                    # this is json, try to extract the patch from it
-                    import json
-                    try:
-                        some_dict = json.loads(text)
-                        _, text = some_dict.popitem()
-                    except Exception as e:
-                        tool_output = f"Error parsing JSON: {e}"
+                    async def run_tool():
+                        results = []
+                        async for msg in python_tool.process(last_message):
+                            results.append(msg)
+                        return results
 
-                if tool_output is None:
-                    try:
-                        tool_output = apply_patch.apply_patch(text)
-                    except Exception as e:
-                        tool_output = f"Error applying patch: {e}"
+                    result = asyncio.run(run_tool())
+                    messages += result
+                elif last_message.recipient == "functions.apply_patch":
+                    assert args.apply_patch, "Apply patch tool is not enabled"
+                    tool_name = "Apply Patch"
+                    text = last_message.content[0].text
+                    tool_output = None
 
-                message = (
-                    Message(
-                        author=Author.new(Role.TOOL, last_message.recipient),
-                        content=[TextContent(text=tool_output)]
+                    if text.startswith("{"):
+                        import json
+                        try:
+                            some_dict = json.loads(text)
+                            _, text = some_dict.popitem()
+                        except Exception as e:
+                            tool_output = f"Error parsing JSON: {e}"
+
+                    if tool_output is None:
+                        try:
+                            tool_output = apply_patch.apply_patch(text)
+                        except Exception as e:
+                            tool_output = f"Error applying patch: {e}"
+
+                    message = (
+                        Message(
+                            author=Author.new(Role.TOOL, last_message.recipient),
+                            content=[TextContent(text=tool_output)],
+                        )
+                        .with_recipient("assistant")
                     )
-                    .with_recipient("assistant")
-                )
-                if last_message.channel:
-                    message = message.with_channel(last_message.channel)
+                    if last_message.channel:
+                        message = message.with_channel(last_message.channel)
 
-                result = [message]
-                messages += result
-            else:
-                raise ValueError(f"Unknown tool or function call: {last_message.recipient}")
-            # Print the tool or function call result
-            if args.raw:
-                rendered_result = encoding.render_conversation(Conversation.from_messages(result))
-                print(encoding.decode(rendered_result), flush=True, end="")
-            else:
-                print(termcolor.colored(f"{tool_name} output:".ljust(MESSAGE_PADDING), "magenta"), flush=True)
-                if tool_name == "Search" and not args.show_browser_results:
-                    print("[Search results fed to the model]")
+                    result = [message]
+                    messages += result
                 else:
-                    print(result[0].content[0].text)
+                    raise ValueError(f"Unknown tool or function call: {last_message.recipient}")
 
-        conversation = Conversation.from_messages(messages)
-        tokens = encoding.render_conversation_for_completion(
-            conversation, Role.ASSISTANT
-        )
-
-        if args.raw:
-            # Print the last two tokens, which are the start of the assistant message
-            print(encoding.decode(tokens[-2:]), flush=True, end="")
-
-        parser = StreamableParser(encoding, role=Role.ASSISTANT)
-        field_created = False
-        current_output_text = ""
-        output_text_delta_buffer = ""
-        for predicted_token in generator.generate(tokens, encoding.stop_tokens_for_assistant_actions()):
-            parser.process(predicted_token)
-            if args.raw:
-                print(encoding.decode([predicted_token]), end="", flush=True)
-                continue
-
-            if parser.state == StreamState.EXPECT_START:
-                print("")  # new line
-                field_created = False
-
-            if not parser.last_content_delta:
-                continue
-
-            if not field_created:
-                field_created = True
-                if parser.current_channel == "final":
-                    print(termcolor.colored("Assistant:", "green"), flush=True)
-                elif parser.current_recipient is not None:
-                    print(termcolor.colored(f"Tool call to {parser.current_recipient}:", "cyan"), flush=True)
+                # Print tool output
+                if args.raw:
+                    rendered_result = encoding.render_conversation(Conversation.from_messages(result))
+                    print(encoding.decode(rendered_result), flush=True, end="")
                 else:
-                    print(termcolor.colored("CoT:", "yellow"), flush=True)
+                    print(termcolor.colored(f"{tool_name} output:".ljust(MESSAGE_PADDING), "magenta"), flush=True)
+                    if tool_name == "Search" and not args.show_browser_results:
+                        print("[Search results fed to the model]")
+                    else:
+                        # Some tools may return multiple messages; show first non-empty safely
+                        first_text = ""
+                        for m in result:
+                            if m.content and m.content[0].text:
+                                first_text = m.content[0].text
+                                break
+                        print(first_text)
 
-            should_send_output_text_delta = True
-            output_text_delta_buffer += parser.last_content_delta
-            if args.browser:
-                updated_output_text, _annotations, has_partial_citations = browser_tool.normalize_citations(current_output_text + output_text_delta_buffer)
-                output_text_delta_buffer = updated_output_text[len(current_output_text):]
-                if has_partial_citations:
-                    should_send_output_text_delta = False
-            if should_send_output_text_delta:
-                print(output_text_delta_buffer, end="", flush=True)
-                current_output_text += output_text_delta_buffer
-                output_text_delta_buffer = ""
+            # --- Model completion stream
+            conversation = Conversation.from_messages(messages)
+            tokens = encoding.render_conversation_for_completion(conversation, Role.ASSISTANT)
 
-        messages += parser.messages
+            if args.raw:
+                # Print the last two tokens (start of assistant msg)
+                print(encoding.decode(tokens[-2:]), flush=True, end="")
+
+            parser = StreamableParser(encoding, role=Role.ASSISTANT)
+            field_created = False
+            current_output_text = ""
+            output_text_delta_buffer = ""
+
+            for predicted_token in generator.generate(tokens, encoding.stop_tokens_for_assistant_actions()):
+                parser.process(predicted_token)
+                if args.raw:
+                    print(encoding.decode([predicted_token]), end="", flush=True)
+                    continue
+
+                if parser.state == StreamState.EXPECT_START:
+                    print("")  # new line
+                    field_created = False
+
+                if not parser.last_content_delta:
+                    continue
+
+                if not field_created:
+                    field_created = True
+                    if parser.current_channel == "final":
+                        print(termcolor.colored("Assistant:", "green"), flush=True)
+                    elif parser.current_recipient is not None:
+                        print(termcolor.colored(f"Tool call to {parser.current_recipient}:", "cyan"), flush=True)
+                    else:
+                        print(termcolor.colored("CoT:", "yellow"), flush=True)
+
+                should_send_output_text_delta = True
+                output_text_delta_buffer += parser.last_content_delta
+
+                if args.browser and browser_tool is not None:
+                    updated_output_text, _annotations, has_partial_citations = browser_tool.normalize_citations(
+                        current_output_text + output_text_delta_buffer
+                    )
+                    output_text_delta_buffer = updated_output_text[len(current_output_text) :]
+                    if has_partial_citations:
+                        should_send_output_text_delta = False
+
+                if should_send_output_text_delta:
+                    print(output_text_delta_buffer, end="", flush=True)
+                    current_output_text += output_text_delta_buffer
+                    output_text_delta_buffer = ""
+
+            messages += parser.messages
+    except KeyboardInterrupt:
+        print("\n" + termcolor.colored("Interrupted. Bye!", "cyan"))
 
 
 if __name__ == "__main__":
@@ -353,6 +382,12 @@ if __name__ == "__main__":
         default="triton",
         choices=["triton", "torch", "vllm"],
         help="Inference backend",
+    )
+    parser.add_argument(
+        "--tp-size",
+        type=int,
+        default=2,
+        help="Tensor parallel size for vLLM backend",
     )
     args = parser.parse_args()
 

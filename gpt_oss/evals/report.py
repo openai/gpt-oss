@@ -9,7 +9,6 @@ from tqdm import tqdm
 
 from .types import EvalResult, Message, SingleEvalResult
 
-
 HTML_JINJA = """
 <h3>Prompt conversation</h3>
 {% for message in prompt_messages %}

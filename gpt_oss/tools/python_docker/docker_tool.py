@@ -1,21 +1,14 @@
 # Run this before running the tool:
 # $ docker image pull python:3.11
+import io
+import tarfile
 from typing import Any, AsyncIterator
 
 import docker
-from openai_harmony import (
-    Author,
-    Content,
-    Message,
-    Role,
-    TextContent,
-    ToolNamespaceConfig,
-)
-import io
-import tarfile
+from openai_harmony import (Author, Content, Message, Role, TextContent,
+                            ToolNamespaceConfig)
 
 from ..tool import Tool
-
 
 _docker_client = None
 
@@ -84,9 +77,7 @@ When you send a message containing python code to python, it will be executed in
     @property
     def tool_config(self) -> ToolNamespaceConfig:
         return ToolNamespaceConfig(
-            name=self.get_tool_name(),
-            description=self.instruction,
-            tools=[]
+            name=self.get_tool_name(), description=self.instruction, tools=[]
         )
 
     def _make_response(
@@ -111,7 +102,7 @@ When you send a message containing python code to python, it will be executed in
         message = Message(
             author=author,
             content=[content],
-        ).with_recipient('assistant')
+        ).with_recipient("assistant")
 
         if channel:
             message = message.with_channel(channel)
