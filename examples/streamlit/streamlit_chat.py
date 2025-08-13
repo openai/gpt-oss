@@ -51,6 +51,7 @@ use_functions = st.sidebar.toggle("Use functions", value=False)
 st.sidebar.subheader("Built-in Tools")
 # Built-in Tools section
 use_browser_search = st.sidebar.toggle("Use browser search", value=False)
+use_code_interpreter = st.sidebar.toggle("Use code interpreter", value=False)
 
 if use_functions:
     function_name = st.sidebar.text_input("Function name", value="get_weather")
@@ -115,6 +116,8 @@ def run(container):
     # Add browser_search tool if checkbox is checked
     if use_browser_search:
         tools.append({"type": "browser_search"})
+    if use_code_interpreter:
+        tools.append({"type": "code_interpreter"})
     response = requests.post(
         URL,
         json={
@@ -132,7 +135,7 @@ def run(container):
 
     text_delta = ""
 
-    current_output_index = 0
+    _current_output_index = 0
     for line in response.iter_lines(decode_unicode=True):
         if not line or not line.startswith("data:"):
             continue
@@ -147,7 +150,7 @@ def run(container):
         event_type = data.get("type", "")
         output_index = data.get("output_index", 0)
         if event_type == "response.output_item.added":
-            current_output_index = output_index
+            _current_output_index = output_index
             output_type = data.get("item", {}).get("type", "message")
             if output_type == "message":
                 output = container.chat_message("assistant")
@@ -161,6 +164,9 @@ def run(container):
                     json.dumps(data.get("item", {}).get("action", {}), indent=4),
                     language="json",
                 )
+                placeholder = output.empty()
+            elif output_type == "code_interpreter_call":
+                output = container.chat_message("code_interpreter_call", avatar="🧪")
                 placeholder = output.empty()
             text_delta = ""
         elif event_type == "response.reasoning_text.delta":
@@ -179,6 +185,18 @@ def run(container):
                     st.code(item.get("arguments", ""), language="json")
             if item.get("type") == "web_search_call":
                 placeholder.markdown("✅ Done")
+            if item.get("type") == "code_interpreter_call":
+                placeholder.markdown("✅ Done")
+        elif event_type == "response.code_interpreter_call.in_progress":
+            try:
+                placeholder.markdown("⏳ Running")
+            except Exception:
+                pass
+        elif event_type == "response.code_interpreter_call.completed":
+            try:
+                placeholder.markdown("✅ Done")
+            except Exception:
+                pass
         elif event_type == "response.completed":
             response = data.get("response", {})
             if debug_mode:
@@ -188,7 +206,7 @@ def run(container):
             st.session_state.messages.extend(response.get("output", []))
             if st.session_state.messages[-1].get("type") == "function_call":
                 with container.form("function_output_form"):
-                    function_output = st.text_input(
+                    _function_output = st.text_input(
                         "Enter function output",
                         value=st.session_state.get("function_output", "It's sunny!"),
                         key="function_output",
@@ -236,6 +254,9 @@ for msg in st.session_state.messages:
     elif msg.get("type") == "web_search_call":
         with st.chat_message("web_search_call", avatar="🌐"):
             st.code(json.dumps(msg.get("action", {}), indent=4), language="json")
+            st.markdown("✅ Done")
+    elif msg.get("type") == "code_interpreter_call":
+        with st.chat_message("code_interpreter_call", avatar="🧪"):
             st.markdown("✅ Done")
 
 if render_input:

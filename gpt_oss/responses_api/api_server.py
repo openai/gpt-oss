@@ -1,6 +1,4 @@
-import asyncio
 import datetime
-import json
 import uuid
 from typing import Callable, Literal, Optional
 
@@ -20,10 +18,13 @@ from openai_harmony import (
     ToolDescription,
 )
 
+from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import ExaBackend
 
 from .events import (
+    ResponseCodeInterpreterCallCompleted,
+    ResponseCodeInterpreterCallInProgress,
     ResponseCompletedEvent,
     ResponseContentPartAdded,
     ResponseContentPartDone,
@@ -42,6 +43,7 @@ from .events import (
     ResponseWebSearchCallSearching,
 )
 from .types import (
+    CodeInterpreterCallItem,
     Error,
     FunctionCallItem,
     Item,
@@ -95,6 +97,8 @@ def create_api_server(
         previous_response_id: Optional[str] = None,
         browser_tool: Optional[SimpleBrowserTool] = None,
         browser_call_ids: Optional[list[str]] = None,
+        python_tool: Optional[PythonTool] = None,
+        python_call_ids: Optional[list[str]] = None,
     ) -> ResponseObject:
         output = []
         error = None
@@ -118,6 +122,7 @@ def create_api_server(
 
             fc_index = 0
             browser_tool_index = 0
+            python_tool_index = 0
             for entry in entries:
                 entry_dict = entry.to_dict()
                 if len(entry_dict.get("recipient", "")) > 0 and is_not_builtin_tool(
@@ -202,6 +207,22 @@ def create_api_server(
                                 action=action,
                             )
                         )
+                elif (
+                    len(entry_dict.get("recipient", "")) > 0
+                    and entry_dict["recipient"].startswith("python")
+                    and python_tool is not None
+                ):
+                    if python_call_ids and python_tool_index < len(python_call_ids):
+                        code_call_id = python_call_ids[python_tool_index]
+                    else:
+                        code_call_id = f"ci_{uuid.uuid4().hex}"
+                    python_tool_index += 1
+                    output.append(
+                        CodeInterpreterCallItem(
+                            type="code_interpreter_call",
+                            id=code_call_id,
+                        )
+                    )
                 elif entry_dict["channel"] == "final":
                     content = []
                     for content_entry in entry_dict["content"]:
@@ -315,6 +336,7 @@ def create_api_server(
                 Callable[[str, ResponsesRequest, ResponseObject], None]
             ] = None,
             browser_tool: Optional[SimpleBrowserTool] = None,
+            python_tool: Optional[PythonTool] = None,
         ):
             self.initial_tokens = initial_tokens
             self.tokens = initial_tokens.copy()
@@ -341,6 +363,9 @@ def create_api_server(
             self.browser_tool = browser_tool
             self.use_browser_tool = browser_tool is not None
             self.browser_call_ids: list[str] = []
+            self.python_tool = python_tool
+            self.use_code_interpreter = python_tool is not None
+            self.python_call_ids: list[str] = []
 
         def _send_event(self, event: ResponseEvent):
             event.sequence_number = self.sequence_number
@@ -360,6 +385,10 @@ def create_api_server(
                 function_call_ids=self.function_call_ids,
                 response_id=self.response_id,
                 previous_response_id=self.request_body.previous_response_id,
+                browser_tool=self.browser_tool,
+                browser_call_ids=self.browser_call_ids,
+                python_tool=self.python_tool,
+                python_call_ids=self.python_call_ids,
             )
             initial_response.status = "in_progress"
             yield self._send_event(
@@ -401,7 +430,7 @@ def create_api_server(
                 self.tokens.append(next_tok)
                 try:
                     self.parser.process(next_tok)
-                except Exception as e:
+                except Exception:
                     pass
 
                 if self.parser.state == StreamState.EXPECT_START:
@@ -757,6 +786,79 @@ def create_api_server(
 
                             continue
 
+                        elif (
+                            self.use_code_interpreter
+                            and last_message.recipient is not None
+                            and last_message.recipient.startswith("python")
+                        ):
+                            code_call_id = f"ci_{uuid.uuid4().hex}"
+                            self.python_call_ids.append(code_call_id)
+                            yield self._send_event(
+                                ResponseOutputItemAdded(
+                                    type="response.output_item.added",
+                                    output_index=current_output_index,
+                                    item=CodeInterpreterCallItem(
+                                        type="code_interpreter_call",
+                                        id=code_call_id,
+                                    ),
+                                )
+                            )
+                            yield self._send_event(
+                                ResponseCodeInterpreterCallInProgress(
+                                    type="response.code_interpreter_call.in_progress",
+                                    output_index=current_output_index,
+                                    id=code_call_id,
+                                )
+                            )
+
+                            async def run_python_tool():
+                                results = []
+                                async for msg in self.python_tool.process(last_message):
+                                    results.append(msg)
+                                return results
+
+                            result = await run_python_tool()
+
+                            print(result)
+
+                            new_tokens = encoding.render_conversation_for_completion(
+                                Conversation.from_messages(result), Role.ASSISTANT
+                            )
+
+                            print(encoding.decode_utf8(new_tokens))
+                            self.output_tokens.append(next_tok)
+                            self.tokens.append(
+                                encoding.encode("<|end|>", allowed_special="all")[0]
+                            )
+
+                            for token in new_tokens:
+                                self.parser.process(token)
+                                self.output_tokens.append(token)
+                                self.tokens.append(token)
+
+                            yield self._send_event(
+                                ResponseCodeInterpreterCallCompleted(
+                                    type="response.code_interpreter_call.completed",
+                                    output_index=current_output_index,
+                                    id=code_call_id,
+                                )
+                            )
+                            yield self._send_event(
+                                ResponseOutputItemDone(
+                                    type="response.output_item.done",
+                                    output_index=current_output_index,
+                                    item=CodeInterpreterCallItem(
+                                        type="code_interpreter_call",
+                                        id=code_call_id,
+                                    ),
+                                )
+                            )
+
+                            current_output_index += 1
+                            self.new_request = True
+
+                            continue
+
                         else:
                             break
                     else:
@@ -796,6 +898,10 @@ def create_api_server(
             getattr(tool, "type", None) == "browser_search"
             for tool in (body.tools or [])
         )
+        use_code_interpreter = any(
+            getattr(tool, "type", None) == "code_interpreter"
+            for tool in (body.tools or [])
+        )
 
         if use_browser_tool:
             backend = ExaBackend(
@@ -804,6 +910,11 @@ def create_api_server(
             browser_tool = SimpleBrowserTool(backend=backend)
         else:
             browser_tool = None
+
+        if use_code_interpreter:
+            python_tool = PythonTool()
+        else:
+            python_tool = None
 
         if body.previous_response_id:
             prev = responses_store.get(body.previous_response_id)
@@ -847,6 +958,10 @@ def create_api_server(
         if use_browser_tool:
             system_message_content = system_message_content.with_tools(
                 browser_tool.tool_config
+            )
+        if use_code_interpreter:
+            system_message_content = system_message_content.with_tools(
+                python_tool.tool_config
             )
 
         system_message = Message.from_role_and_content(
@@ -964,6 +1079,7 @@ def create_api_server(
             response_id=response_id,
             store_callback=store_callback,
             browser_tool=browser_tool,
+            python_tool=python_tool,
         )
 
         if body.stream:
