@@ -48,12 +48,9 @@ st.sidebar.divider()
 st.sidebar.subheader("Functions")
 use_functions = st.sidebar.toggle("Use functions", value=False)
 
-if "show_browser" in st.query_params:
-    st.sidebar.subheader("Built-in Tools")
+st.sidebar.subheader("Built-in Tools")
 # Built-in Tools section
-    use_browser_search = st.sidebar.toggle("Use browser search", value=False)
-else:
-    use_browser_search = False
+use_browser_search = st.sidebar.toggle("Use browser search", value=False)
 
 if use_functions:
     function_name = st.sidebar.text_input("Function name", value="get_weather")
@@ -72,7 +69,7 @@ temperature = st.sidebar.slider(
     "Temperature", min_value=0.0, max_value=1.0, value=1.0, step=0.01
 )
 max_output_tokens = st.sidebar.slider(
-    "Max output tokens", min_value=1000, max_value=20000, value=1024, step=100
+    "Max output tokens", min_value=1, max_value=131072, value=30000, step=1000
 )
 st.sidebar.divider()
 debug_mode = st.sidebar.toggle("Debug mode", value=False)
@@ -88,6 +85,7 @@ URL = (
     if selection == options[1]
     else "http://localhost:8000/v1/responses"
 )
+
 
 def trigger_fake_tool(container):
     function_output = st.session_state.get("function_output", "It's sunny!")
@@ -159,7 +157,10 @@ def run(container):
                 placeholder = output.empty()
             elif output_type == "web_search_call":
                 output = container.chat_message("web_search_call", avatar="🌐")
-                output.code(json.dumps(data.get("item", {}).get("action", {}), indent=4), language="json")
+                output.code(
+                    json.dumps(data.get("item", {}).get("action", {}), indent=4),
+                    language="json",
+                )
                 placeholder = output.empty()
             text_delta = ""
         elif event_type == "response.reasoning_text.delta":
@@ -213,7 +214,9 @@ for msg in st.session_state.messages:
                     st.markdown(item["text"])
                     if item.get("annotations"):
                         annotation_lines = "\n".join(
-                            f"- {annotation.get('url')}" for annotation in item["annotations"] if annotation.get("url")
+                            f"- {annotation.get('url')}"
+                            for annotation in item["annotations"]
+                            if annotation.get("url")
                         )
                         st.caption(f"**Annotations:**\n{annotation_lines}")
     elif msg.get("type") == "reasoning":
