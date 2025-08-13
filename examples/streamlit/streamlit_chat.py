@@ -134,7 +134,6 @@ def run(container):
 
     text_delta = ""
 
-    current_output_index = 0
     for line in response.iter_lines(decode_unicode=True):
         if not line or not line.startswith("data:"):
             continue
@@ -147,9 +146,7 @@ def run(container):
             continue
 
         event_type = data.get("type", "")
-        output_index = data.get("output_index", 0)
         if event_type == "response.output_item.added":
-            current_output_index = output_index
             output_type = data.get("item", {}).get("type", "message")
             if output_type == "message":
                 output = container.chat_message("assistant")
@@ -187,7 +184,7 @@ def run(container):
             st.session_state.messages.extend(response.get("output", []))
             if st.session_state.messages[-1].get("type") == "function_call":
                 with container.form("function_output_form"):
-                    function_output = st.text_input(
+                    st.text_input(
                         "Enter function output",
                         value=st.session_state.get("function_output", "It's sunny!"),
                         key="function_output",
