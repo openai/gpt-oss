@@ -1,0 +1,66 @@
+# Model
+model_name_or_path: openai/gpt-oss-20b
+attn_implementation: eager
+torch_dtype: bfloat16
+
+# Translation-specific settings
+source_lang: en
+target_lang: es
+use_domain_adaptation: false
+domain: general
+max_source_length: 512
+max_target_length: 512
+
+# Dataset - Common translation datasets
+dataset_name: wmt14
+dataset_config: de-en  # Change this based on your language pair
+dataset_num_proc: 12
+dataset_train_split: train
+dataset_test_split: test
+
+# Hyperparameters optimized for LoRA translation training
+learning_rate: 1.0e-4  # Higher LR for LoRA
+gradient_checkpointing: true
+num_train_epochs: 5.0  # More epochs for LoRA
+logging_steps: 10
+eval_steps: 250
+eval_strategy: steps
+per_device_train_batch_size: 2  # Can handle larger batch with LoRA
+per_device_eval_batch_size: 4
+gradient_accumulation_steps: 8
+max_length: 1024
+
+# LoRA configuration optimized for translation
+use_peft: true
+lora_r: 16  # Higher rank for translation tasks
+lora_alpha: 32  # Alpha = 2 * rank for better performance
+lora_dropout: 0.05
+lora_target_modules: all-linear
+lora_bias: none
+
+# Optimization
+warmup_ratio: 0.05
+lr_scheduler_type: cosine_with_min_lr
+lr_scheduler_kwargs:
+  min_lr_rate: 0.1
+
+# Translation-specific training settings
+label_smoothing_factor: 0.1
+prediction_loss_only: false
+load_best_model_at_end: true
+metric_for_best_model: bleu
+greater_is_better: true
+save_strategy: steps
+save_steps: 250
+save_total_limit: 3
+
+# Output
+output_dir: gpt-oss-20b-translator-lora
+run_name: mt-lora-training
+report_to:
+- trackio
+seed: 42
+
+# Logging
+logging_dir: ./logs
+logging_strategy: steps 

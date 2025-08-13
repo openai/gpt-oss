@@ -1,0 +1,56 @@
+# Model
+model_name_or_path: openai/gpt-oss-20b
+attn_implementation: eager
+torch_dtype: bfloat16
+
+# Translation-specific settings
+source_lang: en
+target_lang: es
+use_domain_adaptation: false
+domain: general
+max_source_length: 512
+max_target_length: 512
+
+# Dataset - Common translation datasets
+dataset_name: wmt14
+dataset_config: de-en  # Change this based on your language pair
+dataset_num_proc: 12
+dataset_train_split: train
+dataset_test_split: test
+
+# Hyperparameters optimized for translation
+learning_rate: 1.0e-5  # Lower LR for translation tasks
+gradient_checkpointing: true
+num_train_epochs: 3.0  # More epochs for translation
+logging_steps: 10
+eval_steps: 500
+eval_strategy: steps
+per_device_train_batch_size: 1  # Smaller batch size due to longer sequences
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 8  # Higher accumulation for effective larger batch
+max_length: 1024  # Longer sequences for translation
+warmup_ratio: 0.05
+lr_scheduler_type: cosine_with_min_lr
+lr_scheduler_kwargs:
+  min_lr_rate: 0.1
+
+# Translation-specific training settings
+label_smoothing_factor: 0.1
+prediction_loss_only: false
+load_best_model_at_end: true
+metric_for_best_model: bleu
+greater_is_better: true
+save_strategy: steps
+save_steps: 500
+save_total_limit: 3
+
+# Output
+output_dir: gpt-oss-20b-translator
+run_name: mt-full-training
+report_to:
+- trackio
+seed: 42
+
+# Logging
+logging_dir: ./logs
+logging_strategy: steps 

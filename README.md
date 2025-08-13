@@ -131,7 +131,7 @@ Check out our [awesome list](./awesome-gpt-oss.md) for a broader collection of g
 This repository provides a collection of reference implementations:
 
 - **Inference:**
-  - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4× H100 GPUs due to lack of optimization.
+  - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4× H100 GPUs due to lack of optimization.
   - [`triton`](#reference-triton-implementation-single-gpu) — a more optimized implementation using [PyTorch](https://pytorch.org/) & [Triton](https://github.com/triton-lang/triton) incl. using CUDA graphs and basic caching
   - [`metal`](#reference-metal-implementation) — a Metal-specific implementation for running the models on Apple Silicon hardware
 - **Tools:**
@@ -140,6 +140,8 @@ This repository provides a collection of reference implementations:
 - **Client examples:**
   - [`chat`](#terminal-chat) — a basic terminal chat application that uses the PyTorch or Triton implementations for inference along with the python and browser tools
   - [`responses_api`](#responses-api) — an example Responses API compatible server that implements the browser tool along with other Responses-compatible functionality
+- **Fine-tuning examples:**
+  - [`machine-translation`](examples/machine-translation/) — a complete machine translation fine-tuning pipeline with instruction-based training, supporting 12+ language pairs, domain adaptation, and comprehensive evaluation using BLEU, chrF, TER, and COMET metrics
 
 ## Setup
 
