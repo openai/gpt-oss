@@ -11,10 +11,11 @@ from gpt_oss.tokenizer import get_tokenizer
 
 
 def main(args: argparse.Namespace) -> None:
-    # Validate checkpoint path exists
-    checkpoint_path = Path(args.checkpoint)
-    if not checkpoint_path.exists():
-        raise FileNotFoundError(f"Checkpoint path does not exist: {args.checkpoint}")
+    # Validate checkpoint path exists for backends that need local files
+    if args.backend in ["torch", "triton"]:
+        checkpoint_path = Path(args.checkpoint)
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"Checkpoint path does not exist: {args.checkpoint}")
     
     match args.backend:
         case "torch":
