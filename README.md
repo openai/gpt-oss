@@ -493,6 +493,29 @@ All other tensors will be in BF16. We also recommend using BF16 as the activatio
 
 We recommend sampling with `temperature=1.0` and `top_p=1.0`.
 
+## Performance Optimization
+
+For maximum inference performance, see the [Performance Optimization Guide](./OPTIMIZATION_GUIDE.md) which includes:
+
+- **Metal Backend Optimizations**: Apple Silicon specific improvements
+- **Triton Backend Optimizations**: CUDA-based improvements  
+- **Benchmarking Tools**: Performance measurement scripts
+- **Usage Recommendations**: Best practices for optimal performance
+
+### Quick Performance Tips
+
+1. **Use Release Builds**: Always compile with `CMAKE_BUILD_TYPE=Release`
+2. **Choose Optimal Backend**: 
+   - Apple Silicon: Use Metal backend
+   - NVIDIA GPUs: Use Triton backend
+   - CPU-only: Use PyTorch backend
+3. **Benchmark Your Setup**: Use the included benchmark script to measure performance
+
+```bash
+# Benchmark performance
+python -m gpt_oss.benchmark_performance /path/to/model --backend triton --output results.json
+```
+
 ## Contributing
 
 The reference implementations in this repository are meant as a starting point and inspiration. Outside of bug fixes we do not intend to accept new feature contributions. If you build implementations based on this code such as new tool implementations you are welcome to contribute them to the [`awesome-gpt-oss.md`](./awesome-gpt-oss.md) file.
