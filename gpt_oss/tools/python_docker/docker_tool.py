@@ -14,8 +14,8 @@ from openai_harmony import (
 import io
 import tarfile
 import os
-from ..tool import Tool
 
+from ..tool import Tool
 
 _docker_client = None
 
@@ -84,23 +84,22 @@ class PythonTool(Tool):
     def instruction(self) -> str:
         return """
 Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).
-When you send a message containing python code to python, it will be executed in a stateless docker container, and the stdout of that process will be returned to you.
+When you send a message containing python code to python, it will be executed in a stateless docker container, and the stdout of that process will be returned to you. You have to use print statements to access the output.
         """.strip()
 
     @property
     def tool_config(self) -> ToolNamespaceConfig:
         return ToolNamespaceConfig(
-            name=self.get_tool_name(),
-            description=self.instruction,
-            tools=[]
+            name=self.get_tool_name(), description=self.instruction, tools=[]
         )
 
     def _make_response(
         self,
         output: str,
+        channel: str | None = None,
     ) -> Message:
         content = TextContent(text=output)
-        return self.make_response(content=content)
+        return self.make_response(content=content, channel=channel)
 
     def make_response(
         self,
@@ -116,7 +115,7 @@ When you send a message containing python code to python, it will be executed in
         message = Message(
             author=author,
             content=[content],
-        ).with_recipient('assistant')
+        ).with_recipient("assistant")
 
         if channel:
             message = message.with_channel(channel)

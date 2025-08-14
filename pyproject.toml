@@ -20,7 +20,7 @@ dependencies = [
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-version = "0.0.1"
+version = "0.0.3"
 
 [project.optional-dependencies]
 triton = ["triton", "safetensors>=0.5.3", "torch>=2.7.0"]
@@ -34,8 +34,8 @@ requires = ["setuptools>=68"]
 build-backend = "gpt_oss_build_backend.backend"
 backend-path = ["_build"]
 
-[tool.setuptools]
-packages = ["gpt_oss"]
+[tool.setuptools.packages.find]
+include = ["gpt_oss*"]
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt
