@@ -66,8 +66,14 @@ class ResponsesSampler(SamplerBase):
                         message_list.append(self._pack_message(getattr(output, "role", "assistant"), output.text))
                     elif hasattr(output, "content"):
                         for c in output.content:
-                            # c.text handled below
-                            pass
+                            # Append any text content parts so message_list reflects the response
+                            if hasattr(c, "text") and getattr(c, "text"):
+                                message_list.append(
+                                    self._pack_message(
+                                        getattr(output, "role", "assistant"),
+                                        c.text,
+                                    )
+                                )
 
                 return SamplerResponse(
                     response_text=response.output_text,
