@@ -5,7 +5,7 @@ from typing import Callable
 from gpt_oss.metal import Context, Model
 
 
-def setup_model(checkpoint: str) -> Callable[[list[int], float], int]:
+def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
     """Load the Metal model and return an inference function."""
 
     model = Model(checkpoint)

@@ -103,22 +103,24 @@ def create_api_server(
         output = []
         error = None
         if len(output_tokens) > 0:
-            if debug_mode:
-                try:
-                    entries = encoding.parse_messages_from_completion_tokens(
-                        output_tokens, Role.ASSISTANT
-                    )
-                except Exception as e:
-                    print(f"Error parsing tokens: {e}")
-                    error = Error(
-                        code="invalid_function_call",
-                        message=f"{e}",
-                    )
-                    entries = []
-            else:
+            # BUG FIX: Apply error handling consistently, not just in debug mode
+            try:
                 entries = encoding.parse_messages_from_completion_tokens(
                     output_tokens, Role.ASSISTANT
                 )
+            except Exception as e:
+                print(f"Error parsing tokens: {e}")
+                error = Error(
+                    code="invalid_function_call",
+                    message=f"{e}",
+                )
+                entries = []
+                # BUG FIX: Return early if parsing fails to prevent further errors
+                return ResponseObject(output=output, error=error)
+            
+            # BUG FIX: Only show debug info if in debug mode, but always handle errors
+            if debug_mode and not error:
+                print(f"Debug: Parsed {len(entries)} entries from {len(output_tokens)} tokens")
 
             fc_index = 0
             browser_tool_index = 0

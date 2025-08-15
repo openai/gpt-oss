@@ -648,8 +648,19 @@ sources=""" + self.backend.source
             cursor_to_url[str(idx)] = url
 
         def extract_domain(url):
+            """
+            Extract domain from URL with proper error handling.
+            
+            BUG FIX: Added bounds checking and better error handling for URL parsing.
+            """
             try:
-                return unquote(url).split("/")[2]
+                unquoted_url = unquote(url)
+                parts = unquoted_url.split("/")
+                if len(parts) >= 3:
+                    return parts[2]
+                else:
+                    # For malformed URLs, return the original
+                    return url
             except Exception:
                 return url
 
