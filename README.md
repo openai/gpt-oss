@@ -408,7 +408,7 @@ A: Try upgrading pip (`pip install --upgrade pip`). Make sure you are using Pyth
 ### Q: Model weights cannot be downloaded.
 A: Verify your internet connection and that you are using the latest version of the HuggingFace CLI (`pip install -U huggingface_hub`). If problems persist, try downloading manually from the provided download link.
 
-_For more help, please visit [community page](https://community.openai.com/) or open a new ticket._
+For more help, please visit [community page](https://community.openai.com/) 
 
 #### Details
 
