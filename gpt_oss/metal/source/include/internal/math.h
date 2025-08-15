@@ -15,6 +15,10 @@ inline static size_t math_min(size_t a, size_t b) {
     return a < b ? a : b;
 }
 
+inline static size_t math_sub_sat(size_t a, size_t b) {
+    return a > b ? a - b : 0;
+}
+
 static size_t math_round_up_po2(size_t bytes, size_t multiple) {
     const size_t multiple_mask = multiple - 1;
     if ((bytes & multiple_mask) != 0) {

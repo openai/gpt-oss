@@ -114,13 +114,6 @@ struct gptoss_context {
     // Length of the context.
     size_t max_tokens;
 
-    // Current number of tokens in the batch.
-    // Always in the [0, max_batch_tokens) range.
-    size_t num_batch_tokens;
-    // Number of tokens processed in the last batch.
-    // Activations for [num_batch_tokens, num_processed_tokens) tokens can be accessed from internal structures.
-    size_t num_processed_tokens;
-
     size_t kvcache_size;
     size_t allocation_size;
 
