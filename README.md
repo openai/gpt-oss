@@ -150,6 +150,23 @@ This repository provides a collection of reference implementations:
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
 
+#### Windows Setup Notes
+
+If you're developing on Windows, you may need to install additional dependencies:
+
+```shell
+# Install Windows-compatible readline for interactive features
+pip install pyreadline3
+
+# Install numpy for PyTorch compatibility
+pip install numpy
+```
+
+For production inference on Windows, consider using:
+- [Ollama](https://ollama.com/) for local model serving
+- [LM Studio](https://lmstudio.ai/) for desktop applications
+- Cloud-based solutions like [Groq](https://groq.com/) or [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
+
 ### Installation
 
 If you want to try any of the code you can install it directly from [PyPI](https://pypi.org/project/gpt-oss/)
