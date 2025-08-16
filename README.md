@@ -325,22 +325,22 @@ options:
 
 We support [codex](https://github.com/openai/codex) as a client for gpt-oss. To run the 20b version, set this to `~/.codex/config.toml`:
 
-```
+```toml
 disable_response_storage = true
 show_reasoning_content = true
 
 [model_providers.local]
 name = "local"
-base_url = "http://localhost:11434/v1"
+base_url = "http://localhost:8000/v1"
 
 [profiles.oss]
 model = "gpt-oss:20b"
 model_provider = "local"
 ```
 
-This will work with any chat completions-API compatible server listening on port 11434, like ollama. Start the server and point codex to the oss model:
+This will work with any chat completions-API compatible server listening on port 8000. If you're running the UI locally, it typically serves on http://localhost:8081. Start the server and point codex to the oss model:
 
-```
+```bash
 ollama run gpt-oss:20b
 codex -p oss
 ```
