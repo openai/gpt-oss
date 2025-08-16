@@ -424,6 +424,11 @@ The model was trained to use a python tool to perform calculations and other act
 
 > [!WARNING]
 > This implementation runs in a permissive Docker container which could be problematic in cases like prompt injections. It's serving as an example and you should consider implementing your own container restrictions in production.
+> By default, this tool runs in a Docker container with networking disabled for security. If you trust the code you are running and require network access (e.g., for downloading files), you can enable it by setting the `GPT_OSS_DOCKER_NETWORK_ACCESS` environment variable to `true`.
+> For example, in a bash shell:
+> ```bash
+> export GPT_OSS_DOCKER_NETWORK_ACCESS=true
+> ```
 
 #### Usage
 
