@@ -198,8 +198,10 @@ def main(args):
                     try:
                         some_dict = json.loads(text)
                         _, text = some_dict.popitem()
-                    except Exception as e:
+                    except json.JSONDecodeError as e:
                         tool_output = f"Error parsing JSON: {e}"
+                    except Exception as e:
+                        tool_output = f"Error processing patch request: {e}"
 
                 if tool_output is None:
                     try:
