@@ -5,7 +5,8 @@ from typing import Union, Optional
 
 from mcp.server.fastmcp import Context, FastMCP
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+import os
+from gpt_oss.tools.simple_browser.backend import ExaBackend, TavilyBackend
 
 
 @dataclass
@@ -14,7 +15,14 @@ class AppContext:
 
     def create_or_get_browser(self, session_id: str) -> SimpleBrowserTool:
         if session_id not in self.browsers:
-            backend = ExaBackend(source="web")
+            search_backend = os.environ.get("SEARCH_BACKEND", "exa").lower()
+            match search_backend:
+                case "tavily":
+                    backend = TavilyBackend(source="web")
+                case "exa":
+                    backend = ExaBackend(source="web")
+                case _:
+                    raise ValueError(f"Invalid search backend: {search_backend}")
             self.browsers[session_id] = SimpleBrowserTool(backend=backend)
         return self.browsers[session_id]
 

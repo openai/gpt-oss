@@ -1,91 +1,17 @@
 """
-Simple backend for the simple browser tool.
+Exa backend for the simple browser tool.
 """
 
-import functools
-import logging
 import os
-from abc import abstractmethod
-from typing import Callable, ParamSpec, TypeVar
-from urllib.parse import quote
 
 import chz
-from aiohttp import ClientSession, ClientTimeout
-from tenacity import (
-    after_log,
-    before_sleep_log,
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from aiohttp import ClientSession
 
-from .page_contents import (
-    Extract,
-    FetchResult,
-    PageContents,
-    get_domain,
-    process_html,
-)
-
-logger = logging.getLogger(__name__)
+from .base_backend import Backend, BackendError
+from ..page_contents import PageContents, process_html
 
 
 VIEW_SOURCE_PREFIX = "view-source:"
-
-
-class BackendError(Exception):
-    pass
-
-
-P = ParamSpec("P")
-R = TypeVar("R")
-
-
-def with_retries(
-    func: Callable[P, R],
-    num_retries: int,
-    max_wait_time: float,
-) -> Callable[P, R]:
-    if num_retries > 0:
-        retry_decorator = retry(
-            stop=stop_after_attempt(num_retries),
-            wait=wait_exponential(
-                multiplier=1,
-                min=2,
-                max=max_wait_time,
-            ),
-            before_sleep=before_sleep_log(logger, logging.INFO),
-            after=after_log(logger, logging.INFO),
-            retry=retry_if_exception_type(Exception),
-        )
-        return retry_decorator(func)
-    else:
-        return func
-
-
-def maybe_truncate(text: str, num_chars: int = 1024) -> str:
-    if len(text) > num_chars:
-        text = text[: (num_chars - 3)] + "..."
-    return text
-
-
-@chz.chz(typecheck=True)
-class Backend:
-    source: str = chz.field(doc="Description of the backend source")
-
-    @abstractmethod
-    async def search(
-        self,
-        query: str,
-        topn: int,
-        session: ClientSession,
-    ) -> PageContents:
-        pass
-
-    @abstractmethod
-    async def fetch(self, url: str, session: ClientSession) -> PageContents:
-        pass
 
 
 @chz.chz(typecheck=True)

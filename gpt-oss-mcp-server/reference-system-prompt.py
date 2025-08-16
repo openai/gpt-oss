@@ -1,7 +1,8 @@
 import datetime
+import os
 
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend, TavilyBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tokenizer import tokenizer
 
@@ -22,7 +23,14 @@ system_message_content = (SystemContent.new().with_reasoning_effort(
     ReasoningEffort.LOW).with_conversation_start_date(
         datetime.datetime.now().strftime("%Y-%m-%d")))
 
-backend = ExaBackend(source="web", )
+search_backend = os.environ.get("SEARCH_BACKEND", "exa").lower()
+match search_backend:
+    case "tavily":
+        backend = TavilyBackend(source="web")
+    case "exa":
+        backend = ExaBackend(source="web")
+    case _:
+        raise ValueError(f"Invalid search backend: {search_backend}")
 browser_tool = SimpleBrowserTool(backend=backend)
 system_message_content = system_message_content.with_tools(
     browser_tool.tool_config)
