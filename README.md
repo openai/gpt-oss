@@ -16,7 +16,7 @@ Welcome to the gpt-oss series, [OpenAI's open-weight models](https://openai.com/
 We're releasing two flavors of these open models:
 
 - `gpt-oss-120b` — for production, general purpose, high reasoning use cases that fit into a single 80GB GPU (like NVIDIA H100 or AMD MI300X) (117B parameters with 5.1B active parameters)
-- `gpt-oss-20b` — for lower latency, and local or specialized use cases (21B parameters with 3.6B active parameters)
+- `gpt-oss-20b` — for lower latency and local or specialized use cases (21B parameters with 3.6B active parameters)
 
 Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
 
@@ -48,7 +48,7 @@ Both models were trained using our [harmony response format][harmony] and should
 
 #### Transformers
 
-You can use `gpt-oss-120b` and `gpt-oss-20b` with the Transformers library. If you use Transformers' chat template, it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
+You can use `gpt-oss-120b` and `gpt-oss-20b` with the Transformers library. If you use the Transformers chat template, it will automatically apply the [Harmony response format][harmony]. If you use `model.generate` directly, you need to apply the Harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
 
 ```python
 from transformers import pipeline
@@ -115,7 +115,7 @@ ollama run gpt-oss:120b
 
 #### LM Studio
 
-If you are using [LM Studio](https://lmstudio.ai/) you can use the following commands to download.
+If you are using [LM Studio](https://lmstudio.ai/) you can use the following commands to download the models.
 
 ```bash
 # gpt-oss-20b
@@ -135,8 +135,8 @@ This repository provides a collection of reference implementations:
   - [`triton`](#reference-triton-implementation-single-gpu) — a more optimized implementation using [PyTorch](https://pytorch.org/) & [Triton](https://github.com/triton-lang/triton) incl. using CUDA graphs and basic caching
   - [`metal`](#reference-metal-implementation) — a Metal-specific implementation for running the models on Apple Silicon hardware
 - **Tools:**
-  - [`browser`](#browser) — a reference implementation of the browser tool the models got trained on
-  - [`python`](#python) — a stateless reference implementation of the python tool the model got trained on
+  - [`browser`](#browser) — a reference implementation of the browser tool the models were trained on
+  - [`python`](#python) — a stateless reference implementation of the Python tool the models were trained on
 - **Client examples:**
   - [`chat`](#terminal-chat) — a basic terminal chat application that uses the PyTorch or Triton implementations for inference along with the python and browser tools
   - [`responses_api`](#responses-api) — an example Responses API compatible server that implements the browser tool along with other Responses-compatible functionality
@@ -237,7 +237,7 @@ The implementation will get automatically compiled when running the `.[metal]` i
 GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
-To perform inference you'll need to first convert the SafeTensor weights from Hugging Face into the right format using:
+To perform inference you'll need to first convert the SafeTensors weights from Hugging Face into the right format using:
 
 ```shell
 python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_file>
@@ -295,7 +295,7 @@ options:
 ```
 
 > [!NOTE]
-> The torch and triton implementations require original checkpoint under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `gpt-oss-120b/` and `gpt-oss-20b/` root directory respectively.
+> The torch and Triton implementations require the original checkpoints under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face–converted checkpoints under the `gpt-oss-120b/` and `gpt-oss-20b/` root directories.
 
 ### Responses API
 
@@ -482,12 +482,12 @@ if last_message.recipient == "python":
 
 ### Precision format
 
-We released the models with native quantization support. Specifically, we use [MXFP4](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) for the linear projection weights in the MoE layer. We store the MoE tensor in two parts:
+We released the models with native quantization support. Specifically, we use [MXFP4](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) for the linear projection weights in the MoE layer. We store each MoE tensor in two parts:
 
-- `tensor.blocks` stores the actual fp4 values. We pack every two values in one `uint8` value.
+- `tensor.blocks` stores the actual FP4 values. We pack every two values into one `uint8` value.
 - `tensor.scales` stores the block scale. The block scaling is done among the last dimension for all MXFP4 tensors.
 
-All other tensors will be in BF16. We also recommend using BF16 as the activation precision for the model.
+All other tensors are in BF16. We also recommend using BF16 for activations precision for the model.
 
 ### Recommended Sampling Parameters
 
