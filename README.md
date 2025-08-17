@@ -360,7 +360,7 @@ Both gpt-oss models were trained with the capability to browse using the `browse
 
 #### Usage
 
-To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_browser()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
+To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_browser_tool()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
 
 ```python
 import datetime
@@ -386,7 +386,7 @@ if use_browser_tool:
     # enables the tool
     system_message_content = system_message_content.with_tools(browser_tool.tool_config)
     # alternatively you could use the following if your tool is not stateless
-    system_message_content = system_message_content.with_browser()
+    system_message_content = system_message_content.with_browser_tool()
 
 # construct the system message
 system_message = Message.from_role_and_content(Role.SYSTEM, system_message_content)
