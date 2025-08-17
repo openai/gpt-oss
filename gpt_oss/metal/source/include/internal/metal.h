@@ -118,9 +118,10 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_kernel(
     size_t num_threadgroups_z,
     size_t params_size,
     const void* params,
-    size_t num_buffers,
-    const struct gptoss_metal_buffer** buffers,
-    const size_t* buffer_offsets);
+    size_t num_device_buffers,
+    const struct gptoss_metal_buffer** device_buffers,
+    const size_t* device_buffer_offsets,
+    size_t threadgroup_buffer_size);
 
 enum gptoss_status gptoss_metal_command_buffer_commit(
     const struct gptoss_metal_command_buffer* command_buffer);
