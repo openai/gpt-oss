@@ -155,6 +155,7 @@ def main():
     now = datetime.now()
     date_str = now.strftime("%Y%m%d_%H%M%S")
     for model_name, sampler in models.items():
+        model_name = model_name.replace("/", "__")
         for eval_name, eval_obj in evals.items():
             result = eval_obj(sampler)
             # ^^^ how to use a sampler
