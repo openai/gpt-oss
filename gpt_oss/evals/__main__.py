@@ -11,6 +11,7 @@ from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
+from .mmlu_eval import MMLUEval
 from .responses_sampler import ResponsesSampler
 
 
@@ -47,7 +48,7 @@ def main():
     parser.add_argument(
         "--eval",
         type=str,
-        default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25",
+        default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25,mmlu",
         help="Select an eval by name. Accepts a comma-separated list.",
     )
     parser.add_argument(
@@ -136,6 +137,11 @@ def main():
             case "aime25":
                 return AIME25Eval(
                     n_repeats=1 if args.debug else 8,
+                    num_examples=num_examples,
+                    n_threads=args.n_threads or 1,
+                )
+            case "mmlu":
+                return MMLUEval(
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                 )
