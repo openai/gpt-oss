@@ -109,7 +109,7 @@ class Checkpoint:
             mant = lut_full[blk_chunk].reshape(r1 - r0, B * 2)
             torch.ldexp(mant, scales_flat[r0:r1], out=out[r0:r1])
     
-        return out.reshape(*prefix_shape, G * B * 2)
+        return out.reshape(*prefix_shape, G, B * 2).view(*prefix_shape, G * B * 2)
 
     def _get_mxfp4_tensor_copy(self, blocks_name: str, scales_name: str, dtype: torch.dtype = torch.bfloat16):
         "short version that uses a lot of memory"
