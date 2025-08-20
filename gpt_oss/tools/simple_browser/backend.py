@@ -64,12 +64,6 @@ def with_retries(
         return func
 
 
-def maybe_truncate(text: str, num_chars: int = 1024) -> str:
-    if len(text) > num_chars:
-        text = text[: (num_chars - 3)] + "..."
-    return text
-
-
 @chz.chz(typecheck=True)
 class Backend:
     source: str = chz.field(doc="Description of the backend source")
