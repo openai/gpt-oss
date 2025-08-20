@@ -62,7 +62,7 @@ async def main():
         name="My Agent",
         instructions="You are a helpful assistant.",
         tools=[get_weather],
-        model="gpt-oss:20b-test",
+        model="gpt-oss:20b",
         mcp_servers=[mcp_server],
     )
 
