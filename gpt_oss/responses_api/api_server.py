@@ -20,7 +20,7 @@ from openai_harmony import (
 
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend, TavilyBackend
 
 from .events import (
     ResponseCodeInterpreterCallCompleted,
@@ -82,7 +82,9 @@ def is_not_builtin_tool(recipient: str) -> bool:
 
 
 def create_api_server(
-    infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
+    infer_next_token: Callable[[list[int], float], int], 
+    encoding: HarmonyEncoding,
+    search_backend: str
 ) -> FastAPI:
     app = FastAPI()
     responses_store: dict[str, tuple[ResponsesRequest, ResponseObject]] = {}
@@ -904,9 +906,13 @@ def create_api_server(
         )
 
         if use_browser_tool:
-            backend = ExaBackend(
-                source="web",
-            )
+            match search_backend:
+                case "tavily":
+                    backend = TavilyBackend(source="web")
+                case "exa":
+                    backend = ExaBackend(source="web")
+                case _:
+                    raise ValueError(f"Invalid search backend: {search_backend}")
             browser_tool = SimpleBrowserTool(backend=backend)
         else:
             browser_tool = None
