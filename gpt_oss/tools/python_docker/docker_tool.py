@@ -1,7 +1,5 @@
 # Run this before running the tool:
 # $ docker image pull python:3.11
-import io
-import tarfile
 from typing import Any, AsyncIterator
 
 import docker
@@ -13,6 +11,9 @@ from openai_harmony import (
     TextContent,
     ToolNamespaceConfig,
 )
+import io
+import tarfile
+import os
 
 from ..tool import Tool
 
@@ -43,8 +44,14 @@ def call_python_script(script: str) -> str:
     tarstream.seek(0)
 
     # 2. Start the container
+    network_access = os.environ.get("GPT_OSS_DOCKER_NETWORK_ACCESS", "false").lower()
+    network_disabled = network_access not in ["true", "1", "yes"]
+
     container = _docker_client.containers.create(
-        "python:3.11", command="sleep infinity", detach=True
+        "python:3.11",
+        command="sleep infinity",
+        detach=True,
+        network_disabled=network_disabled,
     )
     try:
         container.start()
