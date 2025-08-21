@@ -3,7 +3,7 @@ import torch
 import torch.distributed as dist
 
 
-def suppress_output(rank):
+def suppress_output(rank: int) -> None:
     """Suppress printing on the current device. Force printing with `force=True`."""
     import builtins as __builtin__
     builtin_print = __builtin__.print
