@@ -65,6 +65,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [gpt-oss-20b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b)
 - AMD
   - [gpt-oss-120B on AMD MI300X](https://huggingface.co/spaces/amd/gpt-oss-120b-chatbot)
+- AWS (Deploy via Tensorfuse)
+  - [Deploy gpt-oss for both 20b and 120b models on AWS EKS](https://tensorfuse.io/docs/guides/modality/text/openai_oss)
 
 ## Examples & Tutorials
 
