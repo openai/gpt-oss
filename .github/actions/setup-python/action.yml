@@ -1,0 +1,22 @@
+name: Setup Python and Install Dependencies
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version-file: .python-version
+
+    - name: Install build tools
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip setuptools wheel build
+
+    - name: Install uv (if needed)
+      shell: bash
+      run: |
+        python -m pip install --upgrade uv || true
