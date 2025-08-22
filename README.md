@@ -412,6 +412,20 @@ if last_message.recipient.startswith("browser"):
   messages.extend(response_messages)
 ```
 
+
+## Troubleshooting & FAQ
+
+### Q: I get an error about CUDA or Metal not found?
+A: Please ensure you have a compatible GPU and drivers installed (CUDA for Linux/Windows, Metal for Mac). Recheck the installation steps above, and ensure your Python version matches the requirements.
+
+### Q: pip install fails or shows version errors?
+A: Try upgrading pip (`pip install --upgrade pip`). Make sure you are using Python 3.11 or higher and a clean virtual environment.
+
+### Q: Model weights cannot be downloaded.
+A: Verify your internet connection and that you are using the latest version of the HuggingFace CLI (`pip install -U huggingface_hub`). If problems persist, try downloading manually from the provided download link.
+
+For more help, please visit [community page](https://community.openai.com/) 
+
 #### Details
 
 To control the context window size this tool uses a scrollable window of text that the model can interact with. So it might fetch the first 50 lines of a page and then scroll to the next 20 lines after that. The model has also been trained to then use citations from this tool in its answers.
