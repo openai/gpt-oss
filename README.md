@@ -44,6 +44,31 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
 - **MXFP4 quantization:** The models were post-trained with MXFP4 quantization of the MoE weights, making `gpt-oss-120b` run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and the `gpt-oss-20b` model run within 16GB of memory. All evals were performed with the same MXFP4 quantization.
 
+## Table of Contents
+- [Inference Examples](#inference-examples)
+- [About this Repository](#about-this-repository)
+- [Setup](#setup)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+- [Download the model](#download-the-model)
+- [Reference Implementations](#reference-implementations)
+  - [PyTorch](#reference-pytorch-implementation)
+  - [Triton](#reference-triton-implementation-single-gpu)
+  - [Metal (Apple Silicon)](#reference-metal-implementation)
+- [Harmony format & tools](#harmony-format--tools)
+- [Clients](#clients)
+  - [Terminal Chat](#terminal-chat)
+  - [Responses API](#responses-api)
+  - [Codex](#codex)
+- [Tools](#tools)
+  - [Browser](#browser)
+  - [Python](#python)
+  - [Apply Patch](#apply-patch)
+- [Other details](#other-details)
+  - [Precision format](#precision-format)
+  - [Recommended Sampling Parameters](#recommended-sampling-parameters)
+- [Contributing](#contributing)
+
 ### Inference examples
 
 #### Transformers
