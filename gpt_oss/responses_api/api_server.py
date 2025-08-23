@@ -430,7 +430,8 @@ def create_api_server(
                 self.tokens.append(next_tok)
                 try:
                     self.parser.process(next_tok)
-                except Exception:
+                except Exception as e:
+                    print(f"Error parsing next tokens: {e}")
                     pass
 
                 if self.parser.state == StreamState.EXPECT_START:
