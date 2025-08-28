@@ -23,8 +23,8 @@ _docker_client = None
 
 PYTHON_EXECUTION_BACKEND = "docker"
 
-if os.environ.get("PYTHON_EXECUTION_BACKEND") == "uv":
-    PYTHON_EXECUTION_BACKEND = "uv"
+if os.environ.get("PYTHON_EXECUTION_BACKEND") == "dangerously_use_uv":
+    PYTHON_EXECUTION_BACKEND = "dangerously_use_uv"
 
 
 def call_python_script(script: str) -> str:
@@ -143,7 +143,7 @@ When you send a message containing python code to python, it will be executed in
         channel = message.channel
         if PYTHON_EXECUTION_BACKEND == "docker":
             output = call_python_script(script)
-        elif PYTHON_EXECUTION_BACKEND == "uv":
+        elif PYTHON_EXECUTION_BACKEND == "dangerously_use_uv":
             output = call_python_script_with_uv(script)
         else:
             raise ValueError(
