@@ -1,0 +1,5 @@
+{"claim": "Paris is the capital of France.", "evidence": ["Paris is the capital and most populous city of France."], "label": "SUPPORTS"}
+{"claim": "The Earth is flat.", "evidence": ["The Earth is an oblate spheroid, not flat."], "label": "REFUTES"}
+{"claim": "Water boils at 100 degrees Celsius.", "evidence": ["Water boils at 100°C at sea level under standard atmospheric pressure."], "label": "SUPPORTS"}
+{"claim": "Albert Einstein was born in Germany.", "evidence": ["Albert Einstein was born in Ulm, Germany on March 14, 1879."], "label": "SUPPORTS"}
+{"claim": "The Great Wall of China is visible from space.", "evidence": ["The Great Wall of China is not visible from space with the naked eye."], "label": "REFUTES"}

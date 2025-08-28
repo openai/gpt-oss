@@ -32,6 +32,7 @@ Both models were trained using our [harmony response format][harmony] and should
 - [Harmony format & tools](#harmony-format--tools)
 - [Clients](#clients)
 - [Tools](#tools)
+- [Hallucination Monitor](#hallucination-monitor)
 - [Other details](#other-details)
 - [Contributing](#contributing)
 
@@ -477,6 +478,107 @@ if last_message.recipient == "python":
 ### Apply Patch
 
 `apply_patch` can be used to create, update or delete files locally.
+
+## Hallucination Monitor
+
+The GPT-OSS Hallucination Monitor is a comprehensive system for detecting hallucination risk in LLM outputs. It provides multiple detection signals and generates detailed reports to help identify potential issues in model completions.
+
+### 🌐 Web Interface (Recommended)
+
+The easiest way to try the hallucination monitor is through our beautiful web interface:
+
+```bash
+# Install dependencies
+pip install streamlit plotly
+pip install -e ".[monitoring]"
+
+# Launch the web interface
+python gpt_oss/monitoring/run_web_app.py
+```
+
+This opens a beautiful web interface at `http://localhost:8501` with:
+-  Beautiful visualizations (gauge charts, radar plots, bar charts)
+-  Interactive configuration sliders
+-  Quick example buttons
+-  Real-time analysis results
+-  Color-coded risk highlighting
+-  HTML report generation
+
+### 🎯 Comprehensive Demo
+
+Run the full demo to see all features in action:
+
+```bash
+# Run the comprehensive demo
+python -m gpt_oss.monitoring.demo.demo
+```
+
+The demo showcases:
+- Basic usage examples
+- Different detection signals (truthful, hallucinated, numeric errors)
+- Professional HTML report generation
+- Web interface information
+- CLI usage examples
+- Advanced configuration features
+
+### Quick Start
+
+```bash
+# Install monitoring dependencies
+pip install -e ".[monitoring]"
+
+# Basic usage
+gpt-oss-monitor --prompt prompt.txt --completion output.txt
+
+# With context documents and HTML report
+gpt-oss-monitor --prompt prompt.txt --completion output.txt --contexts ctx1.txt ctx2.txt --html
+```
+
+### Python API
+
+```python
+from gpt_oss.monitoring import HallucinationMonitor, MonitorConfig
+
+# Initialize monitor
+monitor = HallucinationMonitor()
+
+# Evaluate a completion
+results = monitor.evaluate(
+    prompt="What is the capital of France?",
+    completion="Paris is the capital of France with 2.2 million people.",
+    context_docs=["Paris is the capital and most populous city of France."]
+)
+
+print(f"Risk Level: {results['risk_level']}")
+print(f"Risk Score: {results['risk_score']:.3f}")
+```
+
+### Detection Signals
+
+The monitor uses five key signals to assess hallucination risk:
+
+- **Self-Consistency (SC)**: Generates k samples and computes semantic agreement
+- **NLI Faithfulness**: Checks sentence-level entailment against prompt and context
+- **Numeric Sanity**: Detects arithmetic and unit consistency issues
+- **Retrieval Support**: Verifies claims against provided context documents
+- **Jailbreak Heuristics**: Identifies potential safety risks
+
+### Features
+
+- **Configurable**: Customize thresholds, weights, and detection parameters
+- **HTML Reports**: Beautiful, interactive reports with highlighted spans
+- **CLI Interface**: Easy command-line usage with file inputs
+- **Lightweight**: CPU-optional with fallback heuristics
+- **Deterministic**: Seeded RNG for reproducible results
+- **Web Interface**: Sexy Streamlit app with real-time analysis
+- **Professional Design**: GPT-OSS branded with sexy blue color scheme
+
+### Examples
+
+For detailed examples and usage patterns, see:
+- [Monitoring Examples](gpt_oss/monitoring/examples/README.md)
+- [Demo Script](gpt_oss/monitoring/demo/README.md)
+- [Web Interface](gpt_oss/monitoring/run_web_app.py)
 
 ## Other details
 

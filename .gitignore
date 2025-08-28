@@ -5,3 +5,40 @@ __pycache__
 *.egg*
 node_modules/
 *.log
+
+# Monitoring demo files and reports
+demo_reports/
+sample_reports/
+runs/
+professional_reports/
+*.html
+*.pdf
+
+# Virtual environments
+monitoring_env/
+venv/
+env/
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python cache and compiled files
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so

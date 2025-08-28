@@ -1,0 +1,22 @@
+# Core dependencies
+numpy>=1.21.0
+scipy>=1.7.0
+regex>=2021.0.0
+tqdm>=4.62.0
+
+# NLP and ML dependencies
+sentence-transformers>=2.2.0
+transformers>=4.20.0
+torch>=1.12.0
+
+# Optional dependencies (can be installed separately)
+rapidfuzz>=2.0.0
+jinja2>=3.0.0
+
+# Testing
+pytest>=6.0.0
+pytest-cov>=3.0.0
+
+# Web interface (optional)
+streamlit>=1.28.0
+plotly>=5.15.0

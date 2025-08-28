@@ -19,7 +19,7 @@ dependencies = [
   "termcolor",
 ]
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.14"
 version = "0.0.4"
 
 [project.optional-dependencies]
@@ -28,6 +28,7 @@ torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
 eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile"]
+monitoring = ["numpy>=1.21.0", "scipy>=1.7.0", "regex>=2021.0.0", "tqdm>=4.62.0", "sentence-transformers>=2.2.0", "transformers>=4.20.0", "torch>=1.12.0", "jinja2>=3.0.0"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -36,6 +37,9 @@ backend-path = ["_build"]
 
 [tool.setuptools.packages.find]
 include = ["gpt_oss*"]
+
+[project.scripts]
+gpt-oss-monitor = "gpt_oss.monitoring.__main__:main"
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt
