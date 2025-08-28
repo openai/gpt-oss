@@ -20,10 +20,10 @@ dependencies = [
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-version = "0.0.3"
+version = "0.0.4"
 
 [project.optional-dependencies]
-triton = ["triton", "safetensors>=0.5.3", "torch>=2.7.0"]
+triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]

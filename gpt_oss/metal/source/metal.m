@@ -380,9 +380,10 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_kernel(
     size_t num_threadgroups_z,
     size_t params_size,
     const void* params,
-    size_t num_buffers,
-    const struct gptoss_metal_buffer** buffers,
-    const size_t* buffer_offsets)
+    size_t num_device_buffers,
+    const struct gptoss_metal_buffer** device_buffers,
+    const size_t* device_buffer_offsets,
+    size_t threadgroup_buffer_size)
 {
     if (command_buffer->object == NULL || function->pipeline_state_object == NULL) {
         return gptoss_status_invalid_state;
@@ -396,10 +397,13 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_kernel(
     // Set kernel arguments
     [command_encoder_obj setComputePipelineState:pipeline_state_obj];
     [command_encoder_obj setBytes:params length:params_size atIndex:0];
-    for (size_t i = 0; i < num_buffers; ++i) {
-        id<MTLBuffer> buffer_obj = (id<MTLBuffer>) buffers[i]->object;
-        const NSUInteger offset = buffer_offsets == NULL ? 0 : (NSUInteger) buffer_offsets[i];
+    for (size_t i = 0; i < num_device_buffers; ++i) {
+        id<MTLBuffer> buffer_obj = (id<MTLBuffer>) device_buffers[i]->object;
+        const NSUInteger offset = device_buffer_offsets == NULL ? 0 : (NSUInteger) device_buffer_offsets[i];
         [command_encoder_obj setBuffer:buffer_obj offset:offset atIndex:i + 1];
+    }
+    if (threadgroup_buffer_size != 0) {
+        [command_encoder_obj setThreadgroupMemoryLength:threadgroup_buffer_size atIndex:0];
     }
 
     // Dispatch kernel

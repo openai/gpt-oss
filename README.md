@@ -2,7 +2,7 @@
 <p align="center">
   <a href="https://gpt-oss.com"><strong>Try gpt-oss</strong></a> ·
   <a href="https://cookbook.openai.com/topic/gpt-oss"><strong>Guides</strong></a> ·
-  <a href="https://openai.com/index/gpt-oss-model-card"><strong>Model card</strong></a> ·
+  <a href="https://arxiv.org/abs/2508.10925"><strong>Model card</strong></a> ·
   <a href="https://openai.com/index/introducing-gpt-oss/"><strong>OpenAI blog</strong></a>
 </p>
 <p align="center">
@@ -42,7 +42,7 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and `gpt-oss-20b` to run within 16GB of memory.
+- **MXFP4 quantization:** The models were post-trained with MXFP4 quantization of the MoE weights, making `gpt-oss-120b` run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and the `gpt-oss-20b` model run within 16GB of memory. All evals were performed with the same MXFP4 quantization.
 
 ### Inference examples
 
@@ -360,7 +360,7 @@ Both gpt-oss models were trained with the capability to browse using the `browse
 
 #### Usage
 
-To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_browser()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
+To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_browser_tool()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
 
 ```python
 import datetime
@@ -386,7 +386,7 @@ if use_browser_tool:
     # enables the tool
     system_message_content = system_message_content.with_tools(browser_tool.tool_config)
     # alternatively you could use the following if your tool is not stateless
-    system_message_content = system_message_content.with_browser()
+    system_message_content = system_message_content.with_browser_tool()
 
 # construct the system message
 system_message = Message.from_role_and_content(Role.SYSTEM, system_message_content)
@@ -498,3 +498,17 @@ We recommend sampling with `temperature=1.0` and `top_p=1.0`.
 The reference implementations in this repository are meant as a starting point and inspiration. Outside of bug fixes we do not intend to accept new feature contributions. If you build implementations based on this code such as new tool implementations you are welcome to contribute them to the [`awesome-gpt-oss.md`](./awesome-gpt-oss.md) file.
 
 [harmony]: https://github.com/openai/harmony
+
+## Citation
+
+```bibtex
+@misc{openai2025gptoss120bgptoss20bmodel,
+      title={gpt-oss-120b & gpt-oss-20b Model Card}, 
+      author={OpenAI},
+      year={2025},
+      eprint={2508.10925},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2508.10925}, 
+}
+```
