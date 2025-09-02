@@ -71,7 +71,7 @@ def main():
     parser.add_argument(
         "--output-path",
         type=str,
-        default="{args.output_path.rstrip('/')}/",
+        default="/tmp/",
         help="Output directory for results",
     )
 
