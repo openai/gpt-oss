@@ -19,7 +19,7 @@ dependencies = [
   "termcolor",
 ]
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 version = "0.0.5"
 
 [project.optional-dependencies]
