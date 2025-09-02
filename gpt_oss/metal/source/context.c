@@ -618,12 +618,13 @@ enum gptoss_status GPTOSS_ABI gptoss_context_append_tokens(
             size_t num_verified_tokens = 0;
             for (; num_verified_tokens < num_tokens_to_verify; num_verified_tokens++) {
                 if (input_tokens[context->num_tokens + num_verified_tokens] != tokens[num_verified_tokens]) {
+                    // Invalidate the KV cache starting with the newly added tokens.
+                    context->num_kv_tokens = context->num_tokens + num_verified_tokens;
                     break;
                 }
             }
 
             context->num_tokens += num_verified_tokens;
-            context->num_kv_tokens = context->num_tokens;
             tokens += num_verified_tokens;
             num_tokens -= num_verified_tokens;
         } else {

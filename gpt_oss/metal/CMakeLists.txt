@@ -147,6 +147,10 @@ add_executable(f32-bf16w-rmsnorm-bench benchmark/f32-bf16w-rmsnorm.cc)
 target_link_libraries(f32-bf16w-rmsnorm-bench PRIVATE benchmark::benchmark metal-kernels)
 target_include_directories(f32-bf16w-rmsnorm-bench PRIVATE source/include)
 
+add_executable(end-to-end-bench benchmark/end-to-end.cc)
+target_link_libraries(end-to-end-bench PRIVATE benchmark::benchmark gptoss)
+target_include_directories(end-to-end-bench PRIVATE source/include)
+
 # --- [ Python extension ] -----------------------------------------------
 find_package(pybind11 CONFIG REQUIRED)          # provides pybind11_add_module
 

@@ -3,6 +3,9 @@
 import io
 import tarfile
 from typing import Any, AsyncIterator
+import tempfile
+import os
+import subprocess
 
 import docker
 from openai_harmony import (
@@ -17,6 +20,11 @@ from openai_harmony import (
 from ..tool import Tool
 
 _docker_client = None
+
+PYTHON_EXECUTION_BACKEND = "docker"
+
+if os.environ.get("PYTHON_EXECUTION_BACKEND") == "dangerously_use_uv":
+    PYTHON_EXECUTION_BACKEND = "dangerously_use_uv"
 
 
 def call_python_script(script: str) -> str:
@@ -56,6 +64,21 @@ def call_python_script(script: str) -> str:
     finally:
         container.remove(force=True)
     return output
+
+
+def call_python_script_with_uv(script: str) -> str:
+    """
+    Call a python script by writing it to a file to a temporary directory
+    and executing it with uv.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        script_path = os.path.join(temp_dir, "script.py")
+        with open(script_path, "w") as f:
+            f.write(script)
+        exec_result = subprocess.run(
+            ["uv", "run", "--no-project", "python", script_path],
+            capture_output=True)
+        return exec_result.stdout.decode("utf-8")
 
 
 class PythonTool(Tool):
@@ -118,5 +141,12 @@ When you send a message containing python code to python, it will be executed in
     async def _process(self, message: Message) -> AsyncIterator[Message]:
         script = message.content[0].text
         channel = message.channel
-        output = call_python_script(script)
+        if PYTHON_EXECUTION_BACKEND == "docker":
+            output = call_python_script(script)
+        elif PYTHON_EXECUTION_BACKEND == "dangerously_use_uv":
+            output = call_python_script_with_uv(script)
+        else:
+            raise ValueError(
+                f"Invalid PYTHON_EXECUTION_BACKEND: {PYTHON_EXECUTION_BACKEND}"
+            )
         yield self._make_response(output, channel=channel)
