@@ -27,3 +27,40 @@ Once opened, set SSE to `http://localhost:8001/sse` and `http://localhost:8000/s
 
 To compare the system prompt and see how to construct it via MCP service discovery, see `build-system-prompt.py`.
 This script will generate exactly the same system prompt as `reference-system-prompt.py`.
+
+## Search Backend Configuration
+
+The browser server supports two search backends: **Exa** (default) and **Tavily**. You can configure which backend to use via the `SEARCH_BACKEND` environment variable.
+
+- **Exa**: Uses HTML parsing for content extraction
+- **Tavily**: Uses markdown processing for faster and cleaner content extraction
+
+### Using Exa Backend (Default)
+
+The browser server uses Exa by default. To explicitly set it:
+
+```bash
+# Default behavior - uses Exa
+mcp run -t sse browser_server.py:mcp
+
+# Explicitly set Exa
+SEARCH_BACKEND=exa mcp run -t sse browser_server.py:mcp
+```
+
+You'll need an Exa API key set in your environment:
+```bash
+export EXA_API_KEY="your_exa_api_key_here"
+```
+
+### Using Tavily Backend
+
+To use Tavily's search and extraction capabilities:
+
+```bash
+SEARCH_BACKEND=tavily mcp run -t sse browser_server.py:mcp
+```
+
+You'll need a Tavily API key set in your environment:
+```bash
+export TAVILY_API_KEY="your_tavily_api_key_here"
+```

@@ -19,7 +19,7 @@ import termcolor
 
 from gpt_oss.tools import apply_patch
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend, TavilyBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 
 from openai_harmony import (
@@ -85,9 +85,13 @@ def main(args):
     )
 
     if args.browser:
-        backend = ExaBackend(
-            source="web",
-        )
+        match args.search_backend:
+            case "tavily":
+                backend = TavilyBackend(source="web")
+            case "exa":
+                backend = ExaBackend(source="web")
+            case _:
+                raise ValueError(f"Invalid search backend: {args.search_backend}")
         browser_tool = SimpleBrowserTool(backend=backend)
         system_message_content = system_message_content.with_tools(browser_tool.tool_config)
 
@@ -353,6 +357,13 @@ if __name__ == "__main__":
         default="triton",
         choices=["triton", "torch", "vllm"],
         help="Inference backend",
+    )
+    parser.add_argument(
+        "--search-backend",
+        type=str,
+        default="exa",
+        choices=["tavily", "exa"],
+        help="Search backend for browser tool",
     )
     args = parser.parse_args()
 

@@ -24,12 +24,9 @@ from openai_harmony import (
 from ..tool import Tool
 
 # from functions import Function, from_python
-from .backend import (
-    VIEW_SOURCE_PREFIX,
-    Backend,
-    BackendError,
-    maybe_truncate,
-)
+from .backend import Backend, BackendError
+from .backend.exa_backend import VIEW_SOURCE_PREFIX
+from .utils import maybe_truncate
 from .page_contents import Extract, PageContents
 
 logger = structlog.stdlib.get_logger(component=__name__)
