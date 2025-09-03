@@ -454,9 +454,28 @@ class TokenGenerator:
                  temperature: float = 1.0,
                  max_tokens: int = 0,
                  return_logprobs: bool = False):
+        # Input validation
+        if not prompt_tokens:
+            raise ValueError("prompt_tokens cannot be empty")
+        if not stop_tokens:
+            raise ValueError("stop_tokens cannot be empty")
+        if temperature < 0:
+            raise ValueError("temperature must be non-negative")
+        if max_tokens < 0:
+            raise ValueError("max_tokens must be non-negative")
+        
+        # Safety limits
+        MAX_SEQUENCE_LENGTH = 8192  # Reasonable limit to prevent memory issues
+        if len(prompt_tokens) > MAX_SEQUENCE_LENGTH:
+            raise ValueError(f"prompt_tokens length exceeds maximum allowed ({MAX_SEQUENCE_LENGTH})")
+        
+        # Force a reasonable maximum generation length if none specified
+        if max_tokens == 0:
+            max_tokens = MAX_SEQUENCE_LENGTH - len(prompt_tokens)
+        
         tokens = list(prompt_tokens)
         num_generated_tokens = 0
-        while max_tokens == 0 or num_generated_tokens < max_tokens:
+        while num_generated_tokens < max_tokens:
             logits = self.model(torch.as_tensor(tokens, dtype=torch.int32, device=self.device))[-1]
             if temperature == 0.0:
                 predicted_token = torch.argmax(logits, dim=-1).item()

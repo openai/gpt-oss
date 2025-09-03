@@ -65,13 +65,15 @@ enum gptoss_status GPTOSS_ABI gptoss_tokenizer_decode(
     if (token_id >= tokenizer->num_text_tokens) {
         return gptoss_status_invalid_argument;
     }
-
+    
+    const char* tokens_end = (const char*)tokenizer->tokens_ptr + tokenizer->mapping_size;
     const char* token_ptr = (const char*) tokenizer->tokens_ptr;
     for (uint32_t t = 0; t < token_id; t++) {
         // Reading unaligned uint16_t
         uint16_t token_length;
+        if (token_ptr + sizeof(token_length) >= tokens_end) return gptoss_status_invalid_argument;
         memcpy(&token_length, token_ptr, sizeof(token_length));
-
+        if (token_ptr + token_length + sizeof(uint16_t) >= tokens_end) return gptoss_status_invalid_argument;
         token_ptr += (size_t) token_length + sizeof(uint16_t);
     }
 

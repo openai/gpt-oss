@@ -89,11 +89,17 @@ static PyObject* PyGPTOSSContext_append(PyGPTOSSContext* self, PyObject* arg) {
 
         Py_RETURN_NONE;
     } else if (PyLong_Check(arg)) {
+        // Handle potential overflow from Python int to unsigned long
         const unsigned long token_as_ulong = PyLong_AsUnsignedLong(arg);
         if (token_as_ulong == (unsigned long) -1 && PyErr_Occurred()) {
-            return NULL;
+            return NULL;  // PyLong_AsUnsignedLong sets appropriate overflow error
         }
 
+        // Check for overflow when converting to uint32_t
+        if (token_as_ulong > UINT32_MAX) {
+            PyErr_SetString(PyExc_OverflowError, "Token value too large for uint32_t");
+            return NULL;
+        }
         const uint32_t token = (uint32_t) token_as_ulong;
         const enum gptoss_status status = gptoss_context_append_tokens(
             self->handle, /*num_tokens=*/1, &token);
@@ -130,7 +136,11 @@ static PyObject* PyGPTOSSContext_sample(PyGPTOSSContext* self, PyObject* args, P
         return NULL;
     }
 
+    // Initialize to max value to detect potential initialization issues
     uint32_t token_out = UINT32_MAX;
+    
+    // Note: seed is uint64_t, no overflow check needed as it's already the right size
+    // temperature is float, handled by Python's float parsing
     enum gptoss_status status = gptoss_context_sample(
         self->handle, temperature, (uint64_t) seed, &token_out);
     if (status != gptoss_status_success) {
@@ -186,20 +196,42 @@ static PyObject* PyGPTOSSContext_get_tokens(PyGPTOSSContext* self, void* closure
     PyObject* token_list_obj = NULL;
     PyObject* token_obj = NULL;
     uint32_t* token_ptr = NULL;
-
     size_t num_tokens = 0;
-    gptoss_context_get_tokens(self->handle, /*tokens_out=*/NULL, /*max_tokens=*/0, &num_tokens);
 
-    if (num_tokens != 0) {
-        token_ptr = (uint32_t*) PyMem_Malloc(num_tokens * sizeof(uint32_t));
-        if (token_ptr == NULL) {
-            // TODO: set exception
-            goto error;
-        }
+    // Get number of tokens with proper error handling
+    enum gptoss_status status = gptoss_context_get_num_tokens(self->handle, &num_tokens);
+    if (status != gptoss_status_success) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get number of tokens");
+        return NULL;
+    }
 
-        enum gptoss_status status = gptoss_context_get_tokens(self->handle, token_ptr, /*max_tokens=*/num_tokens, &num_tokens);
+    // Early return if no tokens
+    if (num_tokens == 0) {
+        return PyList_New(0);
+    }
+
+    // Check for potential multiplication overflow in allocation size
+    if (num_tokens > SIZE_MAX / sizeof(uint32_t)) {
+        PyErr_SetString(PyExc_OverflowError, "Token count too large for memory allocation");
+        goto error;
+    }
+
+    // Allocate memory for tokens
+    token_ptr = (uint32_t*) PyMem_Malloc(num_tokens * sizeof(uint32_t));
+    if (token_ptr == NULL) {
+        PyErr_NoMemory();
+        goto error;
+    }
+
+    // Verify num_tokens doesn't exceed Py_ssize_t max for Python list
+    if (num_tokens > (size_t)PY_SSIZE_T_MAX) {
+        PyErr_SetString(PyExc_OverflowError, "Token count exceeds maximum Python list size");
+        goto error;
+    }
+
+        status = gptoss_context_get_tokens(self->handle, token_ptr, /*max_tokens=*/num_tokens, &num_tokens);
         if (status != gptoss_status_success) {
-            // TODO: set exception
+            PyErr_SetString(PyExc_RuntimeError, "Failed to get tokens");
             goto error;
         }
     }
@@ -210,9 +242,11 @@ static PyObject* PyGPTOSSContext_get_tokens(PyGPTOSSContext* self, void* closure
     }
 
     for (size_t t = 0; t < num_tokens; t++) {
+        // uint32_t to unsigned long conversion is safe on all platforms
+        // as unsigned long is at least 32 bits
         token_obj = PyLong_FromUnsignedLong((unsigned long) token_ptr[t]);
         if (token_obj == NULL) {
-            goto error;
+            goto error;  // PyLong_FromUnsignedLong sets memory error if allocation fails
         }
         if (PyList_SetItem(token_list_obj, (Py_ssize_t) t, token_obj) < 0) {
             goto error;
