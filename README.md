@@ -446,7 +446,7 @@ from openai_harmony import SystemContent, Message, Conversation, Role, load_harm
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-# Exa backend requires you to have set the EXA_API_KEY environment variable
+# Exa backend requires you to have set the YDC_API_KEY environment variable
 backend = YouComBackend(
     source="web",
 )
