@@ -20,7 +20,7 @@ dependencies = [
 ]
 readme = "README.md"
 requires-python = ">=3.12"
-version = "0.0.5"
+version = "0.0.6"
 
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
