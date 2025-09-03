@@ -452,6 +452,9 @@ encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 backend = YouComBackend(
     source="web",
 )
+# backend = ExaBackend(
+#  source="web",
+# )
 browser_tool = SimpleBrowserTool(backend=backend)
 
 # create a basic system prompt
