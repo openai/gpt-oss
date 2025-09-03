@@ -1,3 +1,4 @@
+import os
 import datetime
 import uuid
 from typing import Callable, Literal, Optional
@@ -20,7 +21,7 @@ from openai_harmony import (
 
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import YouComBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
 
 from .events import (
     ResponseCodeInterpreterCallCompleted,
@@ -904,9 +905,13 @@ def create_api_server(
         )
 
         if use_browser_tool:
-            backend = YouComBackend(
-                source="web",
-            )
+            tool_backend = os.getenv("BROWSER_BACKEND", "exa")
+            if tool_backend == "youcom":
+                backend = YouComBackend(source="web")
+            elif tool_backend == "exa":
+                backend = ExaBackend(source="web")
+            else:
+                raise ValueError(f"Invalid tool backend: {tool_backend}")
             browser_tool = SimpleBrowserTool(backend=backend)
         else:
             browser_tool = None

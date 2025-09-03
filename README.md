@@ -426,7 +426,7 @@ codex -p oss
 ### Browser
 
 > [!WARNING]
-> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`YouComBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment.
+> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`YouComBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment. Currently we have available `YouComBackend` and `ExaBackend`. 
 
 Both gpt-oss models were trained with the capability to browse using the `browser` tool that exposes the following three methods:
 
@@ -446,7 +446,7 @@ from openai_harmony import SystemContent, Message, Conversation, Role, load_harm
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-# Exa backend requires you to have set the YDC_API_KEY environment variable
+# You.com backend requires you to have set the YDC_API_KEY environment variable
 backend = YouComBackend(
     source="web",
 )

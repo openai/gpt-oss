@@ -250,13 +250,3 @@ class YouComBackend(Backend):
             session=session,
         )
 
-
-async def main():
-    backend = YouComBackend(source="web")
-    async with ClientSession() as session:
-        response = await backend.search(query="taylor swift", topn=10, session=session)
-        fetch_response = await backend.fetch(url="https://www.imdb.com/name/nm2357847/", session=session)
-    return response, fetch_response
-
-if __name__ == "__main__":
-    response, fetch_response = asyncio.run(main())
