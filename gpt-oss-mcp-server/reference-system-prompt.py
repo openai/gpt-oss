@@ -1,7 +1,7 @@
 import datetime
 
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tokenizer import tokenizer
 
@@ -22,7 +22,7 @@ system_message_content = (SystemContent.new().with_reasoning_effort(
     ReasoningEffort.LOW).with_conversation_start_date(
         datetime.datetime.now().strftime("%Y-%m-%d")))
 
-backend = ExaBackend(source="web", )
+backend = YouComBackend(source="web")
 browser_tool = SimpleBrowserTool(backend=backend)
 system_message_content = system_message_content.with_tools(
     browser_tool.tool_config)
