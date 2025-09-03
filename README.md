@@ -446,7 +446,9 @@ from openai_harmony import SystemContent, Message, Conversation, Role, load_harm
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-# You.com backend requires you to have set the YDC_API_KEY environment variable
+# Depending on the choice of the browser backend you need corresponding env variables setup
+# In case you use You.com backend requires you to have set the YDC_API_KEY environment variable,
+# while for Exa you might need EXA_API_KEY environment variable set
 backend = YouComBackend(
     source="web",
 )
