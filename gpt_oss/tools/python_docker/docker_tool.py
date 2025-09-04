@@ -38,7 +38,10 @@ def call_python_script(script: str) -> str:
         try:
             _docker_client.images.get("python:3.11")
         except docker.errors.ImageNotFound:
-            _docker_client.images.pull("python:3.11")
+            try:
+                _docker_client.images.pull("python:3.11")
+            except docker.errors.APIError as e:
+                return f"Error pulling python:3.11 image: {e}"
 
     # 1. Create a temporary tar archive containing the script
     script_name = "script.py"
@@ -51,18 +54,24 @@ def call_python_script(script: str) -> str:
     tarstream.seek(0)
 
     # 2. Start the container
-    container = _docker_client.containers.create(
-        "python:3.11", command="sleep infinity", detach=True
-    )
     try:
+        container = _docker_client.containers.create(
+            "python:3.11", command="sleep infinity", detach=True
+        )
         container.start()
         # 3. Put the script into the container
         container.put_archive(path="/tmp", data=tarstream.read())
         # 4. Execute the script
         exec_result = container.exec_run(f"python /tmp/{script_name}")
-        output = exec_result.output.decode("utf-8")
+        if exec_result.exit_code == 0:
+            output = exec_result.output.decode("utf-8")
+        else:
+            output = f"Error executing script:\n{exec_result.output.decode('utf-8')}"
+    except docker.errors.APIError as e:
+        output = f"Docker API Error: {e}"
     finally:
-        container.remove(force=True)
+        if 'container' in locals() and container.status == 'running':
+            container.remove(force=True)
     return output
 
 
