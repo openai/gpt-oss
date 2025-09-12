@@ -1,7 +1,7 @@
 import os
 import datetime
 import uuid
-from typing import Callable, Literal, Optional
+from typing import Callable, Literal, Optional, Union
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
@@ -256,7 +256,7 @@ def create_api_server(
                     summary = []
                     content = [
                         ReasoningTextContentItem(
-                            type="reasoning_text",
+                            type="text",  # Changed from reasoning_text to text
                             text=entry["text"],
                         )
                         for entry in entry_dict["content"]
@@ -264,8 +264,7 @@ def create_api_server(
                     output.append(
                         ReasoningItem(
                             type="reasoning",
-                            summary=summary,
-                            content=content,
+                            summary=content,  # Use content for summary field
                         )
                     )
         else:
@@ -485,7 +484,7 @@ def create_api_server(
                                     output_index=current_output_index,
                                     content_index=current_content_index,
                                     part=ReasoningTextContentItem(
-                                        type="reasoning_text",
+                                        type="text",  # Changed from reasoning_text to text
                                         text=previous_item.content[0].text,
                                     ),
                                 )
@@ -496,10 +495,9 @@ def create_api_server(
                                     output_index=current_output_index,
                                     item=ReasoningItem(
                                         type="reasoning",
-                                        summary=[],
-                                        content=[
+                                        summary=[
                                             ReasoningTextContentItem(
-                                                type="reasoning_text",
+                                                type="text",  # Changed from reasoning_text to text
                                                 text=previous_item.content[0].text,
                                             )
                                         ],
@@ -643,7 +641,7 @@ def create_api_server(
                                 type="response.output_item.added",
                                 output_index=current_output_index,
                                 item=ReasoningItem(
-                                    type="reasoning", summary=[], content=[]
+                                    type="reasoning", summary=[]
                                 ),
                             )
                         )
@@ -653,7 +651,7 @@ def create_api_server(
                                 output_index=current_output_index,
                                 content_index=current_content_index,
                                 part=ReasoningTextContentItem(
-                                    type="reasoning_text", text=""
+                                    type="text", text=""  # Changed from reasoning_text to text
                                 ),
                             )
                         )
@@ -891,9 +889,22 @@ def create_api_server(
                     )
                 )
 
+    def normalize_request(body: ResponsesRequest) -> ResponsesRequest:
+        """Normalize different request formats to standard ResponsesRequest"""
+        # Handle developer role mapping to system
+        if isinstance(body.input, list):
+            for item in body.input:
+                if hasattr(item, 'role') and item.role == 'developer':
+                    item.role = 'system'
+        
+        return body
+
     @app.post("/v1/responses", response_model=ResponseObject)
     async def generate(body: ResponsesRequest, request: Request):
         print("request received")
+        
+        # Normalize the request format
+        body = normalize_request(body)
 
         use_browser_tool = any(
             getattr(tool, "type", None) == "browser_search"

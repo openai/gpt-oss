@@ -21,7 +21,7 @@ class TextContentItem(BaseModel):
     type: Union[Literal["text"], Literal["input_text"], Literal["output_text"]]
     text: str
     status: Optional[str] = "completed"
-    annotations: Optional[list[UrlCitation]] = None
+    annotations: Optional[list[UrlCitation]] = []
 
 
 class SummaryTextContentItem(BaseModel):
@@ -31,20 +31,20 @@ class SummaryTextContentItem(BaseModel):
 
 
 class ReasoningTextContentItem(BaseModel):
-    type: Literal["reasoning_text"]
+    type: Literal["text"]  # Changed from reasoning_text to text
     text: str
 
 
 class ReasoningItem(BaseModel):
     id: str = "rs_1234"
     type: Literal["reasoning"]
-    summary: list[SummaryTextContentItem]
-    content: Optional[list[ReasoningTextContentItem]] = []
+    summary: list[ReasoningTextContentItem]  # Use ReasoningTextContentItem for summary
+    status: Optional[Literal["in_progress", "completed", "incomplete"]] = "completed"
 
 
 class Item(BaseModel):
     type: Optional[Literal["message"]] = "message"
-    role: Literal["user", "assistant", "system"]
+    role: Literal["user", "assistant", "system", "developer"]
     content: Union[list[TextContentItem], str]
     status: Union[Literal["in_progress", "completed", "incomplete"], None] = None
 
@@ -125,8 +125,32 @@ class CodeInterpreterToolConfig(BaseModel):
     type: Literal["code_interpreter"]
 
 
+class MCPToolConfig(BaseModel):
+    type: Literal["mcp"]
+    server_label: str
+    server_url: str
+    server_description: Optional[str] = None
+    headers: Optional[Dict[str, str]] = {}
+    require_approval: Optional[Literal["always", "never"]] = "never"
+    allowed_tools: Optional[list[str]] = []
+
+
+class WebSearchPreviewToolConfig(BaseModel):
+    type: Literal["web_search_preview"]
+
+
+class TextFormatConfig(BaseModel):
+    type: Literal["text"] = "text"
+
+
+class TextConfig(BaseModel):
+    format: Optional[TextFormatConfig] = TextFormatConfig()
+    verbosity: Optional[Literal["low", "medium", "high"]] = "medium"
+
+
 class ReasoningConfig(BaseModel):
     effort: Literal["low", "medium", "high"] = REASONING_EFFORT
+    summary: Optional[Literal["detailed", "brief"]] = None
 
 
 class ResponsesRequest(BaseModel):
@@ -148,7 +172,7 @@ class ResponsesRequest(BaseModel):
     stream: Optional[bool] = False
     tools: Optional[
         list[
-            Union[FunctionToolDefinition, BrowserToolConfig, CodeInterpreterToolConfig]
+            Union[FunctionToolDefinition, BrowserToolConfig, CodeInterpreterToolConfig, MCPToolConfig, WebSearchPreviewToolConfig]
         ]
     ] = []
     reasoning: Optional[ReasoningConfig] = ReasoningConfig()
@@ -159,6 +183,7 @@ class ResponsesRequest(BaseModel):
     previous_response_id: Optional[str] = None
     temperature: Optional[float] = DEFAULT_TEMPERATURE
     include: Optional[list[str]] = None
+    text: Optional[TextConfig] = None
 
 
 class ResponseObject(BaseModel):
