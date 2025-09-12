@@ -21,8 +21,9 @@ def harmony_encoding():
 
 @pytest.fixture
 def mock_infer_token(harmony_encoding):
+    # More realistic mock with reasoning + final response
     fake_tokens = harmony_encoding.encode(
-        "<|channel|>final<|message|>Test response<|return|>", 
+        "<|channel|>analysis<|message|>Let me think about this.<|end|><|start|>assistant<|channel|>final<|message|>Test response<|return|>", 
         allowed_special="all"
     )
     token_queue = fake_tokens.copy()
@@ -51,7 +52,7 @@ def sample_request_data():
         "model": "gpt-oss-120b",
         "input": "Hello, how can I help you today?",
         "stream": False,
-        "reasoning_effort": "low",
+        "reasoning": {"effort": "low"},  # Fixed: proper reasoning format
         "temperature": 0.7,
         "tools": []
     }
