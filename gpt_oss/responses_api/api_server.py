@@ -1,8 +1,7 @@
-import asyncio
+import os
 import datetime
 import uuid
 from typing import Callable, Literal, Optional
-import json
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
@@ -20,29 +19,32 @@ from openai_harmony import (
     ToolDescription,
 )
 
+from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
 
 from .events import (
+    ResponseCodeInterpreterCallCompleted,
+    ResponseCodeInterpreterCallInProgress,
     ResponseCompletedEvent,
-    ResponseCreatedEvent,
-    ResponseInProgressEvent,
-    ResponseEvent,
-    ResponseOutputItemAdded,
-    ResponseOutputItemDone,
     ResponseContentPartAdded,
     ResponseContentPartDone,
-    ResponseOutputTextDone,
+    ResponseCreatedEvent,
+    ResponseEvent,
+    ResponseInProgressEvent,
+    ResponseOutputItemAdded,
+    ResponseOutputItemDone,
+    ResponseOutputTextAnnotationAdded,
     ResponseOutputTextDelta,
-    ResponseReasoningTextDone,
+    ResponseOutputTextDone,
     ResponseReasoningTextDelta,
+    ResponseReasoningTextDone,
+    ResponseWebSearchCallCompleted,
     ResponseWebSearchCallInProgress,
     ResponseWebSearchCallSearching,
-    ResponseWebSearchCallCompleted,
-    ResponseOutputTextAnnotationAdded
 )
 from .types import (
-    UrlCitation,
+    CodeInterpreterCallItem,
     Error,
     FunctionCallItem,
     Item,
@@ -51,11 +53,12 @@ from .types import (
     ResponseObject,
     ResponsesRequest,
     TextContentItem,
+    UrlCitation,
     Usage,
-    WebSearchCallItem,
-    WebSearchActionSearch,
-    WebSearchActionOpenPage,
     WebSearchActionFind,
+    WebSearchActionOpenPage,
+    WebSearchActionSearch,
+    WebSearchCallItem,
 )
 
 DEFAULT_TEMPERATURE = 0.0
@@ -64,14 +67,20 @@ DEFAULT_TEMPERATURE = 0.0
 def get_reasoning_effort(effort: Literal["low", "medium", "high"]) -> ReasoningEffort:
     if effort == "low":
         return ReasoningEffort.LOW
-    elif effort == "medium":
+    if effort == "medium":
         return ReasoningEffort.MEDIUM
-    elif effort == "high":
+    if effort == "high":
         return ReasoningEffort.HIGH
+    raise ValueError(f"Invalid reasoning effort: {effort}")
 
 
 def is_not_builtin_tool(recipient: str) -> bool:
-    return not recipient.startswith("browser.") and not recipient == "python" and not recipient == "assistant"
+    return (
+        not recipient.startswith("browser.")
+        and not recipient == "python"
+        and not recipient == "assistant"
+    )
+
 
 def create_api_server(
     infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
@@ -89,6 +98,8 @@ def create_api_server(
         previous_response_id: Optional[str] = None,
         browser_tool: Optional[SimpleBrowserTool] = None,
         browser_call_ids: Optional[list[str]] = None,
+        python_tool: Optional[PythonTool] = None,
+        python_call_ids: Optional[list[str]] = None,
     ) -> ResponseObject:
         output = []
         error = None
@@ -112,9 +123,12 @@ def create_api_server(
 
             fc_index = 0
             browser_tool_index = 0
+            python_tool_index = 0
             for entry in entries:
                 entry_dict = entry.to_dict()
-                if len(entry_dict.get("recipient", "")) > 0 and is_not_builtin_tool(entry_dict["recipient"]):
+                if len(entry_dict.get("recipient", "")) > 0 and is_not_builtin_tool(
+                    entry_dict["recipient"]
+                ):
                     call = entry_dict["content"][0]
                     arguments = call["text"]
                     name = entry_dict["recipient"]
@@ -138,12 +152,16 @@ def create_api_server(
                             call_id=call_id,
                         )
                     )
-                elif len(entry_dict.get("recipient", "")) > 0 and entry_dict["recipient"].startswith("browser.") and browser_tool is not None:
+                elif (
+                    len(entry_dict.get("recipient", "")) > 0
+                    and entry_dict["recipient"].startswith("browser.")
+                    and browser_tool is not None
+                ):
                     # Mirror event-based creation of WebSearchCallItems when the browser tool is invoked
                     name = entry_dict["recipient"]
                     call = entry_dict["content"][0]
                     arguments = call["text"]
-                    function_name = name[len("browser."):]
+                    function_name = name[len("browser.") :]
 
                     # Reconstruct a Message for argument parsing
                     tool_msg = (
@@ -176,7 +194,9 @@ def create_api_server(
                         action = None
 
                     if action is not None:
-                        if browser_call_ids and browser_tool_index < len(browser_call_ids):
+                        if browser_call_ids and browser_tool_index < len(
+                            browser_call_ids
+                        ):
                             web_search_call_id = browser_call_ids[browser_tool_index]
                         else:
                             web_search_call_id = f"ws_{uuid.uuid4().hex}"
@@ -188,11 +208,29 @@ def create_api_server(
                                 action=action,
                             )
                         )
+                elif (
+                    len(entry_dict.get("recipient", "")) > 0
+                    and entry_dict["recipient"].startswith("python")
+                    and python_tool is not None
+                ):
+                    if python_call_ids and python_tool_index < len(python_call_ids):
+                        code_call_id = python_call_ids[python_tool_index]
+                    else:
+                        code_call_id = f"ci_{uuid.uuid4().hex}"
+                    python_tool_index += 1
+                    output.append(
+                        CodeInterpreterCallItem(
+                            type="code_interpreter_call",
+                            id=code_call_id,
+                        )
+                    )
                 elif entry_dict["channel"] == "final":
                     content = []
-                    for content_entry in entry_dict["content"]:    
+                    for content_entry in entry_dict["content"]:
                         if browser_tool:
-                            text_content, annotation_entries, _has_partial_citations = browser_tool.normalize_citations(content_entry["text"])
+                            text_content, annotation_entries, _has_partial_citations = (
+                                browser_tool.normalize_citations(content_entry["text"])
+                            )
                             annotations = [UrlCitation(**a) for a in annotation_entries]
                         else:
                             text_content = content_entry["text"]
@@ -287,7 +325,6 @@ def create_api_server(
         request_body: ResponsesRequest
         request: Request
         sequence_number: int
-    
 
         def __init__(
             self,
@@ -300,6 +337,7 @@ def create_api_server(
                 Callable[[str, ResponsesRequest, ResponseObject], None]
             ] = None,
             browser_tool: Optional[SimpleBrowserTool] = None,
+            python_tool: Optional[PythonTool] = None,
         ):
             self.initial_tokens = initial_tokens
             self.tokens = initial_tokens.copy()
@@ -326,6 +364,9 @@ def create_api_server(
             self.browser_tool = browser_tool
             self.use_browser_tool = browser_tool is not None
             self.browser_call_ids: list[str] = []
+            self.python_tool = python_tool
+            self.use_code_interpreter = python_tool is not None
+            self.python_call_ids: list[str] = []
 
         def _send_event(self, event: ResponseEvent):
             event.sequence_number = self.sequence_number
@@ -345,6 +386,10 @@ def create_api_server(
                 function_call_ids=self.function_call_ids,
                 response_id=self.response_id,
                 previous_response_id=self.request_body.previous_response_id,
+                browser_tool=self.browser_tool,
+                browser_call_ids=self.browser_call_ids,
+                python_tool=self.python_tool,
+                python_call_ids=self.python_call_ids,
             )
             initial_response.status = "in_progress"
             yield self._send_event(
@@ -367,9 +412,9 @@ def create_api_server(
             sent_output_item_added = False
 
             # we use this if the model outputs a citation to buffer until completed
-            output_delta_buffer = "" 
+            output_delta_buffer = ""
             # we use this to track the current output text content for things like providing the right indices in citations
-            current_output_text_content = "" 
+            current_output_text_content = ""
             current_annotations = []
 
             while True:
@@ -386,7 +431,7 @@ def create_api_server(
                 self.tokens.append(next_tok)
                 try:
                     self.parser.process(next_tok)
-                except Exception as e:
+                except Exception:
                     pass
 
                 if self.parser.state == StreamState.EXPECT_START:
@@ -462,9 +507,17 @@ def create_api_server(
                                 )
                             )
                         if previous_item.channel == "final":
-                            annotations = [UrlCitation(**a) for a in current_annotations]
+                            annotations = [
+                                UrlCitation(**a) for a in current_annotations
+                            ]
                             if browser_tool:
-                                normalized_text, _annotations, _has_partial_citations = browser_tool.normalize_citations(previous_item.content[0].text)
+                                (
+                                    normalized_text,
+                                    _annotations,
+                                    _has_partial_citations,
+                                ) = browser_tool.normalize_citations(
+                                    previous_item.content[0].text
+                                )
                             else:
                                 normalized_text = previous_item.content[0].text
                                 annotations = []
@@ -530,14 +583,26 @@ def create_api_server(
                     should_send_output_text_delta = True
                     if browser_tool:
                         # we normalize on the full current text to get the right indices in citations
-                        updated_output_text, annotations, has_partial_citations = browser_tool.normalize_citations(current_output_text_content + output_delta_buffer)
+                        updated_output_text, annotations, has_partial_citations = (
+                            browser_tool.normalize_citations(
+                                current_output_text_content + output_delta_buffer
+                            )
+                        )
                         # remove the current text to get back the delta but now normalized
-                        output_delta_buffer = updated_output_text[len(current_output_text_content):]
-                        
+                        output_delta_buffer = updated_output_text[
+                            len(current_output_text_content) :
+                        ]
+
                         # Filter annotations to only include those whose start_index is not already present in current_annotations
                         # this is to avoid sending duplicate annotations as multiple annotations can't be in the same place
-                        existing_start_indices = {a["start_index"] for a in current_annotations}
-                        new_annotations = [a for a in annotations if a["start_index"] not in existing_start_indices]
+                        existing_start_indices = {
+                            a["start_index"] for a in current_annotations
+                        }
+                        new_annotations = [
+                            a
+                            for a in annotations
+                            if a["start_index"] not in existing_start_indices
+                        ]
                         for a in new_annotations:
                             current_annotations.append(a)
                             citation = UrlCitation(**a)
@@ -553,7 +618,6 @@ def create_api_server(
 
                         if has_partial_citations:
                             should_send_output_text_delta = False
-
 
                     if should_send_output_text_delta:
                         yield self._send_event(
@@ -588,7 +652,9 @@ def create_api_server(
                                 type="response.content_part.added",
                                 output_index=current_output_index,
                                 content_index=current_content_index,
-                                part=ReasoningTextContentItem(type="reasoning_text", text=""),
+                                part=ReasoningTextContentItem(
+                                    type="reasoning_text", text=""
+                                ),
                             )
                         )
                     yield self._send_event(
@@ -617,7 +683,7 @@ def create_api_server(
                             and last_message.recipient is not None
                             and last_message.recipient.startswith("browser.")
                         ):
-                            function_name = last_message.recipient[len("browser."):]
+                            function_name = last_message.recipient[len("browser.") :]
                             action = None
                             parsed_args = browser_tool.process_arguments(last_message)
                             if function_name == "search":
@@ -628,32 +694,42 @@ def create_api_server(
                             elif function_name == "open":
                                 action = WebSearchActionOpenPage(
                                     type="open_page",
-                                    url=parsed_args["url"] if "url" in parsed_args else None,
+                                    url=(
+                                        parsed_args["url"]
+                                        if "url" in parsed_args
+                                        else None
+                                    ),
                                 )
                             elif function_name == "find":
                                 action = WebSearchActionFind(
                                     type="find",
                                     pattern=parsed_args["pattern"],
-                                    url=parsed_args["url"] if "url" in parsed_args else None,
+                                    url=(
+                                        parsed_args["url"]
+                                        if "url" in parsed_args
+                                        else None
+                                    ),
                                 )
 
                             if action is not None:
                                 web_search_call_id = f"ws_{uuid.uuid4().hex}"
                                 self.browser_call_ids.append(web_search_call_id)
-                                yield self._send_event(ResponseOutputItemAdded(
-                                    type="response.output_item.added",
-                                    output_index=current_output_index,
-                                    item=WebSearchCallItem(
-                                        type="web_search_call",
-                                        id=web_search_call_id,
-                                        action=action,
-                                    ),
-                                ))
+                                yield self._send_event(
+                                    ResponseOutputItemAdded(
+                                        type="response.output_item.added",
+                                        output_index=current_output_index,
+                                        item=WebSearchCallItem(
+                                            type="web_search_call",
+                                            id=web_search_call_id,
+                                            action=action,
+                                        ),
+                                    )
+                                )
                                 yield self._send_event(
                                     ResponseWebSearchCallInProgress(
                                         type="response.web_search_call.in_progress",
                                         output_index=current_output_index,
-                                        id=web_search_call_id
+                                        id=web_search_call_id,
                                     )
                                 )
 
@@ -675,10 +751,12 @@ def create_api_server(
                             new_tokens = encoding.render_conversation_for_completion(
                                 Conversation.from_messages(result), Role.ASSISTANT
                             )
-                            
+
                             print(encoding.decode_utf8(new_tokens))
                             self.output_tokens.append(next_tok)
-                            self.tokens.append(encoding.encode('<|end|>', allowed_special="all")[0])
+                            self.tokens.append(
+                                encoding.encode("<|end|>", allowed_special="all")[0]
+                            )
 
                             for token in new_tokens:
                                 self.parser.process(token)
@@ -692,19 +770,94 @@ def create_api_server(
                                     id=web_search_call_id,
                                 )
                             )
-                            yield self._send_event(ResponseOutputItemDone(
-                                type="response.output_item.done",
-                                output_index=current_output_index,
-                                item=WebSearchCallItem(
-                                    type="web_search_call",
-                                    id=web_search_call_id,
-                                    action=action,
-                                ),
-                            ))
+                            yield self._send_event(
+                                ResponseOutputItemDone(
+                                    type="response.output_item.done",
+                                    output_index=current_output_index,
+                                    item=WebSearchCallItem(
+                                        type="web_search_call",
+                                        id=web_search_call_id,
+                                        action=action,
+                                    ),
+                                )
+                            )
 
                             current_output_index += 1
                             self.new_request = True
-                            
+
+                            continue
+
+                        elif (
+                            self.use_code_interpreter
+                            and last_message.recipient is not None
+                            and last_message.recipient.startswith("python")
+                        ):
+                            code_call_id = f"ci_{uuid.uuid4().hex}"
+                            self.python_call_ids.append(code_call_id)
+                            yield self._send_event(
+                                ResponseOutputItemAdded(
+                                    type="response.output_item.added",
+                                    output_index=current_output_index,
+                                    item=CodeInterpreterCallItem(
+                                        type="code_interpreter_call",
+                                        id=code_call_id,
+                                    ),
+                                )
+                            )
+                            yield self._send_event(
+                                ResponseCodeInterpreterCallInProgress(
+                                    type="response.code_interpreter_call.in_progress",
+                                    output_index=current_output_index,
+                                    id=code_call_id,
+                                )
+                            )
+
+                            async def run_python_tool():
+                                results = []
+                                async for msg in self.python_tool.process(last_message):
+                                    results.append(msg)
+                                return results
+
+                            result = await run_python_tool()
+
+                            print(result)
+
+                            new_tokens = encoding.render_conversation_for_completion(
+                                Conversation.from_messages(result), Role.ASSISTANT
+                            )
+
+                            print(encoding.decode_utf8(new_tokens))
+                            self.output_tokens.append(next_tok)
+                            self.tokens.append(
+                                encoding.encode("<|end|>", allowed_special="all")[0]
+                            )
+
+                            for token in new_tokens:
+                                self.parser.process(token)
+                                self.output_tokens.append(token)
+                                self.tokens.append(token)
+
+                            yield self._send_event(
+                                ResponseCodeInterpreterCallCompleted(
+                                    type="response.code_interpreter_call.completed",
+                                    output_index=current_output_index,
+                                    id=code_call_id,
+                                )
+                            )
+                            yield self._send_event(
+                                ResponseOutputItemDone(
+                                    type="response.output_item.done",
+                                    output_index=current_output_index,
+                                    item=CodeInterpreterCallItem(
+                                        type="code_interpreter_call",
+                                        id=code_call_id,
+                                    ),
+                                )
+                            )
+
+                            current_output_index += 1
+                            self.new_request = True
+
                             continue
 
                         else:
@@ -746,14 +899,27 @@ def create_api_server(
             getattr(tool, "type", None) == "browser_search"
             for tool in (body.tools or [])
         )
+        use_code_interpreter = any(
+            getattr(tool, "type", None) == "code_interpreter"
+            for tool in (body.tools or [])
+        )
 
         if use_browser_tool:
-            backend = ExaBackend(
-                source="web",
-            )
+            tool_backend = os.getenv("BROWSER_BACKEND", "exa")
+            if tool_backend == "youcom":
+                backend = YouComBackend(source="web")
+            elif tool_backend == "exa":
+                backend = ExaBackend(source="web")
+            else:
+                raise ValueError(f"Invalid tool backend: {tool_backend}")
             browser_tool = SimpleBrowserTool(backend=backend)
         else:
             browser_tool = None
+
+        if use_code_interpreter:
+            python_tool = PythonTool()
+        else:
+            python_tool = None
 
         if body.previous_response_id:
             prev = responses_store.get(body.previous_response_id)
@@ -778,31 +944,44 @@ def create_api_server(
                     body.instructions = prev_req.instructions
                 body.input = merged_input
 
-
         system_message_content = SystemContent.new().with_conversation_start_date(
             datetime.datetime.now().strftime("%Y-%m-%d")
         )
-        
+
         if body.reasoning is not None:
-            reasoning_effort = get_reasoning_effort(body.reasoning.effort)
-            system_message_content = system_message_content.with_reasoning_effort(reasoning_effort)
+            try:
+
+                reasoning_effort = get_reasoning_effort(body.reasoning.effort)
+            except ValueError as e:
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=422, detail=str(e))
+            system_message_content = system_message_content.with_reasoning_effort(
+                reasoning_effort
+            )
 
         if use_browser_tool:
-            system_message_content = system_message_content.with_tools(browser_tool.tool_config)
+            system_message_content = system_message_content.with_tools(
+                browser_tool.tool_config
+            )
+        if use_code_interpreter:
+            system_message_content = system_message_content.with_tools(
+                python_tool.tool_config
+            )
 
         system_message = Message.from_role_and_content(
             Role.SYSTEM, system_message_content
         )
+        messages = [system_message]
 
-        developer_message_content = DeveloperContent.new().with_instructions(
-            body.instructions
-        )
+        if body.instructions or body.tools:
+            developer_message_content = DeveloperContent.new().with_instructions(
+                body.instructions
+            )
 
-        tools = []
-        if body.tools:
+            tools = []
             for tool in body.tools:
                 if tool.type == "function":
-                    has_functions = True
                     tools.append(
                         ToolDescription.new(
                             tool.name,
@@ -810,17 +989,17 @@ def create_api_server(
                             tool.parameters,
                         )
                     )
-        
-        if len(tools) > 0:
-            developer_message_content = developer_message_content.with_function_tools(
-                tools
+
+            if tools:
+                developer_message_content = (
+                    developer_message_content.with_function_tools(tools)
+                )
+
+            developer_message = Message.from_role_and_content(
+                Role.DEVELOPER, developer_message_content
             )
 
-        developer_message = Message.from_role_and_content(
-            Role.DEVELOPER, developer_message_content
-        )
-
-        messages = [system_message, developer_message]
+            messages.append(developer_message)
 
         if isinstance(body.input, str):
             user_message = Message.from_role_and_content(Role.USER, body.input)
@@ -846,7 +1025,9 @@ def create_api_server(
                     else:
                         for content_item in item.content:
                             messages.append(
-                                Message.from_role_and_content(item.role, content_item.text)
+                                Message.from_role_and_content(
+                                    item.role, content_item.text
+                                )
                             )
                     # add final channel to the last assistant message if it's from the assistant
                     if item.role == Role.ASSISTANT:
@@ -879,7 +1060,9 @@ def create_api_server(
                         Message.from_author_and_content(
                             Author.new(Role.TOOL, f"functions.{function_call.name}"),
                             item.output,
-                        ).with_recipient("assistant").with_channel("commentary")
+                        )
+                        .with_recipient("assistant")
+                        .with_channel("commentary")
                     )
 
         conversation = Conversation.from_messages(messages)
@@ -901,6 +1084,7 @@ def create_api_server(
             response_id=response_id,
             store_callback=store_callback,
             browser_tool=browser_tool,
+            python_tool=python_tool,
         )
 
         if body.stream:

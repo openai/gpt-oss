@@ -1,6 +1,11 @@
 # Run this before running the tool:
 # $ docker image pull python:3.11
+import io
+import tarfile
 from typing import Any, AsyncIterator
+import tempfile
+import os
+import subprocess
 
 import docker
 from openai_harmony import (
@@ -11,13 +16,15 @@ from openai_harmony import (
     TextContent,
     ToolNamespaceConfig,
 )
-import io
-import tarfile
 
 from ..tool import Tool
 
-
 _docker_client = None
+
+PYTHON_EXECUTION_BACKEND = "docker"
+
+if os.environ.get("PYTHON_EXECUTION_BACKEND") == "dangerously_use_uv":
+    PYTHON_EXECUTION_BACKEND = "dangerously_use_uv"
 
 
 def call_python_script(script: str) -> str:
@@ -59,6 +66,21 @@ def call_python_script(script: str) -> str:
     return output
 
 
+def call_python_script_with_uv(script: str) -> str:
+    """
+    Call a python script by writing it to a file to a temporary directory
+    and executing it with uv.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        script_path = os.path.join(temp_dir, "script.py")
+        with open(script_path, "w") as f:
+            f.write(script)
+        exec_result = subprocess.run(
+            ["uv", "run", "--no-project", "python", script_path],
+            capture_output=True)
+        return exec_result.stdout.decode("utf-8")
+
+
 class PythonTool(Tool):
     def __init__(
         self,
@@ -78,23 +100,22 @@ class PythonTool(Tool):
     def instruction(self) -> str:
         return """
 Use this tool to execute Python code in your chain of thought. The code will not be shown to the user. This tool should be used for internal reasoning, but not for code that is intended to be visible to the user (e.g. when creating plots, tables, or files).
-When you send a message containing python code to python, it will be executed in a stateless docker container, and the stdout of that process will be returned to you.
+When you send a message containing python code to python, it will be executed in a stateless docker container, and the stdout of that process will be returned to you. You have to use print statements to access the output.
         """.strip()
 
     @property
     def tool_config(self) -> ToolNamespaceConfig:
         return ToolNamespaceConfig(
-            name=self.get_tool_name(),
-            description=self.instruction,
-            tools=[]
+            name=self.get_tool_name(), description=self.instruction, tools=[]
         )
 
     def _make_response(
         self,
         output: str,
+        channel: str | None = None,
     ) -> Message:
         content = TextContent(text=output)
-        return self.make_response(content=content)
+        return self.make_response(content=content, channel=channel)
 
     def make_response(
         self,
@@ -110,7 +131,7 @@ When you send a message containing python code to python, it will be executed in
         message = Message(
             author=author,
             content=[content],
-        ).with_recipient('assistant')
+        ).with_recipient("assistant")
 
         if channel:
             message = message.with_channel(channel)
@@ -120,5 +141,12 @@ When you send a message containing python code to python, it will be executed in
     async def _process(self, message: Message) -> AsyncIterator[Message]:
         script = message.content[0].text
         channel = message.channel
-        output = call_python_script(script)
+        if PYTHON_EXECUTION_BACKEND == "docker":
+            output = call_python_script(script)
+        elif PYTHON_EXECUTION_BACKEND == "dangerously_use_uv":
+            output = call_python_script_with_uv(script)
+        else:
+            raise ValueError(
+                f"Invalid PYTHON_EXECUTION_BACKEND: {PYTHON_EXECUTION_BACKEND}"
+            )
         yield self._make_response(output, channel=channel)

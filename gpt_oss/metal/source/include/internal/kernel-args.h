@@ -4,9 +4,32 @@
 #include <stdint.h>
 #endif
 
+// TODO(ibahmed): specalize using metal function constants.
+#define QKV_Bm 64
+#define QKV_Bn 64
+#define QKV_Bk 32
+#define QKV_Sg_Bm 32
+#define QKV_Sg_Bn 32
+
+#define ATTN_OUTPUT_Bm 32
+#define ATTN_OUTPUT_Bn 64
+#define ATTN_OUTPUT_Bk 64
+#define ATTN_OUTPUT_Sg_Bm 32
+#define ATTN_OUTPUT_Sg_Bn 16
+
+#define MLP_GATE_Bm 64
+#define MLP_GATE_Bn 16
+#define MLP_GATE_Bk 64
+#define MLP_GATE_Sg_Bm 16
+#define MLP_GATE_Sg_Bn 16
+
 struct gptoss_expert_prediction {
     uint32_t expert_id;
     float score;
+};
+
+struct gptoss_control {
+    uint32_t abort;
 };
 
 struct gptoss_topk_args {
@@ -16,6 +39,7 @@ struct gptoss_topk_args {
 struct gptoss_sdpa_args {
     uint32_t qkv_dim;
     uint32_t num_kv_tokens;
+    uint32_t kv_stride;
     uint32_t window;
 };
 
@@ -62,6 +86,12 @@ struct gptoss_matmul_args {
     uint32_t add;
 };
 
+struct gptoss_dense_matmul_args {
+    uint32_t m;
+    uint32_t n;
+    uint32_t k;
+};
+
 struct gptoss_unembedding_args {
     uint32_t num_column_vecs;
     uint32_t num_rows_per_threadgroup;
@@ -97,9 +127,29 @@ struct gptoss_rope_args {
     float yarn_multiplier;
 };
 
+struct gptoss_qkv_args {
+    uint32_t num_column_vecs;
+    uint32_t num_rows;
+    uint32_t token_offset;
+    float freq_scale;
+    float interpolation_scale;
+    float yarn_offset;
+    float yarn_scale;
+    float yarn_multiplier;
+    uint32_t max_tokens;
+};
+
 struct gptoss_softmax_args {
     uint32_t num_vecs;
     uint32_t num_vecs_per_threadgroup;
     uint32_t max_threadgroups;
     float temperature;
+};
+
+struct gptoss_sample_args {
+    uint64_t rng_seed;
+    uint32_t rng_offset;
+    uint32_t num_blocks;
+    uint32_t num_dims;
+    uint32_t num_dims_per_block;
 };

@@ -15,13 +15,17 @@ extern "C" {
  *
  * @param path Path to the file containing the model in GPT-OSS format.
  * @param model_out Pointer to the Model object that will be created. Must be released with gptoss_release_model.
+ * @param max_batch_tokens Maximum number of tokens that can be processed in a single batch.
+ *                        Larger values may improve prefill performance, but require more memory.
+ *                        Specify 0 to use the default value.
  *
  * On success, returns gptoss_status_success and saves a pointer to the created Model in the model_out argument.
  * On failure, returns an error code and stores null pointer in the model_out argument.
  */
 enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     const char* path,
-    gptoss_model_t* model_out);
+    gptoss_model_t* model_out,
+    size_t max_batch_tokens);
 
 /*
  * Query the Tokenizer object associated with the Model.
@@ -218,7 +222,7 @@ enum gptoss_status GPTOSS_ABI gptoss_context_get_max_tokens(
  *
  * On success, returns gptoss_status_success and stores cached token IDs in the tokens_out argument and the number of
  * cached tokens in the num_tokens_out argument.
- * On failure, returns an error code and leaves the values specified by tokend_out and num_tokens_out unchanged.
+ * On failure, returns an error code and leaves the values specified by tokens_out and num_tokens_out unchanged.
  */
 enum gptoss_status GPTOSS_ABI gptoss_context_get_tokens(
     gptoss_context_t context,
@@ -267,7 +271,7 @@ enum gptoss_status GPTOSS_ABI gptoss_context_reset(
     gptoss_context_t context);
 
 /*
- * Pre-process the tokens in the Context and generate probability distrubution over the next token.
+ * Pre-process the tokens in the Context and generate probability distribution over the next token.
  *
  * @param context Context object created by gptoss_context_create.
  *
@@ -290,7 +294,9 @@ enum gptoss_status GPTOSS_ABI gptoss_context_sample(
     gptoss_context_t context,
     float temperature,
     uint64_t seed,
-    uint32_t* token_out);
+    size_t max_tokens,
+    uint32_t* tokens_out,
+    size_t* num_tokens_out);
 
 /*
  * Increments a Context object's reference count.

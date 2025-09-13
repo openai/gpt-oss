@@ -1,0 +1,9 @@
+[project]
+name = "agents-sdk-python"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai-agents>=0.2.4",
+]

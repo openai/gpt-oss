@@ -14,11 +14,15 @@ kernel void gptoss_f32_topk_softmax_e128_k4(
     constant gptoss_topk_args& args [[ buffer(0) ]],
     const device float4* input [[ buffer(1) ]],
     device gptoss_expert_prediction* output [[ buffer(2) ]],
+    const device gptoss_control* control [[ buffer(3) ]],
     uint gid [[threadgroup_position_in_grid]],
     uint tid [[thread_position_in_threadgroup]])
 {
     const uint num_experts = 128;
     const uint num_active_experts = 4;
+    if (control->abort != 0) {
+        return;
+    }
 
     input += gid * (num_experts / 4);
     output += gid * num_active_experts;
@@ -132,11 +136,15 @@ kernel void gptoss_f32_topk_softmax_e32_k4(
     constant gptoss_topk_args& args [[ buffer(0) ]],
     const device float* input [[ buffer(1) ]],
     device gptoss_expert_prediction* output [[ buffer(2) ]],
+    const device gptoss_control* control [[ buffer(3) ]],
     uint gid [[threadgroup_position_in_grid]],
     uint tid [[thread_position_in_threadgroup]])
 {
     const uint num_experts = 32;
     const uint num_active_experts = 4;
+    if (control->abort != 0) {
+        return;
+    }
 
     input += gid * num_experts;
     output += gid * num_active_experts;

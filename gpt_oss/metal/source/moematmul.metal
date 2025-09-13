@@ -24,6 +24,7 @@ kernel void gptoss_f32_mf4w_moe_matmul_swiglu(
     const device uchar* weight_scales [[ buffer(4) ]],
     const device bfloat* bias [[ buffer(5) ]],
     device float* output [[ buffer(6) ]],
+    const device gptoss_control* control [[ buffer(7) ]],
     uint3 gid [[threadgroup_position_in_grid]],
     uint tid [[thread_index_in_threadgroup]],
     uint simdgroup_tid [[thread_index_in_simdgroup]],
@@ -32,6 +33,9 @@ kernel void gptoss_f32_mf4w_moe_matmul_swiglu(
 {
     const uint simdgroup_size = 32;
     threadgroup float threadgroup_buffer[32];
+    if (control->abort != 0) {
+        return;
+    }
 
     const uint num_column_vecs = args.num_column_vecs;
     const uint row = gid.x * num_simdgroups + simdgroup_idx;
@@ -130,6 +134,7 @@ kernel void gptoss_f32_mf4w_moe_matmul(
     const device uchar* weight_scales [[ buffer(4) ]],
     const device bfloat* bias [[ buffer(5) ]],
     device float* output [[ buffer(6) ]],
+    const device gptoss_control* control [[ buffer(7) ]],
     uint3 gid [[threadgroup_position_in_grid]],
     uint tid [[thread_index_in_threadgroup]],
     uint simdgroup_tid [[thread_index_in_simdgroup]],
@@ -137,6 +142,9 @@ kernel void gptoss_f32_mf4w_moe_matmul(
     uint num_simdgroups [[simdgroups_per_threadgroup]])
 {
     const uint simdgroup_size = 32;
+    if (control->abort != 0) {
+        return;
+    }
 
     const uint num_column_vecs = args.num_column_vecs;
     const uint row = gid.x * num_simdgroups + simdgroup_idx;

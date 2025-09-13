@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -5,8 +6,7 @@ from typing import Union, Optional
 
 from mcp.server.fastmcp import Context, FastMCP
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
-
+from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
 
 @dataclass
 class AppContext:
@@ -14,7 +14,13 @@ class AppContext:
 
     def create_or_get_browser(self, session_id: str) -> SimpleBrowserTool:
         if session_id not in self.browsers:
-            backend = ExaBackend(source="web")
+            tool_backend = os.getenv("BROWSER_BACKEND", "exa")
+            if tool_backend == "youcom":
+                backend = YouComBackend(source="web")
+            elif tool_backend == "exa":
+                backend = ExaBackend(source="web")
+            else:
+                raise ValueError(f"Invalid tool backend: {tool_backend}")
             self.browsers[session_id] = SimpleBrowserTool(backend=backend)
         return self.browsers[session_id]
 

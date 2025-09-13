@@ -6,6 +6,7 @@ from openai import OpenAI
 
 from .types import MessageList, SamplerBase, SamplerResponse
 
+
 OPENAI_SYSTEM_MESSAGE_API = "You are a helpful assistant."
 OPENAI_SYSTEM_MESSAGE_CHATGPT = (
     "You are ChatGPT, a large language model trained by OpenAI, based on the GPT-4 architecture."
@@ -13,10 +14,8 @@ OPENAI_SYSTEM_MESSAGE_CHATGPT = (
 )
 
 
-class ChatCompletionSampler(SamplerBase):
-    """
-    Sample from OpenAI's chat completion API
-    """
+class ChatCompletionsSampler(SamplerBase):
+    """Sample from a Chat Completions compatible API."""
 
     def __init__(
         self,
@@ -24,17 +23,20 @@ class ChatCompletionSampler(SamplerBase):
         system_message: str | None = None,
         temperature: float = 0.5,
         max_tokens: int = 1024,
+        reasoning_model: bool = False,
+        reasoning_effort: str | None = None,
+        base_url: str = "http://localhost:8000/v1",
     ):
-        self.api_key_name = "OPENAI_API_KEY"
-        self.client = OpenAI()
-        # using api_key=os.environ.get("OPENAI_API_KEY")  # please set your API_KEY
+        self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
         self.model = model
         self.system_message = system_message
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.reasoning_model = reasoning_model
+        self.reasoning_effort = reasoning_effort
         self.image_format = "url"
 
-    def _pack_message(self, role: str, content: Any):
+    def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
         return {"role": str(role), "content": content}
 
     def __call__(self, message_list: MessageList) -> SamplerResponse:
@@ -45,21 +47,34 @@ class ChatCompletionSampler(SamplerBase):
         trial = 0
         while True:
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=message_list,
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                )
-                content = response.choices[0].message.content
-                if content is None:
+                if self.reasoning_model:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=message_list,
+                        reasoning_effort=self.reasoning_effort,
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens,
+                    )
+                else:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=message_list,
+                        temperature=self.temperature,
+                        max_tokens=self.max_tokens,
+                    )
+
+                choice = response.choices[0]
+                content = choice.message.content
+                if getattr(choice.message, "reasoning", None):
+                    message_list.append(self._pack_message("assistant", choice.message.reasoning))
+
+                if not content:
                     raise ValueError("OpenAI API returned empty response; retrying")
                 return SamplerResponse(
                     response_text=content,
                     response_metadata={"usage": response.usage},
                     actual_queried_message_list=message_list,
                 )
-            # NOTE: BadRequestError is triggered once for MMMU, please uncomment if you are reruning MMMU
             except openai.BadRequestError as e:
                 print("Bad Request Error", e)
                 return SamplerResponse(
@@ -68,7 +83,7 @@ class ChatCompletionSampler(SamplerBase):
                     actual_queried_message_list=message_list,
                 )
             except Exception as e:
-                exception_backoff = 2**trial  # expontial back off
+                exception_backoff = 2 ** trial  # exponential back off
                 print(
                     f"Rate limit exception so wait and retry {trial} after {exception_backoff} sec",
                     e,

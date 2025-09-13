@@ -12,7 +12,7 @@ static int PyGPTOSSModel_init(PyGPTOSSModel* self, PyObject* args, PyObject* kwa
     if (!PyArg_ParseTuple(args, "s", &filepath)) {
         return -1;
     }
-    status = gptoss_model_create_from_file(filepath, &self->handle);
+    status = gptoss_model_create_from_file(filepath, &self->handle, 0);
     if (status != gptoss_status_success) {
         // TODO: set exception
         return -1;

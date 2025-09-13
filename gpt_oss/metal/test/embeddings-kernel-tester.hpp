@@ -69,6 +69,8 @@ public:
         metal::Buffer token_buffer{device_, sizeof(std::uint32_t)};
         metal::Buffer weight_buffer{device_, vocabulary_size() * num_channels() * sizeof(gptoss_bfloat16)};
         metal::Buffer output_buffer{device_, num_channels() * sizeof(float)};
+        metal::Buffer control_buffer{device_, sizeof(gptoss_control)};
+        std::memset(control_buffer.ptr(), 0, sizeof(gptoss_control));
 
         std::uint32_t* token_ptr = static_cast<std::uint32_t*>(token_buffer.ptr());
         for (std::uint32_t t = 0; t < num_tokens(); t++) {
@@ -85,6 +87,8 @@ public:
                 /*weight_offset=*/0,
                 output_buffer.handle(),
                 /*output_offset=*/0,
+                control_buffer.handle(),
+                /*control_offset=*/0,
                 num_tokens(),
                 num_channels()),
             "gptoss_metal_command_buffer_encode_launch_bf16_f32_embeddings");

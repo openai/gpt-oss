@@ -3,12 +3,13 @@ import json
 from datetime import datetime
 
 from . import report
+from .basic_eval import BasicEval
 from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
 from .healthbench_eval import HealthBenchEval
-from .chat_completion_sampler import (
+from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
-    ChatCompletionSampler,
+    ChatCompletionsSampler,
 )
 from .responses_sampler import ResponsesSampler
 
@@ -19,12 +20,23 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--list-models", action="store_true", help="List available models"
-    )
-    parser.add_argument(
         "--model",
         type=str,
-        help="Select a model by name. Also accepts a comma-separated list of models.",
+        default="gpt-oss-120b,gpt-oss-20b",
+        help="Select a model by name. Accepts a comma-separated list.",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        type=str,
+        default="low,medium,high",
+        help="Reasoning effort (low, medium, high). Accepts a comma-separated list.",
+    )
+    parser.add_argument(
+        "--sampler",
+        type=str,
+        choices=["responses", "chat_completions"],
+        default="responses",
+        help="Sampler backend to use for models.",
     )
     parser.add_argument(
         "--base-url",
@@ -36,7 +48,7 @@ def main():
         "--eval",
         type=str,
         default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25",
-        help="Select an eval by name. Also accepts a comma-separated list of evals.",
+        help="Select an eval by name. Accepts a comma-separated list.",
     )
     parser.add_argument(
         "--temperature",
@@ -59,71 +71,27 @@ def main():
 
     args = parser.parse_args()
 
-    models = {
-        "120b-low": ResponsesSampler(
-            model="gpt-oss-120b",
-            reasoning_model=True,
-            reasoning_effort="low",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "120b": ResponsesSampler(
-            model="gpt-oss-120b",
-            reasoning_model=True,
-            reasoning_effort="medium",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "120b-high": ResponsesSampler(
-            model="gpt-oss-120b",
-            reasoning_model=True,
-            reasoning_effort="high",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "20b-low": ResponsesSampler(
-            model="gpt-oss-20b",
-            reasoning_model=True,
-            reasoning_effort="low",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "20b": ResponsesSampler(
-            model="gpt-oss-20b",
-            reasoning_model=True,
-            reasoning_effort="medium",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-        "20b-high": ResponsesSampler(
-            model="gpt-oss-20b",
-            reasoning_model=True,
-            reasoning_effort="high",
-            temperature=args.temperature,
-            base_url=args.base_url,
-        ),
-    }
+    sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
 
-    if args.list_models:
-        print("Available models:")
-        for model_name in models.keys():
-            print(f" - {model_name}")
-        return
-
-    if args.model:
-        models_chosen = args.model.split(",")
-        for model_name in models_chosen:
-            if model_name not in models:
-                print(f"Error: Model '{model_name}' not found.")
-                return
-        models = {model_name: models[model_name] for model_name in models_chosen}
+    models = {}
+    for model_name in args.model.split(","):
+        for reasoning_effort in args.reasoning_effort.split(","):
+            models[f"{model_name}-{reasoning_effort}"] = sampler_cls(
+                model=model_name,
+                reasoning_model=True,
+                reasoning_effort=reasoning_effort,
+                temperature=args.temperature,
+                base_url=args.base_url,
+                max_tokens=131_072,
+            )
 
     print(f"Running with args {args}")
 
-    grading_sampler = ChatCompletionSampler(
+    grading_sampler = ChatCompletionsSampler(
         model="gpt-4.1-2025-04-14",
         system_message=OPENAI_SYSTEM_MESSAGE_API,
         max_tokens=2048,
+        base_url="https://api.openai.com/v1",
     )
 
     def get_evals(eval_name, debug_mode):
@@ -132,9 +100,11 @@ def main():
         )
         # Set num_examples = None to reproduce full evals
         match eval_name:
+            case "basic":
+                return BasicEval()
             case "gpqa":
                 return GPQAEval(
-                    n_repeats=8,
+                    n_repeats=1 if args.debug else 8,
                     num_examples=num_examples,
                     debug=debug_mode,
                     n_threads=args.n_threads or 1,
@@ -165,28 +135,27 @@ def main():
                 )
             case "aime25":
                 return AIME25Eval(
-                    n_repeats=8,
+                    n_repeats=1 if args.debug else 8,
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                 )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
 
-    evals_list = args.eval.split(",")
     evals = {}
-    for eval_name in evals_list:
+    for eval_name in args.eval.split(","):
         evals[eval_name] = get_evals(eval_name, args.debug)
 
-    print(evals)
     debug_suffix = "_DEBUG" if args.debug else ""
     print(debug_suffix)
     mergekey2resultpath = {}
-    print(f"Running the following evals: {list(evals.keys())}")
-    print(f"Running evals for the following models: {list(models.keys())}")
+    print(f"Running the following evals: {evals}")
+    print(f"Running evals for the following models: {models}")
 
     now = datetime.now()
     date_str = now.strftime("%Y%m%d_%H%M%S")
     for model_name, sampler in models.items():
+        model_name = model_name.replace("/", "__")
         for eval_name, eval_obj in evals.items():
             result = eval_obj(sampler)
             # ^^^ how to use a sampler
@@ -220,6 +189,7 @@ def main():
                 print(f"Writing all results to {full_result_filename}")
 
             mergekey2resultpath[f"{file_stem}"] = result_filename
+
     merge_metrics = []
     for eval_model_name, result_filename in mergekey2resultpath.items():
         try:

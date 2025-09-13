@@ -4,14 +4,15 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel
 
 from .types import (
+    CodeInterpreterCallItem,
     FunctionCallItem,
     Item,
     ReasoningItem,
+    ReasoningTextContentItem,
     ResponseObject,
     TextContentItem,
-    ReasoningTextContentItem,
-    WebSearchCallItem,
     UrlCitation,
+    WebSearchCallItem,
 )
 
 
@@ -67,13 +68,25 @@ class ResponseReasoningTextDone(ResponseEvent):
 class ResponseOutputItemAdded(ResponseEvent):
     type: Literal["response.output_item.added"] = "response.output_item.added"
     output_index: int = 0
-    item: Union[Item, ReasoningItem, FunctionCallItem, WebSearchCallItem]
+    item: Union[
+        Item,
+        ReasoningItem,
+        FunctionCallItem,
+        WebSearchCallItem,
+        CodeInterpreterCallItem,
+    ]
 
 
 class ResponseOutputItemDone(ResponseEvent):
     type: Literal["response.output_item.done"] = "response.output_item.done"
     output_index: int = 0
-    item: Union[Item, ReasoningItem, FunctionCallItem, WebSearchCallItem]
+    item: Union[
+        Item,
+        ReasoningItem,
+        FunctionCallItem,
+        WebSearchCallItem,
+        CodeInterpreterCallItem,
+    ]
 
 
 class ResponseInProgressEvent(ResponseEvent):
@@ -105,25 +118,53 @@ class ResponseContentPartDone(ResponseEvent):
     content_index: int = 0
     part: Union[TextContentItem, ReasoningTextContentItem]
 
+
 class ResponseOutputTextAnnotationAdded(ResponseEvent):
-    type: Literal["response.output_text.annotation.added"] = "response.output_text.annotation.added"
+    type: Literal["response.output_text.annotation.added"] = (
+        "response.output_text.annotation.added"
+    )
     item_id: str = "item_1234"
     output_index: int = 0
     content_index: int = 0
     annotation_index: int = 0
     annotation: UrlCitation
 
+
 class ResponseWebSearchCallInProgress(ResponseEvent):
-    type: Literal["response.web_search_call.in_progress"] = "response.web_search_call.in_progress"
+    type: Literal["response.web_search_call.in_progress"] = (
+        "response.web_search_call.in_progress"
+    )
     output_index: int = 0
     item_id: str = "item_1234"
+
 
 class ResponseWebSearchCallSearching(ResponseEvent):
-    type: Literal["response.web_search_call.searching"] = "response.web_search_call.searching"
+    type: Literal["response.web_search_call.searching"] = (
+        "response.web_search_call.searching"
+    )
     output_index: int = 0
     item_id: str = "item_1234"
 
+
 class ResponseWebSearchCallCompleted(ResponseEvent):
-    type: Literal["response.web_search_call.completed"] = "response.web_search_call.completed"
+    type: Literal["response.web_search_call.completed"] = (
+        "response.web_search_call.completed"
+    )
+    output_index: int = 0
+    item_id: str = "item_1234"
+
+
+class ResponseCodeInterpreterCallInProgress(ResponseEvent):
+    type: Literal["response.code_interpreter_call.in_progress"] = (
+        "response.code_interpreter_call.in_progress"
+    )
+    output_index: int = 0
+    item_id: str = "item_1234"
+
+
+class ResponseCodeInterpreterCallCompleted(ResponseEvent):
+    type: Literal["response.code_interpreter_call.completed"] = (
+        "response.code_interpreter_call.completed"
+    )
     output_index: int = 0
     item_id: str = "item_1234"
