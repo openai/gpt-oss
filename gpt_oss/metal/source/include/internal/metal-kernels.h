@@ -317,6 +317,82 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_accumulate(
     uint32_t num_tokens,
     uint32_t num_experts);
 
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_scatter(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_scatter_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* expert_predictions_buffer,
+    size_t expert_predictions_offset,
+    const struct gptoss_metal_buffer* expert_offsets_buffer,
+    size_t expert_offsets_offset,
+    const struct gptoss_metal_buffer* intra_expert_offsets_buffer,
+    size_t intra_expert_offsets_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    uint32_t num_channels,
+    uint32_t num_tokens,
+    uint32_t num_active_experts);
+    
+enum gptoss_status
+gptoss_metal_command_buffer_encode_launch_f32_mf4w_moe_dense_matmul_swiglu(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_mf4w_moe_dense_matmul_swiglu_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* weight_block_buffer,
+    size_t weight_block_offset,
+    const struct gptoss_metal_buffer* weight_scale_buffer,
+    size_t weight_scale_offset,
+    const struct gptoss_metal_buffer* bias_buffer,
+    size_t bias_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    float swiglu_limit,
+    uint32_t expert_stride_bytes,
+    uint32_t num_tokens,
+    uint32_t expert_token_offset,
+    uint32_t expert_id,
+    uint32_t num_cols,
+    uint32_t num_rows);
+    
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_mf4w_moe_dense_matmul(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_mf4w_moe_dense_matmul_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* weight_block_buffer,
+    size_t weight_block_offset,
+    const struct gptoss_metal_buffer* weight_scale_buffer,
+    size_t weight_scale_offset,
+    const struct gptoss_metal_buffer* bias_buffer,
+    size_t bias_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    uint32_t expert_stride_bytes,
+    uint32_t num_tokens,
+    uint32_t expert_token_offset,
+    uint32_t expert_id,
+    uint32_t num_cols,
+    uint32_t num_rows);
+    
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_gather_and_accumulate_e4(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_gather_and_accumulate_e4_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* expert_predictions_buffer,
+    size_t expert_predictions_offset,
+    const struct gptoss_metal_buffer* expert_offsets_buffer,
+    size_t expert_offsets_offset,
+    const struct gptoss_metal_buffer* intra_expert_offsets_buffer,
+    size_t intra_expert_offsets_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    uint32_t num_channels,
+    uint32_t num_tokens,
+    uint32_t num_active_experts);
+
 enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_topk(
     const struct gptoss_metal_command_buffer* command_buffer,
     const struct gptoss_metal_function* f32_topk_fn,

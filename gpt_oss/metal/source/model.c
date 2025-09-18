@@ -349,6 +349,22 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_scatter_e4", &model->f32_scatter_e4_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_dense_matmul_swiglu", &model->f32_mf4w_moe_dense_matmul_swiglu_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_dense_matmul", &model->f32_mf4w_moe_dense_matmul_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_gather_and_accumulate_e4", &model->f32_gather_and_accumulate_e4_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_matmul_swiglu", &model->f32_mf4w_moe_matmul_swiglu_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
@@ -524,6 +540,10 @@ enum gptoss_status GPTOSS_ABI gptoss_model_release(
             gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_mlp_gate_fn);
             gptoss_metal_function_release(&model->f32_bf16w_unembedding_fn);
             gptoss_metal_function_release(&model->f32_rope_fn);
+            gptoss_metal_function_release(&model->f32_scatter_e4_fn);
+            gptoss_metal_function_release(&model->f32_mf4w_moe_dense_matmul_swiglu_fn);
+            gptoss_metal_function_release(&model->f32_mf4w_moe_dense_matmul_fn);
+            gptoss_metal_function_release(&model->f32_gather_and_accumulate_e4_fn);
             gptoss_metal_function_release(&model->f32_mf4w_moe_matmul_swiglu_fn);
             gptoss_metal_function_release(&model->f32_mf4w_moe_matmul_fn);
             gptoss_metal_function_release(&model->f32_accumulate_e4_fn);

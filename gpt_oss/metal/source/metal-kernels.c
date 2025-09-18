@@ -936,6 +936,305 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_rope(
         /*threadgroup_buffer_size=*/0);
 }
 
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_scatter(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_scatter_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* expert_predictions_buffer,
+    size_t expert_predictions_offset,
+    const struct gptoss_metal_buffer* expert_offsets_buffer,
+    size_t expert_offsets_offset,
+    const struct gptoss_metal_buffer* intra_expert_offsets_buffer,
+    size_t intra_expert_offsets_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    uint32_t num_channels,
+    uint32_t num_tokens,
+    uint32_t num_active_experts)
+{
+    if (command_buffer->object == NULL || f32_scatter_fn->pipeline_state_object == NULL) {
+        return gptoss_status_invalid_state;
+    }
+
+    if (num_channels % 4 != 0) {
+        return gptoss_status_invalid_argument;
+    }
+
+    const size_t num_vecs = num_channels / 4;
+    const size_t tgx = math_min(num_vecs, 64);
+    const size_t tgy = 1;
+    const size_t tgz = 1;
+    const size_t grid_x = math_ceil_div(num_vecs, tgx);
+    const size_t grid_y = num_tokens;
+    const size_t grid_z = 1;
+    const size_t total_threadgroup_size = tgx * tgy * tgz;
+    if (total_threadgroup_size > f32_scatter_fn->max_threadgroup_threads) {
+        return gptoss_status_invalid_argument;
+    }
+    const struct gptoss_scatter_args args = {
+        .tokens = num_tokens,
+        .active_experts_per_token = num_active_experts,
+        .token_stride = num_channels,
+    };
+
+    return gptoss_metal_command_buffer_encode_launch_kernel(
+        command_buffer, f32_scatter_fn,
+        tgx, tgy, tgz,
+        grid_x, grid_y, grid_z,
+        sizeof(args), &args,
+        5,
+        (const struct gptoss_metal_buffer *[]) {input_buffer, expert_predictions_buffer, expert_offsets_buffer, intra_expert_offsets_buffer, output_buffer},
+        (const size_t[]) {input_offset, expert_predictions_offset, expert_offsets_offset, intra_expert_offsets_offset, output_offset},
+        /*threadgroup_buffer_size=*/0);
+}
+
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_gather_and_accumulate_e4(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_gather_and_accumulate_e4_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* expert_predictions_buffer,
+    size_t expert_predictions_offset,
+    const struct gptoss_metal_buffer* expert_offsets_buffer,
+    size_t expert_offsets_offset,
+    const struct gptoss_metal_buffer* intra_expert_offsets_buffer,
+    size_t intra_expert_offsets_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    uint32_t num_channels,
+    uint32_t num_tokens,
+    uint32_t num_active_experts) 
+{
+        if (command_buffer->object == NULL || f32_gather_and_accumulate_e4_fn->pipeline_state_object == NULL) {
+        return gptoss_status_invalid_state;
+    }
+
+    if (num_channels % 4 != 0) {
+        return gptoss_status_invalid_argument;
+    }
+
+    const size_t num_vecs = num_channels / 4;
+    const size_t tgx = math_min(num_vecs, 64);
+    const size_t tgy = 1;
+    const size_t tgz = 1;
+    const size_t grid_x = math_ceil_div(num_vecs, tgx);
+    const size_t grid_y = num_tokens;
+    const size_t grid_z = 1;
+    const size_t total_threadgroup_size = tgx * tgy * tgz;
+    if (total_threadgroup_size > f32_gather_and_accumulate_e4_fn->max_threadgroup_threads) {
+        return gptoss_status_invalid_argument;
+    }
+    const struct gptoss_gather_args args = {
+        .tokens = num_tokens,
+        .active_experts_per_token = num_active_experts,
+        .token_stride = num_channels,
+    };
+    
+    return gptoss_metal_command_buffer_encode_launch_kernel(
+        command_buffer, f32_gather_and_accumulate_e4_fn,
+        tgx, tgy, tgz,
+        grid_x, grid_y, grid_z,
+        sizeof(args), &args,
+        5,
+        (const struct gptoss_metal_buffer *[]) {input_buffer, expert_predictions_buffer, expert_offsets_buffer, intra_expert_offsets_buffer, output_buffer},
+        (const size_t[]) {input_offset, expert_predictions_offset, expert_offsets_offset, intra_expert_offsets_offset, output_offset},
+        /*threadgroup_buffer_size=*/0);
+}
+
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_mf4w_moe_dense_matmul_swiglu(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_mf4w_moe_dense_matmul_swiglu_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* weight_block_buffer,
+    size_t weight_block_offset,
+    const struct gptoss_metal_buffer* weight_scale_buffer,
+    size_t weight_scale_offset,
+    const struct gptoss_metal_buffer* bias_buffer,
+    size_t bias_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    float swiglu_limit,
+    uint32_t expert_stride_bytes,
+    uint32_t num_tokens,
+    uint32_t expert_token_offset,
+    uint32_t expert_id,
+    uint32_t num_cols,
+    uint32_t num_rows)
+{
+    if (command_buffer->object == NULL || f32_mf4w_moe_dense_matmul_swiglu_fn->pipeline_state_object == NULL) {
+        return gptoss_status_invalid_state;
+    }
+
+    if (num_cols % 32 != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul_swiglu kernel launch: number of columns (%" PRIu32 ") is not divisible by 32",
+            num_cols);
+        return gptoss_status_invalid_argument;
+    }
+
+    const struct gptoss_moe_dense_matmul_swiglu_args args = {
+        .expert_token_count = num_tokens,
+        .n = num_rows,
+        .k = num_cols,
+        .expert_id = expert_id,
+        .expert_token_offset = expert_token_offset,
+        .weight_blocks_expert_stride_bytes = expert_stride_bytes,
+        .weight_scales_expert_stride_bytes = expert_stride_bytes,
+        .bias_expert_stride_bytes = expert_stride_bytes,
+        .swiglu_min = -swiglu_limit,
+        .swiglu_max = swiglu_limit,
+    };
+    const size_t threads_per_simdgroup = f32_mf4w_moe_dense_matmul_swiglu_fn->simdgroup_threads;
+    const uint32_t m = args.expert_token_count;
+    const uint32_t n = args.n;
+    const uint32_t k = args.k;
+    const uint32_t Bm = MOE_DENSE_MATMUL_SWIGLU_Bm;
+    const uint32_t Bn = MOE_DENSE_MATMUL_SWIGLU_Bn;
+    const uint32_t Bk = MOE_DENSE_MATMUL_SWIGLU_Bk;
+    const uint32_t Sg_Bm = MOE_DENSE_MATMUL_SWIGLU_Sg_Bm;
+    const uint32_t Sg_Bn = MOE_DENSE_MATMUL_SWIGLU_Sg_Bn;
+    if (Bm % Sg_Bm != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul_swiglu kernel launch: Bm (%" PRIu32 ") is not divisible by Sg_Bm (%" PRIu32 ")",
+            Bm, Sg_Bm);
+        return gptoss_status_invalid_argument;
+    }
+    if (Bn % Sg_Bn != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul_swiglu kernel launch: Bn (%" PRIu32 ") is not divisible by Sg_Bn (%" PRIu32 ")",
+            Bn, Sg_Bn);
+        return gptoss_status_invalid_argument;
+    }
+
+    const size_t threadgroup_size_x = (Bm / Sg_Bm) * (Bn / Sg_Bn) * threads_per_simdgroup;
+    const size_t threadgroup_size_y = 1;
+    const size_t threadgroup_size_z = 1;
+    const size_t total_threadgroup_size = threadgroup_size_x * threadgroup_size_y * threadgroup_size_z;
+    if (total_threadgroup_size > f32_mf4w_moe_dense_matmul_swiglu_fn->max_threadgroup_threads) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul_swiglu kernel launch: total threadgroup size (%zu) exceeds supported maximum (%zu)",
+            total_threadgroup_size, f32_mf4w_moe_dense_matmul_swiglu_fn->max_threadgroup_threads);
+        return gptoss_status_invalid_argument;
+    }
+    if (n % Bn != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul_swiglu kernel launch: n (%" PRIu32 ") is not divisible by Bn (%" PRIu32 ")",
+            n, Bn);
+        return gptoss_status_invalid_argument;
+    }
+    if (k % Bk != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul_swiglu kernel launch: k (%" PRIu32 ") is not divisible by Bk (%" PRIu32 ")",
+            k, Bk);
+        return gptoss_status_invalid_argument;
+    }
+    const size_t grid_x = n / Bn;
+    const size_t grid_y = math_ceil_div(m, Bm);
+    const size_t grid_z = 1;
+
+    return gptoss_metal_command_buffer_encode_launch_kernel(
+        command_buffer, f32_mf4w_moe_dense_matmul_swiglu_fn,
+        threadgroup_size_x, threadgroup_size_y, threadgroup_size_z,
+        grid_x, grid_y, grid_z,
+        sizeof(args), &args,
+        5,
+        (const struct gptoss_metal_buffer *[]) {input_buffer, weight_block_buffer, weight_scale_buffer, bias_buffer, output_buffer},
+        (const size_t[]) {input_offset, weight_block_offset, weight_scale_offset, bias_offset, output_offset},
+        /*threadgroup_buffer_size=*/0);
+
+    }
+
+enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_mf4w_moe_dense_matmul(
+    const struct gptoss_metal_command_buffer* command_buffer,
+    const struct gptoss_metal_function* f32_mf4w_moe_dense_matmul_fn,
+    const struct gptoss_metal_buffer* input_buffer,
+    size_t input_offset,
+    const struct gptoss_metal_buffer* weight_block_buffer,
+    size_t weight_block_offset,
+    const struct gptoss_metal_buffer* weight_scale_buffer,
+    size_t weight_scale_offset,
+    const struct gptoss_metal_buffer* bias_buffer,
+    size_t bias_offset,
+    const struct gptoss_metal_buffer* output_buffer,
+    size_t output_offset,
+    uint32_t expert_stride_bytes,
+    uint32_t num_tokens,
+    uint32_t expert_token_offset,
+    uint32_t expert_id,
+    uint32_t num_cols,
+    uint32_t num_rows)
+{
+    if (command_buffer->object == NULL || f32_mf4w_moe_dense_matmul_fn->pipeline_state_object == NULL) {
+        return gptoss_status_invalid_state;
+    }
+
+    if (num_cols % 32 != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul kernel launch: number of columns (%" PRIu32 ") is not divisible by 32",
+            num_cols);
+        return gptoss_status_invalid_argument;
+    }
+    const struct gptoss_moe_dense_matmul_args args = {
+        .expert_token_count = num_tokens,
+        .k = num_cols,
+        .n = num_rows,
+        .expert_id = expert_id,
+        .expert_token_offset = expert_token_offset,
+        .weight_blocks_expert_stride_bytes = expert_stride_bytes,
+        .weight_scales_expert_stride_bytes = expert_stride_bytes,
+        .bias_expert_stride_bytes = expert_stride_bytes,
+    };
+
+    const size_t threads_per_simdgroup = f32_mf4w_moe_dense_matmul_fn->simdgroup_threads;
+    const uint32_t m = args.expert_token_count;
+    const uint32_t n = args.n;
+    const uint32_t k = args.k;
+    const uint32_t Bm = MOE_DENSE_MATMUL_Bm;
+    const uint32_t Bn = MOE_DENSE_MATMUL_Bn;
+    const uint32_t Bk = MOE_DENSE_MATMUL_Bk;
+    const uint32_t Sg_Bm = MOE_DENSE_MATMUL_Sg_Bm;
+    const uint32_t Sg_Bn = MOE_DENSE_MATMUL_Sg_Bn;
+    if (Bm % Sg_Bm != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul kernel launch: Bm (%" PRIu32 ") is not divisible by Sg_Bm (%" PRIu32 ")",
+            Bm, Sg_Bm);
+        return gptoss_status_invalid_argument;
+    }
+    if (Bn % Sg_Bn != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul kernel launch: Bn (%" PRIu32 ") is not divisible by Sg_Bn (%" PRIu32 ")",
+            Bn, Sg_Bn);
+        return gptoss_status_invalid_argument;
+    }
+
+    const size_t threadgroup_size_x = (Bm / Sg_Bm) * (Bn / Sg_Bn) * threads_per_simdgroup;
+    const size_t threadgroup_size_y = 1;
+    const size_t threadgroup_size_z = 1;
+    const size_t total_threadgroup_size = threadgroup_size_x * threadgroup_size_y * threadgroup_size_z;
+    if (total_threadgroup_size > f32_mf4w_moe_dense_matmul_fn->max_threadgroup_threads) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul kernel launch: total threadgroup size (%zu) exceeds supported maximum (%zu)",
+            total_threadgroup_size, f32_mf4w_moe_dense_matmul_fn->max_threadgroup_threads);
+        return gptoss_status_invalid_argument;
+    }
+    if (n % Bn != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul kernel launch: n (%" PRIu32 ") is not divisible by Bn (%" PRIu32 ")",
+            n, Bn);
+        return gptoss_status_invalid_argument;
+    }
+    if (k % Bk != 0) {
+        GPTOSS_LOG_ERROR("failed to encode f32_mf4w_moe_dense_matmul kernel launch: k (%" PRIu32 ") is not divisible by Bk (%" PRIu32 ")",
+            k, Bk);
+        return gptoss_status_invalid_argument;
+    }
+
+    const size_t grid_y = math_ceil_div(m, Bm);
+    const size_t grid_x = n / Bn;
+    const size_t grid_z = 1;
+
+    return gptoss_metal_command_buffer_encode_launch_kernel(
+        command_buffer, f32_mf4w_moe_dense_matmul_fn,
+        threadgroup_size_x, threadgroup_size_y, threadgroup_size_z,
+        grid_x, grid_y, grid_z,
+        sizeof(args), &args,
+        5,
+        (const struct gptoss_metal_buffer *[]) {input_buffer, weight_block_buffer, weight_scale_buffer, bias_buffer, output_buffer},
+        (const size_t[]) {input_offset, weight_block_offset, weight_scale_offset, bias_offset, output_offset},
+        /*threadgroup_buffer_size=*/0);
+}
+
 enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_accumulate(
     const struct gptoss_metal_command_buffer* command_buffer,
     const struct gptoss_metal_function* f32_accumulate_fn,

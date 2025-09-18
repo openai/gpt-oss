@@ -87,6 +87,10 @@ struct gptoss_model {
     struct gptoss_metal_function f32_mf4w_moe_matmul_swiglu_fn;
     struct gptoss_metal_function f32_mf4w_moe_matmul_fn;
     struct gptoss_metal_function f32_accumulate_e4_fn;
+    struct gptoss_metal_function f32_scatter_e4_fn;
+    struct gptoss_metal_function f32_mf4w_moe_dense_matmul_swiglu_fn;
+    struct gptoss_metal_function f32_mf4w_moe_dense_matmul_fn;
+    struct gptoss_metal_function f32_gather_and_accumulate_e4_fn;
     struct gptoss_metal_function f32_topk_softmax_e32_k4_fn;
     struct gptoss_metal_function f32_topk_softmax_e128_k4_fn;
     struct gptoss_metal_function f32_sdpa_q8_d64_fn;
@@ -156,6 +160,9 @@ struct gptoss_context {
     struct gptoss_metal_buffer sdpa_activation_buffer;  // SDPA output
     struct gptoss_metal_buffer gate_activation_buffer;  // MoE gating output
     struct gptoss_metal_buffer expert_activation_buffer;  // MoE expert predictions
+    struct gptoss_metal_buffer expert_offset_buffer; // MoE expert histograms cumsum
+    struct gptoss_metal_buffer token_to_expert_routing_buffer; // MoE token to expert routing
+    struct gptoss_metal_buffer swiglu_input_buffer; // MLP+SwiGLU input for prefill.
     struct gptoss_metal_buffer swiglu_activation_buffer;  // MLP+SwiGLU output
     struct gptoss_metal_buffer moe_activation_buffer;  // MoE MLP output (per-active expert)
 
