@@ -176,6 +176,11 @@ static void end2end_prefill(benchmark::State& state,
         assert(context_length <= num_tokens);
         context->num_tokens = context_length;
     }
+    status = gptoss_context_get_num_tokens(context.get(), &num_tokens);
+    if (status != gptoss_status_success) {
+        state.SkipWithError("failed to get number of tokens");
+        return;
+    }
     // Prefill
     for (auto _ : state) {
         status = gptoss_context_process(context.get());

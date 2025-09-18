@@ -23,6 +23,18 @@
 #define MLP_GATE_Sg_Bm 16
 #define MLP_GATE_Sg_Bn 16
 
+#define MOE_DENSE_MATMUL_SWIGLU_Bm 32
+#define MOE_DENSE_MATMUL_SWIGLU_Bn 64
+#define MOE_DENSE_MATMUL_SWIGLU_Bk 16
+#define MOE_DENSE_MATMUL_SWIGLU_Sg_Bm 32
+#define MOE_DENSE_MATMUL_SWIGLU_Sg_Bn 16
+
+#define MOE_DENSE_MATMUL_Bm 32
+#define MOE_DENSE_MATMUL_Bn 64
+#define MOE_DENSE_MATMUL_Bk 16
+#define MOE_DENSE_MATMUL_Sg_Bm 32
+#define MOE_DENSE_MATMUL_Sg_Bn 16
+
 struct gptoss_expert_prediction {
     uint32_t expert_id;
     float score;
@@ -90,6 +102,41 @@ struct gptoss_dense_matmul_args {
     uint32_t m;
     uint32_t n;
     uint32_t k;
+};
+
+struct gptoss_scatter_args {
+    uint32_t tokens;
+    uint32_t active_experts_per_token;
+    uint32_t token_stride;
+};
+
+struct gptoss_moe_dense_matmul_swiglu_args {
+    uint32_t expert_token_count;
+    uint32_t k;
+    uint32_t n;
+    uint32_t expert_id;
+    uint32_t expert_token_offset;
+    uint32_t weight_blocks_expert_stride_bytes;
+    uint32_t weight_scales_expert_stride_bytes;
+    uint32_t bias_expert_stride_bytes;
+    float swiglu_min;
+    float swiglu_max;
+};
+struct gptoss_moe_dense_matmul_args {
+    uint32_t expert_token_count;
+    uint32_t k;
+    uint32_t n;
+    uint32_t expert_id;
+    uint32_t expert_token_offset;
+    uint32_t weight_blocks_expert_stride_bytes;
+    uint32_t weight_scales_expert_stride_bytes;
+    uint32_t bias_expert_stride_bytes;
+};
+
+struct gptoss_gather_args {
+    uint32_t tokens;
+    uint32_t active_experts_per_token;
+    uint32_t token_stride;
 };
 
 struct gptoss_unembedding_args {
