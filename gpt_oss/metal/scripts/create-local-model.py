@@ -14,7 +14,7 @@ from safetensors import safe_open
 from tqdm import tqdm
 from openai_harmony import load_harmony_encoding, HarmonyEncodingName
 
-parser = argparse.ArgumentParser(prog='check-mxfp4-weights.py', description='Validated MXFP4 weights')
+parser = argparse.ArgumentParser(prog='create-local-model.py',description='Creates a local model file from a checkpoint')
 parser.add_argument('-s', '--src', metavar='DIR', type=str, required=True, help='Path to the input checkpoint directory')
 parser.add_argument('-d', '--dst', metavar='FILE', type=str, required=True, help='Path to the output model file')
 
@@ -30,7 +30,7 @@ o200k_gptoss = tiktoken.Encoding(
         "<|reversed199998|>": 199998,  # unused
         "<|endoftext|>": 199999,
         "<|untrusted|>": 200000,
-        "<|endofuntrusted|>": 200001,
+        "<|end_untrusted|>": 200001,
         "<|return|>": 200002,
         "<|constrain|>": 200003,
         "<|reversed200004|>": 200004,  # unused
