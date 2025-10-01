@@ -88,7 +88,7 @@ uv pip install --pre vllm==0.10.1+gptoss \
 
 vllm serve openai/gpt-oss-20b
 ```
-
+- if this is not working, refer to this vLLM support guide: [Support gpt-oss #22259](https://github.com/vllm-project/vllm/pull/22259)
 [Learn more about how to use gpt-oss with vLLM.](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 
 Offline Serve Code:
