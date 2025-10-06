@@ -71,6 +71,9 @@ from .types import (
 DEFAULT_TEMPERATURE = 0.0
 
 
+BROWSER_RESERVED_FUNCTIONS = {"browser.search", "browser.open", "browser.find"}
+
+
 def get_reasoning_effort(
     effort: Union[Literal["low", "medium", "high"], ReasoningEffort]
 ) -> ReasoningEffort:
@@ -95,6 +98,28 @@ def is_not_builtin_tool(
         and recipient != "python"
         and recipient != "assistant"
     )
+
+
+def resolve_browser_recipient(
+    recipient: Optional[str],
+    browser_tool: Optional[SimpleBrowserTool],
+    user_defined_function_names: set[str],
+) -> tuple[Optional[str], bool]:
+    if browser_tool is None or not recipient:
+        return (None, False)
+
+    if recipient.startswith("browser."):
+        return (recipient, False)
+
+    if recipient.startswith("functions."):
+        potential = recipient[len("functions.") :]
+        if (
+            potential in BROWSER_RESERVED_FUNCTIONS
+            and potential not in user_defined_function_names
+        ):
+            return (potential, True)
+
+    return (None, False)
 
 
 def create_api_server(
@@ -157,48 +182,25 @@ def create_api_server(
             browser_tool_index = 0
             python_tool_index = 0
             reasoning_ids_iter = iter(reasoning_ids or [])
+            user_defined_function_names = {
+                name
+                for tool in (request_body.tools or [])
+                for name in [getattr(tool, "name", None)]
+                if getattr(tool, "type", None) == "function" and name
+            }
 
             for entry in entries:
                 entry_dict = entry.to_dict()
                 recipient = entry_dict.get("recipient", "")
-                if len(recipient) > 0 and is_not_builtin_tool(
-                    recipient, treat_functions_python_as_builtin
-                ):
-                    call = entry_dict["content"][0]
-                    arguments = call["text"]
-                    name = recipient
-
-                    if name.startswith("functions."):
-                        name = name[len("functions.") :]
-                    if function_call_ids and fc_index < len(function_call_ids):
-                        fc_id, call_id = function_call_ids[fc_index]
-                    else:
-                        fc_id, call_id = (
-                            f"fc_{uuid.uuid4().hex}",
-                            f"call_{uuid.uuid4().hex}",
-                        )
-                    fc_index += 1
-                    output.append(
-                        FunctionCallItem(
-                            type="function_call",
-                            name=name,
-                            arguments=arguments,
-                            id=fc_id,
-                            call_id=call_id,
-                        )
-                    )
-                elif (
-                    len(recipient) > 0
-                    and recipient.startswith("browser.")
-                    and browser_tool is not None
-                ):
-                    # Mirror event-based creation of WebSearchCallItems when the browser tool is invoked
-                    name = recipient
+                browser_recipient, _ = resolve_browser_recipient(
+                    recipient, browser_tool, user_defined_function_names
+                )
+                if browser_recipient is not None and browser_tool is not None:
+                    name = browser_recipient
                     call = entry_dict["content"][0]
                     arguments = call["text"]
                     function_name = name[len("browser.") :]
 
-                    # Reconstruct a Message for argument parsing
                     tool_msg = (
                         Message.from_role_and_content(Role.ASSISTANT, arguments)
                         .with_recipient(name)
@@ -243,6 +245,33 @@ def create_api_server(
                                 action=action,
                             )
                         )
+                    continue
+                if len(recipient) > 0 and is_not_builtin_tool(
+                    recipient, treat_functions_python_as_builtin
+                ):
+                    call = entry_dict["content"][0]
+                    arguments = call["text"]
+                    name = recipient
+
+                    if name.startswith("functions."):
+                        name = name[len("functions.") :]
+                    if function_call_ids and fc_index < len(function_call_ids):
+                        fc_id, call_id = function_call_ids[fc_index]
+                    else:
+                        fc_id, call_id = (
+                            f"fc_{uuid.uuid4().hex}",
+                            f"call_{uuid.uuid4().hex}",
+                        )
+                    fc_index += 1
+                    output.append(
+                        FunctionCallItem(
+                            type="function_call",
+                            name=name,
+                            arguments=arguments,
+                            id=fc_id,
+                            call_id=call_id,
+                        )
+                    )
                 elif (
                     len(recipient) > 0
                     and (
@@ -430,6 +459,19 @@ def create_api_server(
             self.reasoning_item_ids: list[str] = []
             self.current_reasoning_item_id: Optional[str] = None
             self.functions_python_as_builtin = functions_python_as_builtin
+            self.user_defined_function_names = {
+                name
+                for tool in (request_body.tools or [])
+                for name in [getattr(tool, "name", None)]
+                if getattr(tool, "type", None) == "function" and name
+            }
+
+        def _resolve_browser_recipient(
+            self, recipient: Optional[str]
+        ) -> tuple[Optional[str], bool]:
+            return resolve_browser_recipient(
+                recipient, self.browser_tool, self.user_defined_function_names
+            )
 
         def _send_event(self, event: ResponseEvent):
             event.sequence_number = self.sequence_number
@@ -508,8 +550,11 @@ def create_api_server(
                         previous_item = self.parser.messages[-1]
                         if previous_item.recipient is not None:
                             recipient = previous_item.recipient
+                            browser_recipient, _ = self._resolve_browser_recipient(
+                                recipient
+                            )
                             if (
-                                not recipient.startswith("browser.")
+                                browser_recipient is None
                                 and not (
                                     recipient == "python"
                                     or (
@@ -763,14 +808,20 @@ def create_api_server(
                 if next_tok in encoding.stop_tokens_for_assistant_actions():
                     if len(self.parser.messages) > 0:
                         last_message = self.parser.messages[-1]
-                        if (
-                            self.use_browser_tool
-                            and last_message.recipient is not None
-                            and last_message.recipient.startswith("browser.")
-                        ):
-                            function_name = last_message.recipient[len("browser.") :]
+                        browser_recipient, is_browser_fallback = (
+                            self._resolve_browser_recipient(last_message.recipient)
+                        )
+                        if browser_recipient is not None and browser_tool is not None:
+                            message_for_browser = (
+                                last_message
+                                if not is_browser_fallback
+                                else last_message.with_recipient(browser_recipient)
+                            )
+                            function_name = browser_recipient[len("browser.") :]
                             action = None
-                            parsed_args = browser_tool.process_arguments(last_message)
+                            parsed_args = browser_tool.process_arguments(
+                                message_for_browser
+                            )
                             if function_name == "search":
                                 action = WebSearchActionSearch(
                                     type="search",
@@ -820,7 +871,9 @@ def create_api_server(
 
                             async def run_tool():
                                 results = []
-                                async for msg in browser_tool.process(last_message):
+                                async for msg in browser_tool.process(
+                                    message_for_browser
+                                ):
                                     results.append(msg)
                                 return results
 

@@ -17,6 +17,7 @@ dependencies = [
   "uvicorn>=0.35.0",
   "requests>=2.31.0",
   "termcolor",
+  "jupyter-client>=8.6.3",
 ]
 readme = "README.md"
 requires-python = ">=3.12"
