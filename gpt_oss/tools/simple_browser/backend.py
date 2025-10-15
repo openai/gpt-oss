@@ -264,6 +264,17 @@ class TavilyBackend(Backend):
             raise BackendError("Tavily API key not provided")
         return key
 
+    async def _post(self, session: ClientSession, endpoint: str, payload: dict) -> dict:
+        headers = {
+            "Authorization": f"Bearer {self._get_api_key()}",
+            "Content-Type": "application/json"
+        }
+        async with session.post(f"{self.BASE_URL}{endpoint}", json=payload, headers=headers) as resp:
+            if resp.status != 200:
+                raise BackendError(
+                    f"{self.__class__.__name__} error {resp.status}: {await resp.text()}"
+                )
+            return await resp.json()
 
     async def search(
         self, query: str, topn: int, session: ClientSession
