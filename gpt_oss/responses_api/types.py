@@ -1,12 +1,13 @@
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
 REASONING_EFFORT = ReasoningEffort.LOW
-DEFAULT_MAX_OUTPUT_TOKENS = 10_000
+DEFAULT_MAX_OUTPUT_TOKENS = 131072
+
 
 class UrlCitation(BaseModel):
     type: Literal["url_citation"]
@@ -14,6 +15,7 @@ class UrlCitation(BaseModel):
     start_index: int
     url: str
     title: str
+
 
 class TextContentItem(BaseModel):
     type: Union[Literal["text"], Literal["input_text"], Literal["output_text"]]
@@ -41,6 +43,7 @@ class ReasoningItem(BaseModel):
 
 
 class Item(BaseModel):
+    id: Optional[str] = None
     type: Optional[Literal["message"]] = "message"
     role: Literal["user", "assistant", "system"]
     content: Union[list[TextContentItem], str]
@@ -61,24 +64,56 @@ class FunctionCallOutputItem(BaseModel):
     call_id: str = "call_1234"
     output: str
 
+
 class WebSearchActionSearch(BaseModel):
     type: Literal["search"]
     query: Optional[str] = None
 
+
 class WebSearchActionOpenPage(BaseModel):
     type: Literal["open_page"]
     url: Optional[str] = None
+
 
 class WebSearchActionFind(BaseModel):
     type: Literal["find"]
     pattern: Optional[str] = None
     url: Optional[str] = None
 
+
 class WebSearchCallItem(BaseModel):
     type: Literal["web_search_call"]
     id: str = "ws_1234"
     status: Literal["in_progress", "completed", "incomplete"] = "completed"
     action: Union[WebSearchActionSearch, WebSearchActionOpenPage, WebSearchActionFind]
+
+
+class CodeInterpreterOutputLogs(BaseModel):
+    type: Literal["logs"]
+    logs: str
+
+
+class CodeInterpreterOutputImage(BaseModel):
+    type: Literal["image"]
+    url: str
+
+
+class CodeInterpreterCallItem(BaseModel):
+    type: Literal["code_interpreter_call"]
+    id: str = "ci_1234"
+    status: Literal[
+        "in_progress",
+        "completed",
+        "incomplete",
+        "interpreting",
+        "failed",
+    ] = "completed"
+    code: Optional[str] = None
+    container_id: Optional[str] = None
+    outputs: Optional[
+        list[Union[CodeInterpreterOutputLogs, CodeInterpreterOutputImage]]
+    ] = None
+
 
 class Error(BaseModel):
     code: str
@@ -104,7 +139,12 @@ class FunctionToolDefinition(BaseModel):
 
 
 class BrowserToolConfig(BaseModel):
-    type: Literal["browser_search"]
+    model_config = ConfigDict(extra='allow')
+    type: Literal["browser_search"] | Literal["web_search"]
+
+
+class CodeInterpreterToolConfig(BaseModel):
+    type: Literal["code_interpreter"]
 
 
 class ReasoningConfig(BaseModel):
@@ -115,11 +155,25 @@ class ResponsesRequest(BaseModel):
     instructions: Optional[str] = None
     max_output_tokens: Optional[int] = DEFAULT_MAX_OUTPUT_TOKENS
     input: Union[
-        str, list[Union[Item, ReasoningItem, FunctionCallItem, FunctionCallOutputItem, WebSearchCallItem]]
+        str,
+        list[
+            Union[
+                Item,
+                ReasoningItem,
+                FunctionCallItem,
+                FunctionCallOutputItem,
+                WebSearchCallItem,
+                CodeInterpreterCallItem,
+            ]
+        ],
     ]
     model: Optional[str] = MODEL_IDENTIFIER
     stream: Optional[bool] = False
-    tools: Optional[list[Union[FunctionToolDefinition, BrowserToolConfig]]] = []
+    tools: Optional[
+        list[
+            Union[FunctionToolDefinition, BrowserToolConfig, CodeInterpreterToolConfig]
+        ]
+    ] = []
     reasoning: Optional[ReasoningConfig] = ReasoningConfig()
     metadata: Optional[Dict[str, Any]] = {}
     tool_choice: Optional[Literal["auto", "none"]] = "auto"
@@ -131,7 +185,16 @@ class ResponsesRequest(BaseModel):
 
 
 class ResponseObject(BaseModel):
-    output: list[Union[Item, ReasoningItem, FunctionCallItem, FunctionCallOutputItem, WebSearchCallItem]]
+    output: list[
+        Union[
+            Item,
+            ReasoningItem,
+            FunctionCallItem,
+            FunctionCallOutputItem,
+            WebSearchCallItem,
+            CodeInterpreterCallItem,
+        ]
+    ]
     created_at: int
     usage: Optional[Usage] = None
     status: Literal["completed", "failed", "incomplete", "in_progress"] = "in_progress"

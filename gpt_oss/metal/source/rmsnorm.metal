@@ -14,12 +14,16 @@ kernel void gptoss_f32_bf16w_rmsnorm(
     const device float4* input [[ buffer(1) ]],
     const device bfloat4* weights [[ buffer(2) ]],
     device float4* output [[ buffer(3) ]],
+    const device gptoss_control* control [[ buffer(4) ]],
     uint gid [[threadgroup_position_in_grid]],
     uint tid [[thread_position_in_threadgroup]],
     uint threadgroup_size [[ threads_per_threadgroup ]])
 {
     const uint simdgroup_size = 32;
     threadgroup float threadgroup_buffer[32];
+    if (control->abort != 0) {
+        return;
+    }
 
     input += gid * args.num_vecs;
     output += gid * args.num_vecs;

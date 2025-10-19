@@ -192,8 +192,6 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     model->yarn_multiplier = model_header.yarn_multiplier;
     model->rmsnorm_epsilon = model_header.rmsnorm_epsilon;
 
-    model->max_batch_tokens = GPTOSS_DEFAULT_BATCH_SIZE;
-
     struct gptoss_uuid tokenizer_uuid;
     status = read_fd(fd, &tokenizer_uuid, sizeof(tokenizer_uuid), path);
     if (status != gptoss_status_success) {
@@ -290,6 +288,12 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
 
     prefetch_fd(fd, model_mapping_start, model_mapping_size, path);
 
+    if (mlock(model_mapping_ptr, model_mapping_size) != 0) {
+        GPTOSS_LOG_WARNING("mlock(%s, size=%zu) failed with error %d", path, model_mapping_size, errno);
+    } else {
+        model->lock_memory = true;
+    }
+
     // Initialize Metal
     status = gptoss_metal_device_create_system_default(&model->device);
     if (status != gptoss_status_success) {
@@ -318,11 +322,43 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_matmul_qkv", &model->f32_bf16w_matmul_qkv_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_dense_matmul_qkv", &model->f32_bf16w_dense_matmul_qkv_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_dense_matmul_attn_output", &model->f32_bf16w_dense_matmul_attn_output_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_dense_matmul_mlp_gate", &model->f32_bf16w_dense_matmul_mlp_gate_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_unembedding", &model->f32_bf16w_unembedding_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
     }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_rope", &model->f32_rope_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_scatter_e4", &model->f32_scatter_e4_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_dense_matmul_swiglu", &model->f32_mf4w_moe_dense_matmul_swiglu_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_dense_matmul", &model->f32_mf4w_moe_dense_matmul_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_gather_and_accumulate_e4", &model->f32_gather_and_accumulate_e4_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
     }
@@ -350,10 +386,24 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_sample", &model->f32_sample_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_sdpa_q8_d64", &model->f32_sdpa_q8_d64_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+
+    // Kernel launch parameters
+    model->embeddings_threadgroup_size = 512;
+    model->attn_qkv_threadgroup_size = 1024;
+    model->attn_out_threadgroup_size = 768;
+    model->mlp_gate_threadgroup_size = 256;
+    model->mlp_swiglu_threadgroup_size = 192;
+    model->mlp_out_threadgroup_size = 192;
+    model->mlp_acc_threadgroup_size = 768;
+    model->unembedding_threadgroup_size = 416;
 
     // Weight buffers
     const char* current_ptr = (const char*) model->mapping_ptr;
@@ -421,45 +471,6 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
         model->weights_size += moe_block_weight_size;
     }
 
-    // Activation buffers
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->embedding_dim * sizeof(float), NULL, &model->residual_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->embedding_dim * sizeof(float), NULL, &model->rmsnorm_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->head_dim * (model->num_heads + 2 * model->num_kv_heads) * sizeof(float), NULL, &model->qkv_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->head_dim * model->num_heads * sizeof(float), NULL, &model->sdpa_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_experts * sizeof(float), NULL, &model->gate_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_experts * sizeof(struct gptoss_expert_prediction), NULL, &model->expert_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_active_experts * model->mlp_dim * sizeof(float), NULL, &model->swiglu_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-    status = gptoss_metal_buffer_create(&model->device, model->max_batch_tokens * model->num_active_experts * model->embedding_dim * sizeof(float), NULL, &model->moe_activation_buffer);
-    if (status != gptoss_status_success) {
-        goto cleanup;
-    }
-
-    model->allocation_size =
-        model->residual_activation_buffer.size + model->rmsnorm_activation_buffer.size +
-        model->qkv_activation_buffer.size + model->sdpa_activation_buffer.size +
-        model->gate_activation_buffer.size + model->expert_activation_buffer.size + model->swiglu_activation_buffer.size + model->moe_activation_buffer.size;
-
     // Commit tokenizer
     model->tokenizer = tokenizer;
     tokenizer = NULL;
@@ -510,16 +521,6 @@ enum gptoss_status GPTOSS_ABI gptoss_model_release(
         if (atomic_fetch_sub_explicit(&model->ref_count, 1, memory_order_acq_rel) == 1) {
             gptoss_tokenizer_release(model->tokenizer);
 
-            // Activation buffers
-            gptoss_metal_buffer_release(&model->residual_activation_buffer);
-            gptoss_metal_buffer_release(&model->rmsnorm_activation_buffer);
-            gptoss_metal_buffer_release(&model->qkv_activation_buffer);
-            gptoss_metal_buffer_release(&model->sdpa_activation_buffer);
-            gptoss_metal_buffer_release(&model->gate_activation_buffer);
-            gptoss_metal_buffer_release(&model->expert_activation_buffer);
-            gptoss_metal_buffer_release(&model->swiglu_activation_buffer);
-            gptoss_metal_buffer_release(&model->moe_activation_buffer);
-
             // Weight buffers
             gptoss_metal_buffer_release(&model->shared_weight_buffer);
             for (uint32_t n = 0; n < model->num_blocks; n++) {
@@ -530,14 +531,23 @@ enum gptoss_status GPTOSS_ABI gptoss_model_release(
             gptoss_metal_function_release(&model->bf16_f32_embeddings_fn);
             gptoss_metal_function_release(&model->f32_bf16w_rmsnorm_fn);
             gptoss_metal_function_release(&model->f32_bf16w_matmul_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_matmul_qkv_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_qkv_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_attn_output_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_mlp_gate_fn);
             gptoss_metal_function_release(&model->f32_bf16w_unembedding_fn);
             gptoss_metal_function_release(&model->f32_rope_fn);
+            gptoss_metal_function_release(&model->f32_scatter_e4_fn);
+            gptoss_metal_function_release(&model->f32_mf4w_moe_dense_matmul_swiglu_fn);
+            gptoss_metal_function_release(&model->f32_mf4w_moe_dense_matmul_fn);
+            gptoss_metal_function_release(&model->f32_gather_and_accumulate_e4_fn);
             gptoss_metal_function_release(&model->f32_mf4w_moe_matmul_swiglu_fn);
             gptoss_metal_function_release(&model->f32_mf4w_moe_matmul_fn);
             gptoss_metal_function_release(&model->f32_accumulate_e4_fn);
             gptoss_metal_function_release(&model->f32_topk_softmax_e32_k4_fn);
             gptoss_metal_function_release(&model->f32_topk_softmax_e128_k4_fn);
             gptoss_metal_function_release(&model->f32_softmax_fn);
+            gptoss_metal_function_release(&model->f32_sample_fn);
             gptoss_metal_function_release(&model->f32_sdpa_q8_d64_fn);
             gptoss_metal_library_release(&model->library);
 
@@ -546,6 +556,12 @@ enum gptoss_status GPTOSS_ABI gptoss_model_release(
             // Weight buffers
 
             if (model->mapping_ptr != NULL && model->mapping_size != 0) {
+                if (model->lock_memory) {
+                    if (munlock(model->mapping_ptr, model->mapping_size) != 0) {
+                        GPTOSS_LOG_WARNING("munlock for model weight mapping failed with error %d", errno);
+                    }
+                }
+
                 if (munmap(model->mapping_ptr, model->mapping_size) != 0) {
                     GPTOSS_LOG_WARNING("munmap for model weight mapping failed with error %d", errno);
                 }

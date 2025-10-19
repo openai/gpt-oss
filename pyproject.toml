@@ -17,13 +17,14 @@ dependencies = [
   "uvicorn>=0.35.0",
   "requests>=2.31.0",
   "termcolor",
+  "jupyter-client>=8.6.3",
 ]
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
-version = "0.0.1"
+requires-python = ">=3.12"
+version = "0.0.8"
 
 [project.optional-dependencies]
-triton = ["triton", "safetensors>=0.5.3", "torch>=2.7.0"]
+triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
@@ -34,8 +35,8 @@ requires = ["setuptools>=68"]
 build-backend = "gpt_oss_build_backend.backend"
 backend-path = ["_build"]
 
-[tool.setuptools]
-packages = ["gpt_oss"]
+[tool.setuptools.packages.find]
+include = ["gpt_oss*"]
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt

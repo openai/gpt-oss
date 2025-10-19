@@ -19,7 +19,7 @@ import termcolor
 
 from gpt_oss.tools import apply_patch
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 
 from openai_harmony import (
@@ -85,7 +85,7 @@ def main(args):
     )
 
     if args.browser:
-        backend = ExaBackend(
+        backend = YouComBackend(
             source="web",
         )
         browser_tool = SimpleBrowserTool(backend=backend)
@@ -120,9 +120,11 @@ def main(args):
             ])
         )
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
-    else:
+    elif args.developer_message:
         developer_message_content = DeveloperContent.new().with_instructions(args.developer_message)
         messages.append(Message.from_role_and_content(Role.DEVELOPER, developer_message_content))
+    else:
+        developer_message_content = None
 
     if args.raw:
         conversation = Conversation.from_messages(messages)
@@ -142,9 +144,9 @@ def main(args):
         print(termcolor.colored("Browser Tool:", "cyan"), "Enabled" if args.browser else "Disabled", flush=True)
         print(termcolor.colored("Python Tool:", "cyan"), "Enabled" if args.python else "Disabled", flush=True)
         print(termcolor.colored("Apply Patch Function:", "cyan"), "Enabled" if args.apply_patch else "Disabled", flush=True)
-        # Developer message
-        print(termcolor.colored("Developer Message:", "yellow"), flush=True)
-        print(developer_message_content.instructions, flush=True)
+        if developer_message_content:
+            print(termcolor.colored("Developer Message:", "yellow"), flush=True)
+            print(developer_message_content.instructions, flush=True)
 
     # Print the system message and the user message start
     MESSAGE_PADDING = 12

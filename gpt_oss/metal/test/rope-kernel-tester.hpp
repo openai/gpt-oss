@@ -112,6 +112,8 @@ public:
 
         metal::Buffer activations_buffer{device_, (num_tokens() * num_qkv_heads() + num_qk_heads()) * head_dim() * sizeof(float)};
         metal::Buffer ref_activations_buffer{device_, (num_tokens() * num_qkv_heads() + num_qk_heads()) * head_dim() * sizeof(float)};
+        metal::Buffer control_buffer{device_, sizeof(gptoss_control)};
+        std::memset(control_buffer.ptr(), 0, sizeof(gptoss_control));
 
         metal::CommandBuffer command_buffer{command_queue_};
 
@@ -138,6 +140,9 @@ public:
                 f32_rope_fn_.handle(),
                 threadgroup_size(),
                 activations_buffer.handle(),
+                /*activations_offset=*/0,
+                control_buffer.handle(),
+                /*control_offset=*/0,
                 frequency_base(),
                 /*interpolation_scale=*/1.0f,
                 /*yarn_offset=*/0.0f,

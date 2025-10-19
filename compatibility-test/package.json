@@ -1,0 +1,11 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@openai/agents": "^0.0.15",
+    "ajv": "^8.17.1",
+    "listr2": "^9.0.1"
+  },
+  "scripts": {
+    "start": "tsx index.ts"
+  }
+}

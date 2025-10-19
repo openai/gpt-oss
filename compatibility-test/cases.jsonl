@@ -1,0 +1,30 @@
+{"tool_name":"get_system_health","input":"Hey, quick check: is everything up and running?","expected_arguments":"{}"}
+{"tool_name":"get_system_health","input":"Status report please.","expected_arguments":"{}"}
+{"tool_name":"get_system_health","input":"Can you confirm the LLM health before we start?","expected_arguments":"{}"}
+{"tool_name":"get_system_health","input":"Need a health snapshot.","expected_arguments":"{}"}
+{"tool_name":"get_system_health","input":"Hi, what's the current system health?","expected_arguments":"{}"}
+{"tool_name":"markdown_to_html","input":"Convert this markdown to HTML:\n\n# Title\n\nSome *italic* text.","expected_arguments":"{\"markdown\":\"# Title\\n\\nSome *italic* text.\"}"}
+{"tool_name":"markdown_to_html","input":"Hey, could you turn `## Docs` into HTML?","expected_arguments":"{\"markdown\":\"## Docs\"}"}
+{"tool_name":"markdown_to_html","input":"Please render the following markdown:\n\n- item 1\n- item 2","expected_arguments":"{\"markdown\":\"- item 1\\n- item 2\"}"}
+{"tool_name":"markdown_to_html","input":"I have `**bold**` markdown; give me HTML.","expected_arguments":"{\"markdown\":\"**bold**\"}"}
+{"tool_name":"markdown_to_html","input":"Markdown to HTML: > quote","expected_arguments":"{\"markdown\":\"> quote\"}"}
+{"tool_name":"detect_language","input":"Hey, what language is this: 'Buenos días, ¿cómo estás?'","expected_arguments":"{\"text\":\"Buenos días, ¿cómo estás?\"}"}
+{"tool_name":"detect_language","input":"Identify the language: \"Guten Morgen\"","expected_arguments":"{\"text\":\"Guten Morgen\"}"}
+{"tool_name":"detect_language","input":"Language detection needed: こんにちは、お元気ですか？","expected_arguments":"{\"text\":\"こんにちは、お元気ですか？\"}"}
+{"tool_name":"detect_language","input":"Detect language for: 'Привет, как дела?'","expected_arguments":"{\"text\":\"Привет, как дела?\"}"}
+{"tool_name":"detect_language","input":"What language is 'Bonjour tout le monde'?","expected_arguments":"{\"text\":\"Bonjour tout le monde\"}"}
+{"tool_name":"generate_chart","input":"Plot a simple line chart for these points: (1,2),(2,4),(3,9).","expected_arguments":"{\"data\":[[1,2],[2,4],[3,9]],\"chart_type\":\"line\"}"}
+{"tool_name":"generate_chart","input":"Hey, can I get a bar chart of my sales: 10, 20, 30 across Q1–Q3?","expected_arguments":"{\"data\":[[1,10],[2,20],[3,30]],\"chart_type\":\"bar\",\"title\":\"Quarterly Sales\"}"}
+{"tool_name":"generate_chart","input":"Make a scatter chart titled 'Experiment' with x label Time and y label Value for data [ [0,1], [1,1.5], [2,2.2] ].","expected_arguments":"{\"data\":[[0,1],[1,1.5],[2,2.2]],\"chart_type\":\"scatter\",\"title\":\"Experiment\",\"x_label\":\"Time\",\"y_label\":\"Value\"}"}
+{"tool_name":"generate_chart","input":"Create a line chart of temperatures 70,72,68,65 over 4 days, label x as 'Day'.","expected_arguments":"{\"data\":[[1,70],[2,72],[3,68],[4,65]],\"chart_type\":\"line\",\"x_label\":\"Day\"}"}
+{"tool_name":"generate_chart","input":"Visualize visits per day with a bar chart; numbers: 100,150,120.","expected_arguments":"{\"data\":[[1,100],[2,150],[3,120]],\"chart_type\":\"bar\",\"title\":\"Daily Visits\",\"y_label\":\"Visitors\"}"}
+{"tool_name":"query_database","input":"Give me the ids and emails from users table, limit 5.","expected_arguments":"{\"table\":\"users\",\"columns\":[\"id\",\"email\"],\"limit\":5}"}
+{"tool_name":"query_database","input":"Hey, fetch order_id and amount from orders where status is 'shipped'.","expected_arguments":"{\"table\":\"orders\",\"columns\":[\"order_id\",\"amount\"],\"filters\":\"status = 'shipped'\"}"}
+{"tool_name":"query_database","input":"Retrieve name and price from products ordered by price descending, top 10 please.","expected_arguments":"{\"table\":\"products\",\"columns\":[\"name\",\"price\"],\"limit\":10,\"order_by\":\"price DESC\"}"}
+{"tool_name":"query_database","input":"I need the first 3 log entries from audit_log table.","expected_arguments":"{\"table\":\"audit_log\",\"columns\":[\"id\",\"timestamp\",\"action\"],\"limit\":3}"}
+{"tool_name":"query_database","input":"Query the customers table for name, city where city = 'Berlin'.","expected_arguments":"{\"table\":\"customers\",\"columns\":[\"name\",\"city\"],\"filters\":\"city = 'Berlin'\"}"}
+{"tool_name":"get_weather","input":"What's the weather in San Francisco right now?","expected_arguments":"{\"location\":\"San Francisco\"}"}
+{"tool_name":"get_weather","input":"Weather for Tokyo, please.","expected_arguments":"{\"location\":\"Tokyo\"}"}
+{"tool_name":"get_weather","input":"Get me the current weather for 10001.","expected_arguments":"{\"location\":\"10001\"}"}
+{"tool_name":"get_weather","input":"How's the weather in Paris today?","expected_arguments":"{\"location\":\"Paris\"}"}
+{"tool_name":"get_weather","input":"Check the weather for Sydney.","expected_arguments":"{\"location\":\"Sydney\"}"}

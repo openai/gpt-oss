@@ -246,10 +246,11 @@ public:
                                      const std::array<size_t, 3>& threadgroup_size,
                                      const std::array<size_t, 3>& num_threadgroups,
                                      size_t params_size, const void* params,
-                                     std::initializer_list<const Buffer*> buffers = {})
+                                     std::initializer_list<const Buffer*> device_buffers = {},
+                                     size_t threadgroup_buffer_size = 0)
     {
-        std::vector<const gptoss_metal_buffer*> buffer_handles(buffers.size());
-        std::transform(buffers.begin(), buffers.end(), buffer_handles.begin(),
+        std::vector<const gptoss_metal_buffer*> buffer_handles(device_buffers.size());
+        std::transform(device_buffers.begin(), device_buffers.end(), buffer_handles.begin(),
             [](const Buffer* buffer) -> const gptoss_metal_buffer* { return buffer->handle(); });
         Check(gptoss_metal_command_buffer_encode_launch_kernel(
                 &command_buffer_, function.handle(),
@@ -258,7 +259,8 @@ public:
                 params_size, params,
                 buffer_handles.size(),
                 buffer_handles.data(),
-                /*buffer_offsets=*/nullptr),
+                /*buffer_offsets=*/nullptr,
+                threadgroup_buffer_size),
             "gptoss_metal_command_buffer_encode_launch_kernel");
     }
 

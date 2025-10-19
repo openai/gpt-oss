@@ -96,18 +96,19 @@ enum gptoss_status gptoss_metal_library_create_default(
     enum gptoss_status status = gptoss_status_success;
     id<MTLDevice> device_obj = (id<MTLDevice>) device->object;
     id<MTLLibrary> library_obj = nil;
-    NSError* error_obj = nil;
-    NSString* error_string_obj = nil;
+    NSAutoreleasePool* autorelease_pool = nil;
     dispatch_data_t library_blob = NULL;
 
     unsigned long library_size = 0;
     uint8_t* library_data = getsectiondata(&__dso_handle, "__METAL", "__shaders", &library_size);
     if (library_data != NULL) {
         library_blob = dispatch_data_create(library_data, library_size, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+
+        autorelease_pool = [[NSAutoreleasePool alloc] init];
+        NSError* error_obj = nil;
         library_obj = [device_obj newLibraryWithData:library_blob error:&error_obj];
         if (library_obj == nil) {
-            error_string_obj = [error_obj localizedDescription];
-            GPTOSS_LOG_ERROR("failed to create Metal library: %s", [error_string_obj UTF8String]);
+            GPTOSS_LOG_ERROR("failed to create Metal library: %s", [[error_obj localizedDescription] UTF8String]);
             status = gptoss_status_unsupported_system;
             goto cleanup;
         }
@@ -129,11 +130,8 @@ cleanup:
     if (library_blob != NULL) {
         dispatch_release(library_blob);
     }
-    if (error_string_obj != nil) {
-        [error_string_obj release];
-    }
-    if (error_obj != nil) {
-        [error_obj release];
+    if (autorelease_pool != nil) {
+        [autorelease_pool drain];
     }
     return status;
 }
@@ -154,14 +152,16 @@ enum gptoss_status gptoss_metal_function_create(
     const char* name,
     struct gptoss_metal_function* function_out)
 {
-    NSString* name_obj = nil;
-    NSError* error_obj = nil;
-    NSString* error_string_obj = nil;
+    __block NSString* error_string_obj = nil;
     id<MTLFunction> function_obj = nil;
+    MTLComputePipelineDescriptor* pipeline_descriptor_obj = nil;
+    __block id<MTLComputePipelineState> pipeline_state_obj = nil;
+    dispatch_semaphore_t pipeline_build_semaphore = NULL;
     enum gptoss_status status = gptoss_status_success;
 
+    NSAutoreleasePool* autorelease_pool = [[NSAutoreleasePool alloc] init];
     id<MTLLibrary> library_obj = (id<MTLLibrary>) library->object;
-    name_obj = [NSString stringWithUTF8String:name];
+    NSString* name_obj = [NSString stringWithUTF8String:name];
     function_obj = [library_obj newFunctionWithName:name_obj];
     if (function_obj == nil) {
         GPTOSS_LOG_ERROR("failed to create Metal function %s", name);
@@ -169,11 +169,33 @@ enum gptoss_status gptoss_metal_function_create(
         goto cleanup;
     }
     id<MTLDevice> device_obj = [library_obj device];
-    id<MTLComputePipelineState> pipeline_state_obj = [device_obj newComputePipelineStateWithFunction:function_obj error:&error_obj];
+    pipeline_descriptor_obj = [[MTLComputePipelineDescriptor alloc] init];
+    [pipeline_descriptor_obj setComputeFunction:function_obj];
+    [pipeline_descriptor_obj setThreadGroupSizeIsMultipleOfThreadExecutionWidth:YES];
+
+    pipeline_build_semaphore = dispatch_semaphore_create(/*value=*/0);
+    [device_obj newComputePipelineStateWithDescriptor:pipeline_descriptor_obj
+                                              options:MTLPipelineOptionNone
+                                    completionHandler:^(id<MTLComputePipelineState> _Nullable new_state,
+                                                        MTLComputePipelineReflection* _Nullable reflection,
+                                                        NSError* _Nullable error_obj) {
+        if (new_state != nil) {
+            pipeline_state_obj = [new_state retain];
+        }
+        if (error_obj != nil) {
+            error_string_obj = [[error_obj localizedDescription] copy];
+        }
+        dispatch_semaphore_signal(pipeline_build_semaphore);
+    }];
+    dispatch_semaphore_wait(pipeline_build_semaphore, DISPATCH_TIME_FOREVER);
+
     if (pipeline_state_obj == nil) {
-        error_string_obj = [error_obj localizedDescription];
+        const char* error_string = "unknown error";
+        if (error_string_obj != nil) {
+            error_string = [error_string_obj UTF8String];
+        }
         GPTOSS_LOG_ERROR("failed to create Metal compute pipeline state for function %s: %s",
-            name, [error_string_obj UTF8String]);
+            name, error_string);
         status = gptoss_status_unsupported_system;
         goto cleanup;
     }
@@ -189,17 +211,20 @@ enum gptoss_status gptoss_metal_function_create(
     pipeline_state_obj = nil;
 
 cleanup:
-    if (name_obj != nil) {
-        [name_obj release];
-    }
     if (function_obj != nil) {
         [function_obj release];
+    }
+    if (pipeline_descriptor_obj != nil) {
+        [pipeline_descriptor_obj release];
     }
     if (error_string_obj != nil) {
         [error_string_obj release];
     }
-    if (error_obj != nil) {
-        [error_obj release];
+    if (pipeline_build_semaphore != NULL) {
+        dispatch_release(pipeline_build_semaphore);
+    }
+    if (autorelease_pool != nil) {
+        [autorelease_pool drain];
     }
     return status;
 }
@@ -380,9 +405,10 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_kernel(
     size_t num_threadgroups_z,
     size_t params_size,
     const void* params,
-    size_t num_buffers,
-    const struct gptoss_metal_buffer** buffers,
-    const size_t* buffer_offsets)
+    size_t num_device_buffers,
+    const struct gptoss_metal_buffer** device_buffers,
+    const size_t* device_buffer_offsets,
+    size_t threadgroup_buffer_size)
 {
     if (command_buffer->object == NULL || function->pipeline_state_object == NULL) {
         return gptoss_status_invalid_state;
@@ -396,10 +422,13 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_kernel(
     // Set kernel arguments
     [command_encoder_obj setComputePipelineState:pipeline_state_obj];
     [command_encoder_obj setBytes:params length:params_size atIndex:0];
-    for (size_t i = 0; i < num_buffers; ++i) {
-        id<MTLBuffer> buffer_obj = (id<MTLBuffer>) buffers[i]->object;
-        const NSUInteger offset = buffer_offsets == NULL ? 0 : (NSUInteger) buffer_offsets[i];
+    for (size_t i = 0; i < num_device_buffers; ++i) {
+        id<MTLBuffer> buffer_obj = (id<MTLBuffer>) device_buffers[i]->object;
+        const NSUInteger offset = device_buffer_offsets == NULL ? 0 : (NSUInteger) device_buffer_offsets[i];
         [command_encoder_obj setBuffer:buffer_obj offset:offset atIndex:i + 1];
+    }
+    if (threadgroup_buffer_size != 0) {
+        [command_encoder_obj setThreadgroupMemoryLength:threadgroup_buffer_size atIndex:0];
     }
 
     // Dispatch kernel

@@ -2,11 +2,11 @@
 <p align="center">
   <a href="https://gpt-oss.com"><strong>Try gpt-oss</strong></a> ·
   <a href="https://cookbook.openai.com/topic/gpt-oss"><strong>Guides</strong></a> ·
-  <a href="https://openai.com/index/gpt-oss-model-card"><strong>Model card</strong></a> ·
+  <a href="https://arxiv.org/abs/2508.10925"><strong>Model card</strong></a> ·
   <a href="https://openai.com/index/introducing-gpt-oss/"><strong>OpenAI blog</strong></a>
 </p>
 <p align="center">
-  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</a></strong>
+  <strong>Download <a href="https://huggingface.co/openai/gpt-oss-120b">gpt-oss-120b</a> and <a href="https://huggingface.co/openai/gpt-oss-20b">gpt-oss-20b</a> on Hugging Face</strong>
 </p>
 
 <br>
@@ -15,10 +15,25 @@ Welcome to the gpt-oss series, [OpenAI's open-weight models](https://openai.com/
 
 We're releasing two flavors of these open models:
 
-- `gpt-oss-120b` — for production, general purpose, high reasoning use cases that fit into a single H100 GPU (117B parameters with 5.1B active parameters)
+- `gpt-oss-120b` — for production, general purpose, high reasoning use cases that fit into a single 80GB GPU (like NVIDIA H100 or AMD MI300X) (117B parameters with 5.1B active parameters)
 - `gpt-oss-20b` — for lower latency, and local or specialized use cases (21B parameters with 3.6B active parameters)
 
 Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
+
+## Table of Contents
+- [Highlights](#highlights)
+- [Inference examples](#inference-examples)
+- [About this repository](#about-this-repository)
+- [Setup](#setup)
+- [Download the model](#download-the-model)
+- [Reference PyTorch implementation](#reference-pytorch-implementation)
+- [Reference Triton implementation (single GPU)](#reference-triton-implementation-single-gpu)
+- [Reference Metal implementation](#reference-metal-implementation)
+- [Harmony format & tools](#harmony-format--tools)
+- [Clients](#clients)
+- [Tools](#tools)
+- [Other details](#other-details)
+- [Contributing](#contributing)
 
 ### Highlights
 
@@ -27,13 +42,13 @@ Both models were trained using our [harmony response format][harmony] and should
 - **Full chain-of-thought:** Provides complete access to the model's reasoning process, facilitating easier debugging and greater trust in outputs. This information is not intended to be shown to end users.
 - **Fine-tunable:** Fully customize models to your specific use case through parameter fine-tuning.
 - **Agentic capabilities:** Use the models' native capabilities for function calling, [web browsing](#browser), [Python code execution](#python), and Structured Outputs.
-- **Native MXFP4 quantization:** The models are trained with native MXFP4 precision for the MoE layer, allowing `gpt-oss-120b` to run on a single H100 GPU and `gpt-oss-20b` to run within 16GB of memory.
+- **MXFP4 quantization:** The models were post-trained with MXFP4 quantization of the MoE weights, making `gpt-oss-120b` run on a single 80GB GPU (like NVIDIA H100 or AMD MI300X) and the `gpt-oss-20b` model run within 16GB of memory. All evals were performed with the same MXFP4 quantization.
 
 ### Inference examples
 
 #### Transformers
 
-You can use `gpt-oss-120b` and `gpt-oss-20b` with Transformers. If you use Transformers's chat template it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
+You can use `gpt-oss-120b` and `gpt-oss-20b` with the Transformers library. If you use Transformers' chat template, it will automatically apply the [harmony response format][harmony]. If you use `model.generate` directly, you need to apply the harmony format manually using the chat template or use our [`openai-harmony`][harmony] package.
 
 ```python
 from transformers import pipeline
@@ -63,7 +78,7 @@ print(outputs[0]["generated_text"][-1])
 
 #### vLLM
 
-vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible webserver. The following command will automatically download the model and start the server.
+vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible web server. The following command will automatically download the model and start the server.
 
 ```bash
 uv pip install --pre vllm==0.10.1+gptoss \
@@ -75,6 +90,82 @@ vllm serve openai/gpt-oss-20b
 ```
 
 [Learn more about how to use gpt-oss with vLLM.](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
+
+Offline Serve Code:
+- run this code after installing proper libraries as described, while additionally installing this:
+- `uv pip install openai-harmony`
+```python
+# source .oss/bin/activate
+
+import os
+os.environ["VLLM_USE_FLASHINFER_SAMPLER"] = "0"
+
+import json
+from openai_harmony import (
+    HarmonyEncodingName,
+    load_harmony_encoding,
+    Conversation,
+    Message,
+    Role,
+    SystemContent,
+    DeveloperContent,
+)
+ 
+from vllm import LLM, SamplingParams
+import os
+
+# --- 1) Render the prefill with Harmony ---
+encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
+ 
+convo = Conversation.from_messages(
+    [
+        Message.from_role_and_content(Role.SYSTEM, SystemContent.new()),
+        Message.from_role_and_content(
+            Role.DEVELOPER,
+            DeveloperContent.new().with_instructions("Always respond in riddles"),
+        ),
+        Message.from_role_and_content(Role.USER, "What is the weather like in SF?"),
+    ]
+)
+ 
+prefill_ids = encoding.render_conversation_for_completion(convo, Role.ASSISTANT)
+ 
+# Harmony stop tokens (pass to sampler so they won't be included in output)
+stop_token_ids = encoding.stop_tokens_for_assistant_actions()
+ 
+# --- 2) Run vLLM with prefill ---
+llm = LLM(
+    model="openai/gpt-oss-20b",
+    trust_remote_code=True,
+    gpu_memory_utilization = 0.95,
+    max_num_batched_tokens=4096,
+    max_model_len=5000,
+    tensor_parallel_size=1
+)
+ 
+sampling = SamplingParams(
+    max_tokens=128,
+    temperature=1,
+    stop_token_ids=stop_token_ids,
+)
+ 
+outputs = llm.generate(
+    prompt_token_ids=[prefill_ids],   # batch of size 1
+    sampling_params=sampling,
+)
+ 
+# vLLM gives you both text and token IDs
+gen = outputs[0].outputs[0]
+text = gen.text
+output_tokens = gen.token_ids  # <-- these are the completion token IDs (no prefill)
+ 
+# --- 3) Parse the completion token IDs back into structured Harmony messages ---
+entries = encoding.parse_messages_from_completion_tokens(output_tokens, Role.ASSISTANT)
+ 
+# 'entries' is a sequence of structured conversation entries (assistant messages, tool calls, etc.).
+for message in entries:
+    print(f"{json.dumps(message.to_dict())}")
+```
 
 #### PyTorch / Triton / Metal
 
@@ -116,7 +207,7 @@ Check out our [awesome list](./awesome-gpt-oss.md) for a broader collection of g
 This repository provides a collection of reference implementations:
 
 - **Inference:**
-  - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4x H100s because it's not optimized
+  - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4× H100 GPUs due to lack of optimization.
   - [`triton`](#reference-triton-implementation-single-gpu) — a more optimized implementation using [PyTorch](https://pytorch.org/) & [Triton](https://github.com/triton-lang/triton) incl. using CUDA graphs and basic caching
   - [`metal`](#reference-metal-implementation) — a Metal-specific implementation for running the models on Apple Silicon hardware
 - **Tools:**
@@ -130,7 +221,7 @@ This repository provides a collection of reference implementations:
 
 ### Requirements
 
-- python 3.12
+- Python 3.12
 - On macOS: Install the Xcode CLI tools --> `xcode-select --install`
 - On Linux: These reference implementations require CUDA
 - On Windows: These reference implementations have not been tested on Windows. Try using solutions like Ollama if you are trying to run the model locally.
@@ -161,20 +252,20 @@ You can download the model weights from the [Hugging Face Hub](https://huggingfa
 
 ```shell
 # gpt-oss-120b
-huggingface-cli download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
+hf download openai/gpt-oss-120b --include "original/*" --local-dir gpt-oss-120b/
 
 # gpt-oss-20b
-huggingface-cli download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
+hf download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
 ```
 
 ## Reference PyTorch implementation
 
 We include an inefficient reference PyTorch implementation in [gpt_oss/torch/model.py](gpt_oss/torch/model.py). This code uses basic PyTorch operators to show the exact model architecture, with a small addition of supporting tensor parallelism in MoE so that the larger model can run with this code (e.g., on 4xH100 or 2xH200). In this implementation, we upcast all weights to BF16 and run the model in BF16.
 
-To run the reference implementation. Install dependencies:
+To run the reference implementation, install the dependencies:
 
 ```shell
-pip install -e .[torch]
+pip install -e ".[torch]"
 ```
 
 And then run:
@@ -196,9 +287,10 @@ git clone https://github.com/triton-lang/triton
 cd triton/
 pip install -r python/requirements.txt
 pip install -e . --verbose --no-build-isolation
+pip install -e python/triton_kernels
 
 # Install the gpt-oss triton implementation
-pip install -e .[triton]
+pip install -e ".[triton]"
 ```
 
 And then run:
@@ -209,7 +301,7 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 python -m gpt_oss.generate --backend triton gpt-oss-120b/original/
 ```
 
-If you encounter `torch.OutOfMemoryError` make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
+If you encounter `torch.OutOfMemoryError`, make sure to turn on the expandable allocator to avoid crashes when loading weights from the checkpoint.
 
 ## Reference Metal implementation
 
@@ -218,7 +310,7 @@ Additionally we are providing a reference implementation for Metal to run on App
 The implementation will get automatically compiled when running the `.[metal]` installation on an Apple Silicon device:
 
 ```shell
-pip install -e .[metal]
+GPTOSS_BUILD_METAL=1 pip install -e ".[metal]"
 ```
 
 To perform inference you'll need to first convert the SafeTensor weights from Hugging Face into the right format using:
@@ -227,11 +319,11 @@ To perform inference you'll need to first convert the SafeTensor weights from Hu
 python gpt_oss/metal/scripts/create-local-model.py -s <model_dir> -d <output_file>
 ```
 
-Or download the pre-converted weight:
+Or download the pre-converted weights:
 
 ```shell
-huggingface-cli download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
-huggingface-cli download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
+hf download openai/gpt-oss-120b --include "metal/*" --local-dir gpt-oss-120b/metal/
+hf download openai/gpt-oss-20b --include "metal/*" --local-dir gpt-oss-20b/metal/
 ```
 
 To test it you can run:
@@ -250,7 +342,7 @@ We also include two system tools for the model: browsing and python container. C
 
 ### Terminal Chat
 
-The terminal chat application is a basic example on how to use the harmony format together with the PyTorch, Triton, and vLLM implementations. It also exposes both the python and browser tool as optional tools that can be used.
+The terminal chat application is a basic example of how to use the harmony format together with the PyTorch, Triton, and vLLM implementations. It also exposes both the python and browser tool as optional tools that can be used.
 
 ```bash
 usage: python -m gpt_oss.chat [-h] [-r REASONING_EFFORT] [-a] [-b] [--show-browser-results] [-p] [--developer-message DEVELOPER_MESSAGE] [-c CONTEXT] [--raw] [--backend {triton,torch,vllm}] FILE
@@ -279,7 +371,7 @@ options:
 ```
 
 > [!NOTE]
-> The torch and triton implementation requires original checkpoint under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `gpt-oss-120b/` and `gpt-oss-20b/` root directory respectively.
+> The torch and triton implementations require original checkpoint under `gpt-oss-120b/original/` and `gpt-oss-20b/original/` respectively. While vLLM uses the Hugging Face converted checkpoint under `gpt-oss-120b/` and `gpt-oss-20b/` root directory respectively.
 
 ### Responses API
 
@@ -289,7 +381,7 @@ You can start this server with the following inference backends:
 
 - `triton` — uses the triton implementation
 - `metal` — uses the metal implementation on Apple Silicon only
-- `ollama` — uses the Ollama /api/generate API as a inference solution
+- `ollama` — uses the Ollama /api/generate API as an inference solution
 - `vllm` — uses your installed vllm version to perform inference
 - `transformers` — uses your installed transformers version to perform local inference
 
@@ -334,7 +426,7 @@ codex -p oss
 ### Browser
 
 > [!WARNING]
-> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`ExaBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment.
+> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`YouComBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment. Currently we have available `YouComBackend` and `ExaBackend`. 
 
 Both gpt-oss models were trained with the capability to browse using the `browser` tool that exposes the following three methods:
 
@@ -344,20 +436,25 @@ Both gpt-oss models were trained with the capability to browse using the `browse
 
 #### Usage
 
-To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_browser()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
+To enable the browser tool, you'll have to place the definition into the `system` message of your harmony formatted prompt. You can either use the `with_browser_tool()` method if your tool implements the full interface or modify the definition using `with_tools()`. For example:
 
 ```python
 import datetime
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend
 from openai_harmony import SystemContent, Message, Conversation, Role, load_harmony_encoding, HarmonyEncodingName
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-# Exa backend requires you to have set the EXA_API_KEY environment variable
-backend = ExaBackend(
+# Depending on the choice of the browser backend you need corresponding env variables setup
+# In case you use You.com backend requires you to have set the YDC_API_KEY environment variable,
+# while for Exa you might need EXA_API_KEY environment variable set
+backend = YouComBackend(
     source="web",
 )
+# backend = ExaBackend(
+#  source="web",
+# )
 browser_tool = SimpleBrowserTool(backend=backend)
 
 # create a basic system prompt
@@ -370,7 +467,7 @@ if use_browser_tool:
     # enables the tool
     system_message_content = system_message_content.with_tools(browser_tool.tool_config)
     # alternatively you could use the following if your tool is not stateless
-    system_message_content = system_message_content.with_browser()
+    system_message_content = system_message_content.with_browser_tool()
 
 # construct the system message
 system_message = Message.from_role_and_content(Role.SYSTEM, system_message_content)
@@ -398,7 +495,7 @@ if last_message.recipient.startswith("browser"):
 
 #### Details
 
-To control the context window size this tool use a scrollable window of text that the model can interact with. So it might fetch the first 50 lines of a page and then scroll to the next 20 lines after that. The model has also been trained to then use citations from this tool in its answers.
+To control the context window size this tool uses a scrollable window of text that the model can interact with. So it might fetch the first 50 lines of a page and then scroll to the next 20 lines after that. The model has also been trained to then use citations from this tool in its answers.
 
 To improve performance the tool caches requests so that the model can revisit a different part of a page without having to reload the page. For that reason you should create a new browser instance for every request.
 
@@ -468,10 +565,10 @@ if last_message.recipient == "python":
 
 We released the models with native quantization support. Specifically, we use [MXFP4](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) for the linear projection weights in the MoE layer. We store the MoE tensor in two parts:
 
-- `tensor.blocks` stores the actual fp4 values. We pack every two value in one `uint8` value.
+- `tensor.blocks` stores the actual fp4 values. We pack every two values in one `uint8` value.
 - `tensor.scales` stores the block scale. The block scaling is done among the last dimension for all MXFP4 tensors.
 
-All other tensors will be in BF16. We also recommend use BF16 as the activation precision for the model.
+All other tensors will be in BF16. We also recommend using BF16 as the activation precision for the model.
 
 ### Recommended Sampling Parameters
 
@@ -482,3 +579,17 @@ We recommend sampling with `temperature=1.0` and `top_p=1.0`.
 The reference implementations in this repository are meant as a starting point and inspiration. Outside of bug fixes we do not intend to accept new feature contributions. If you build implementations based on this code such as new tool implementations you are welcome to contribute them to the [`awesome-gpt-oss.md`](./awesome-gpt-oss.md) file.
 
 [harmony]: https://github.com/openai/harmony
+
+## Citation
+
+```bibtex
+@misc{openai2025gptoss120bgptoss20bmodel,
+      title={gpt-oss-120b & gpt-oss-20b Model Card}, 
+      author={OpenAI},
+      year={2025},
+      eprint={2508.10925},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2508.10925}, 
+}
+```
