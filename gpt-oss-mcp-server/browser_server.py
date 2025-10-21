@@ -6,7 +6,7 @@ from typing import Union, Optional
 
 from mcp.server.fastmcp import Context, FastMCP
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend, ParallelBackend
 
 @dataclass
 class AppContext:
@@ -15,7 +15,9 @@ class AppContext:
     def create_or_get_browser(self, session_id: str) -> SimpleBrowserTool:
         if session_id not in self.browsers:
             tool_backend = os.getenv("BROWSER_BACKEND", "exa")
-            if tool_backend == "youcom":
+            if tool_backend == "parallel":
+                backend = ParallelBackend(source="web")
+            elif tool_backend == "youcom":
                 backend = YouComBackend(source="web")
             elif tool_backend == "exa":
                 backend = ExaBackend(source="web")

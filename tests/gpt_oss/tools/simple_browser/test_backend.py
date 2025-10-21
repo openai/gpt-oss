@@ -3,7 +3,7 @@ from typing import Generator, Any
 from unittest import mock
 from aiohttp import ClientSession
 
-from gpt_oss.tools.simple_browser.backend import YouComBackend
+from gpt_oss.tools.simple_browser.backend import YouComBackend, ParallelBackend
 
 class MockAiohttpResponse:
     """Mocks responses for get/post requests from async libraries."""
@@ -22,7 +22,7 @@ class MockAiohttpResponse:
         return self
 
 def mock_os_environ_get(name: str, default: Any = "test_api_key"):
-    assert name in ["YDC_API_KEY"]
+    assert name in ["YDC_API_KEY", "PARALLEL_API_KEY"]
     return default
 
 def test_youcom_backend():
@@ -67,4 +67,40 @@ async def test_youcom_backend_fetch(mock_session_get):
         assert result.text == "\nURL: https://www.example.com/fetch1\nFetch Result 1 text"
 
 
-    
+def test_parallel_backend():
+    backend = ParallelBackend(source="web")
+    assert backend.source == "web"
+
+@pytest.mark.asyncio
+@mock.patch("aiohttp.ClientSession.post")
+async def test_parallel_backend_search(mock_session_post):
+    backend = ParallelBackend(source="web")
+    api_response = {
+        "results": [
+            {"title": "Result 1", "url": "https://www.example.com/1", "excerpts": ["Excerpt 1a", "Excerpt 1b"]},
+            {"title": "Result 2", "url": "https://www.example.com/2", "excerpts": ["Excerpt 2a"]},
+            {"title": "Result 3", "url": "https://www.example.com/3", "excerpts": []},
+        ]
+    }
+    with mock.patch("os.environ.get", wraps=mock_os_environ_get):
+        mock_session_post.return_value = MockAiohttpResponse(api_response, 200)
+        async with ClientSession() as session:
+            result = await backend.search(query="test query", topn=10, session=session)
+        assert result.title == "test query"
+        assert result.urls == {"0": "https://www.example.com/1", "1": "https://www.example.com/2", "2": "https://www.example.com/3"}
+
+@pytest.mark.asyncio
+@mock.patch("aiohttp.ClientSession.post")
+async def test_parallel_backend_fetch(mock_session_post):
+    backend = ParallelBackend(source="web")
+    api_response = {
+        "results": [
+            {"title": "Page Title", "url": "https://www.example.com/page", "full_content": "This is the full page content"},
+        ]
+    }
+    with mock.patch("os.environ.get", wraps=mock_os_environ_get):
+        mock_session_post.return_value = MockAiohttpResponse(api_response, 200)
+        async with ClientSession() as session:
+            result = await backend.fetch(url="https://www.example.com/page", session=session)
+        assert result.title == "Page Title"
+        assert "This is the full page content" in result.text
