@@ -87,6 +87,7 @@ struct gptoss_model {
     struct gptoss_metal_function f32_mf4w_moe_dense_matmul_swiglu_fn;
     struct gptoss_metal_function f32_mf4w_moe_dense_matmul_fn;
     struct gptoss_metal_function f32_gather_and_accumulate_e4_fn;
+    struct gptoss_metal_function f32_expert_routing_metadata_fn;
     struct gptoss_metal_function f32_topk_softmax_e32_k4_fn;
     struct gptoss_metal_function f32_topk_softmax_e128_k4_fn;
     struct gptoss_metal_function f32_sdpa_q8_d64_fn;

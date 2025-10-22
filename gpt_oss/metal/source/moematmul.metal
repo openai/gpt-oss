@@ -227,11 +227,12 @@ kernel void gptoss_f32_mf4w_moe_matmul(
 
 kernel void gptoss_f32_mf4w_moe_dense_matmul_swiglu(
     constant gptoss_moe_dense_matmul_swiglu_args& params [[ buffer(0) ]],
-    const device float* lhs [[ buffer(1) ]],
-    const device uint* weight_blocks [[ buffer(2) ]],
-    const device uchar* weight_scales [[ buffer(3) ]],
-    const device bfloat* __restrict__ bias [[ buffer(4) ]],
-    device float* out [[ buffer(5) ]],
+    const device uint* __restrict__ expert_offsets [[ buffer(1) ]],
+    const device float* lhs [[ buffer(2) ]],
+    const device uint* weight_blocks [[ buffer(3) ]],
+    const device uchar* weight_scales [[ buffer(4) ]],
+    const device bfloat* __restrict__ bias [[ buffer(5) ]],
+    device float* out [[ buffer(6) ]],
     uint sg_id [[simdgroup_index_in_threadgroup]],
     uint3 threads_per_tg [[threads_per_threadgroup]],
     uint sg_count_per_tg [[dispatch_simdgroups_per_threadgroup]],
@@ -256,7 +257,7 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul_swiglu(
 
     const uint K = params.k;
     const uint N = params.n;
-    const uint M = params.expert_token_count;
+    const uint M = expert_offsets[tg_id.z + 1] - expert_offsets[tg_id.z];
     assert((K % 32) == 0);
     assert((K % 8) == 0);
     assert(N % Bn == 0);
@@ -271,11 +272,11 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul_swiglu(
         return;
     }
     // Move lhs and output according to the passed offset.
-    lhs += params.expert_token_offset * K;
+    const uint expert_offset = expert_offsets[tg_id.z];
+    lhs += expert_offset * K;
     const uint N_output = N / 2;
-    out += params.expert_token_offset * N_output;
+    out += expert_offset * N_output;
 
-    const uint e = params.expert_id;
     const uint S = params.weight_blocks_expert_stride_bytes;
     const uint S_scales = params.weight_scales_expert_stride_bytes;
     const uint S_bias = params.bias_expert_stride_bytes;
@@ -284,9 +285,9 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul_swiglu(
     const device char* sc0 = reinterpret_cast<const device char*>(weight_scales);
     const device char* bi0 = reinterpret_cast<const device char*>(bias);
 
-    weight_blocks = reinterpret_cast<const device uint*>(wb0 + e * S);
-    weight_scales = reinterpret_cast<const device uchar*>(sc0 + e * S_scales);
-    bias = reinterpret_cast<const device bfloat*>(bi0 + e * S_bias);
+    weight_blocks = reinterpret_cast<const device uint*>(wb0 + tg_id.z * S);
+    weight_scales = reinterpret_cast<const device uchar*>(sc0 + tg_id.z * S_scales);
+    bias = reinterpret_cast<const device bfloat*>(bi0 + tg_id.z * S_bias);
 
     const uint sg_col_count = Bn / Sg_Bn;
     const uint row_sg = sg_id / sg_col_count;
@@ -471,11 +472,12 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul_swiglu(
 
 kernel void gptoss_f32_mf4w_moe_dense_matmul(
     constant gptoss_moe_dense_matmul_args& params [[ buffer(0) ]],
-    const device float* lhs [[ buffer(1) ]],
-    const device uint* weight_blocks [[ buffer(2) ]],
-    const device uchar* weight_scales [[ buffer(3) ]],
-    const device bfloat* __restrict__ bias [[ buffer(4) ]],
-    device float* out [[ buffer(5) ]],
+    const device uint* __restrict__ expert_offsets [[ buffer(1) ]],
+    const device float* lhs [[ buffer(2) ]],
+    const device uint* weight_blocks [[ buffer(3) ]],
+    const device uchar* weight_scales [[ buffer(4) ]],
+    const device bfloat* __restrict__ bias [[ buffer(5) ]],
+    device float* out [[ buffer(6) ]],
     uint sg_id [[simdgroup_index_in_threadgroup]],
     uint3 threads_per_tg [[threads_per_threadgroup]],
     uint sg_count_per_tg [[dispatch_simdgroups_per_threadgroup]],
@@ -498,7 +500,7 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul(
 
     const uint K = params.k;
     const uint N = params.n;
-    const uint M = params.expert_token_count;
+    const uint M = expert_offsets[tg_id.z + 1] - expert_offsets[tg_id.z];
     assert((K % 32) == 0);
     assert((K % 8) == 0);
     assert(N % Bn == 0);
@@ -513,10 +515,10 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul(
         return;
     }
     // Move lhs and output according to the passed offset.
-    lhs += params.expert_token_offset * K;
-    out += params.expert_token_offset * N;
+    const uint expert_offset = expert_offsets[tg_id.z];
+    lhs += expert_offset * K;
+    out += expert_offset * N;
 
-    const uint e = params.expert_id;
     const uint S = params.weight_blocks_expert_stride_bytes;
     const uint S_scales = params.weight_scales_expert_stride_bytes;
     const uint S_bias = params.bias_expert_stride_bytes;
@@ -525,9 +527,9 @@ kernel void gptoss_f32_mf4w_moe_dense_matmul(
     const device char* sc0 = reinterpret_cast<const device char*>(weight_scales);
     const device char* bi0 = reinterpret_cast<const device char*>(bias);
 
-    weight_blocks = reinterpret_cast<const device uint*>(wb0 + e * S);
-    weight_scales = reinterpret_cast<const device uchar*>(sc0 + e * S_scales);
-    bias = reinterpret_cast<const device bfloat*>(bi0 + e * S_bias);
+    weight_blocks = reinterpret_cast<const device uint*>(wb0 + tg_id.z * S);
+    weight_scales = reinterpret_cast<const device uchar*>(sc0 + tg_id.z * S_scales);
+    bias = reinterpret_cast<const device bfloat*>(bi0 + tg_id.z * S_bias);
 
     const uint sg_col_count = Bn / Sg_Bn;
     const uint row_sg = sg_id / sg_col_count;

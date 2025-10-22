@@ -111,11 +111,8 @@ struct gptoss_scatter_args {
 };
 
 struct gptoss_moe_dense_matmul_swiglu_args {
-    uint32_t expert_token_count;
     uint32_t k;
     uint32_t n;
-    uint32_t expert_id;
-    uint32_t expert_token_offset;
     uint32_t weight_blocks_expert_stride_bytes;
     uint32_t weight_scales_expert_stride_bytes;
     uint32_t bias_expert_stride_bytes;
@@ -123,14 +120,16 @@ struct gptoss_moe_dense_matmul_swiglu_args {
     float swiglu_max;
 };
 struct gptoss_moe_dense_matmul_args {
-    uint32_t expert_token_count;
     uint32_t k;
     uint32_t n;
-    uint32_t expert_id;
-    uint32_t expert_token_offset;
     uint32_t weight_blocks_expert_stride_bytes;
     uint32_t weight_scales_expert_stride_bytes;
     uint32_t bias_expert_stride_bytes;
+};
+
+struct gptoss_expert_routing_metadata_args {
+uint32_t tokens;
+    uint32_t num_experts;
 };
 
 struct gptoss_gather_args {
