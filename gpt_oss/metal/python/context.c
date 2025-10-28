@@ -11,7 +11,6 @@ static int PyGPTOSSContext_init(PyGPTOSSContext* self, PyObject* args, PyObject*
     Py_ssize_t context_length = 0; // Default to 0 if None
     Py_ssize_t max_batch_tokens = 0; // Default to 0 if None
 
-    PyObject* model = NULL;
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!|$ii", kwlist,
                                      &PyGPTOSSModel_Type, &model,
                                      &context_length, &max_batch_tokens))
