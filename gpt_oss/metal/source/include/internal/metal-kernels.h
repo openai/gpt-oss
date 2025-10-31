@@ -171,11 +171,15 @@ gptoss_metal_command_buffer_encode_launch_f32_bf16w_dense_matmul_qkv(
     size_t bias_offset,
     const struct gptoss_metal_buffer* output_buffer,
     size_t output_offset,
+    const struct gptoss_metal_buffer* kv_buffer,
+    size_t kv_offset,
     const struct gptoss_metal_buffer* control_buffer,
     size_t control_offset,
     uint32_t num_tokens,
     uint32_t num_cols,
-    uint32_t num_rows);
+    uint32_t num_rows,
+    uint32_t max_tokens,
+    uint32_t token_offset);
 
 enum gptoss_status
 gptoss_metal_command_buffer_encode_launch_f32_bf16w_dense_matmul_attn_output(
@@ -287,6 +291,8 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_rope(
     size_t threadgroup_size,
     const struct gptoss_metal_buffer* activations_buffer,
     size_t activations_offset,
+    const struct gptoss_metal_buffer* kv_buffer,
+    size_t kv_offset,
     const struct gptoss_metal_buffer* control_buffer,
     size_t control_offset,
     float rope_base,
@@ -298,6 +304,7 @@ enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_rope(
     uint32_t num_q_heads,
     uint32_t num_kv_heads,
     uint32_t attn_head_dim,
+    uint32_t max_tokens,
     uint32_t token_offset);
 
 enum gptoss_status gptoss_metal_command_buffer_encode_launch_f32_accumulate(

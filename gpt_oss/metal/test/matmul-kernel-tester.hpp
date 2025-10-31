@@ -116,6 +116,10 @@ public:
         metal::Buffer bias_buffer{device_, num_rows() * sizeof(gptoss_bfloat16)};
         metal::Buffer output_buffer{device_, num_tokens() * num_rows() * sizeof(float)};
         metal::Buffer output_buffer_copy{device_, num_tokens() * num_rows() * sizeof(float)};
+        // KV cache buffer for PREFILL_QKV_OPTIMIZED: assume head_dim=64, num_kv_heads=8
+        const std::uint32_t kHeadDim = 64;
+        const std::uint32_t kNumKvHeads = 8;
+        metal::Buffer kv_cache_buffer{device_, static_cast<std::size_t>(kNumKvHeads) * num_tokens() * 2 * kHeadDim * sizeof(float)};
         metal::Buffer control_buffer{device_, sizeof(gptoss_control)};
         std::memset(control_buffer.ptr(), 0, sizeof(gptoss_control));
 
@@ -189,8 +193,10 @@ public:
                     /*input_offset=*/0, weight_buffer.handle(),
                     /*weight_offset=*/0, bias_buffer.handle(),
                     /*bias_offset=*/0, output_buffer.handle(),
-                    /*output_offset=*/0, control_buffer.handle(),
-                    /*control_offset=*/0, num_tokens(), num_cols(), num_rows()),
+                    /*output_offset=*/0, kv_cache_buffer.handle(),
+                    /*kv_offset=*/0, control_buffer.handle(),
+                    /*control_offset=*/0, num_tokens(), num_cols(), num_rows(),
+                    /*max_tokens=*/num_tokens(), /*token_offset=*/0),
                 "gptoss_metal_command_buffer_encode_launch_f32_bf16w_dense_matmul_qkv");
             break;
         case MatMulKernelType::PREFILL_ATTN_OUTPUT_OPTIMIZED:
@@ -226,6 +232,7 @@ public:
         const gptoss_bfloat16* weight_ptr = static_cast<const gptoss_bfloat16*>(weight_buffer.ptr());
         const gptoss_bfloat16* bias_ptr = static_cast<const gptoss_bfloat16*>(bias_buffer.ptr());
         const float* output_ptr = static_cast<const float*>(output_buffer.ptr());
+        const float* kv_ptr = static_cast<const float*>(kv_cache_buffer.ptr());
         const float* output_ptr_copy = static_cast<const float*>(output_buffer_copy.ptr());
         for (size_t t = 0; t < num_tokens(); t++) {
             for (size_t r = 0; r < num_rows(); r++) {
@@ -239,6 +246,20 @@ public:
                 if (kernel_type ==
                     MatMulKernelType::PREFILL_ATTN_OUTPUT_OPTIMIZED) {
                     ref_sum += upcast<double>(output_ptr_copy[t * num_rows() + r]);
+                }
+                if (kernel_type == MatMulKernelType::PREFILL_QKV_OPTIMIZED) {
+                    // In this optimized path, V rows are written to the kv cache at index 1.
+                    // Assume num_q_heads=64, num_kv_heads=8, head_dim=64 and QKV packed as [Q][K][V].
+                    const std::size_t v_rows_start = (64 + 8) * 64; // rows offset where V begins
+                    if (r >= v_rows_start) {
+                        const std::size_t v_row_index = r - v_rows_start;
+                        const std::size_t kv_head = v_row_index / kHeadDim;
+                        const std::size_t d = v_row_index % kHeadDim;
+                        const std::size_t kv_base = ((kv_head * num_tokens() + t) * 2 + 1) * kHeadDim;
+                        ASSERT_NEAR_ABS_REL(upcast<double>(kv_ptr[kv_base + d]), ref_sum, 2.0e-4, 1.0e-4)
+                            << "token " << t << ", v-row " << r;
+                        continue;
+                    }
                 }
                 ASSERT_NEAR_ABS_REL(upcast<double>(output_ptr[t * num_rows() + r]),
                                     ref_sum, 2.0e-4, 1.0e-4)

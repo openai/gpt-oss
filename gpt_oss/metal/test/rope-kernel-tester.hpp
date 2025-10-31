@@ -112,6 +112,11 @@ public:
 
         metal::Buffer activations_buffer{device_, (num_tokens() * num_qkv_heads() + num_qk_heads()) * head_dim() * sizeof(float)};
         metal::Buffer ref_activations_buffer{device_, (num_tokens() * num_qkv_heads() + num_qk_heads()) * head_dim() * sizeof(float)};
+        // KV cache buffer layout: [num_kv_heads][max_tokens][2 (K,V)][head_dim]
+        const std::uint32_t max_tokens = num_tokens();
+        const std::uint32_t kv_heads_for_alloc = std::max<std::uint32_t>(1, num_kv_heads());
+        const std::size_t kv_bytes = static_cast<std::size_t>(kv_heads_for_alloc) * max_tokens * 2 * head_dim() * sizeof(float);
+        metal::Buffer kv_cache_buffer{device_, kv_bytes};
         metal::Buffer control_buffer{device_, sizeof(gptoss_control)};
         std::memset(control_buffer.ptr(), 0, sizeof(gptoss_control));
 
@@ -141,6 +146,8 @@ public:
                 threadgroup_size(),
                 activations_buffer.handle(),
                 /*activations_offset=*/0,
+                kv_cache_buffer.handle(),
+                /*kv_offset=*/0,
                 control_buffer.handle(),
                 /*control_offset=*/0,
                 frequency_base(),
@@ -152,6 +159,7 @@ public:
                 /*num_q_heads=*/num_q_heads(),
                 /*num_kv_heads=*/num_kv_heads(),
                 head_dim(),
+                /*max_tokens=*/max_tokens,
                 /*token_offset=*/token_offset()),
             "gptoss_metal_command_buffer_encode_launch_f32_rope");
 
@@ -160,8 +168,10 @@ public:
 
         const float* ref_activations_ptr = static_cast<const float*>(ref_activations_buffer.ptr());
         const float* activations_ptr = static_cast<const float*>(activations_buffer.ptr());
+        const float* kv_ptr = static_cast<const float*>(kv_cache_buffer.ptr());
         for (std::uint32_t t = 0; t < num_tokens(); t++) {
-            for (std::uint32_t h = 0; h < num_qk_heads(); h++) {
+            // Validate rotated Q written in-place in activations
+            for (std::uint32_t h = 0; h < num_q_heads(); h++) {
                 for (std::uint32_t d = 0; d < head_dim(); d += 2) {
                     const double inv_freq = 1.0 /
                         std::pow(static_cast<double>(frequency_base()), static_cast<double>(d) / static_cast<double>(head_dim()));
@@ -200,7 +210,7 @@ private:
     std::size_t threadgroup_size_{32};
     std::uint32_t head_dim_{64};
     std::uint32_t num_q_heads_{1};
-    std::uint32_t num_kv_heads_{0};
+    std::uint32_t num_kv_heads_{1};
     std::uint32_t num_tokens_{1};
     std::uint32_t token_offset_{0};
     float frequency_base_{50000.0f};

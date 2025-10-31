@@ -358,12 +358,13 @@ inline void _gptoss_f32_bf16w_dense_matmul_impl(
 }
 
 kernel void gptoss_f32_bf16w_dense_matmul_qkv(
-    constant gptoss_dense_matmul_args& args [[buffer(0)]],
+    constant gptoss_dense_matmul_qkv_args& args [[buffer(0)]],
     const device float* lhs [[buffer(1)]],
     const device bfloat* rhs [[buffer(2)]],
     const device bfloat* __restrict__ bias [[buffer(3)]],
     device float* out [[buffer(4)]],
-    const device gptoss_control* control [[buffer(5)]],
+    device float* kv [[buffer(5)]],
+    const device gptoss_control* control [[buffer(6)]],
     uint sg_id [[simdgroup_index_in_threadgroup]],
     uint sg_count_per_tg [[dispatch_simdgroups_per_threadgroup]],
     uint3 gid [[thread_position_in_grid]],
@@ -372,10 +373,128 @@ kernel void gptoss_f32_bf16w_dense_matmul_qkv(
     uint3 threadgroup_size [[threads_per_threadgroup]]) {
     threadgroup float scratch[QKV_Bm * QKV_Bn];
     threadgroup float bias_tile[QKV_Bn];
-    _gptoss_f32_bf16w_dense_matmul_impl<QKV_Bm, QKV_Bn, QKV_Bk, QKV_Sg_Bm,
-                                        QKV_Sg_Bn>(
-        args, lhs, rhs, bias, out, control, scratch, bias_tile, sg_id, sg_count_per_tg,
-        gid, tg_id, local_tid, threadgroup_size);
+    if (control->abort != 0) {
+        return;
+    }
+
+    // The kernel assumes that QKV_Bm, QKV_Bn, QKV_Bk, QKV_Sg_Bm, QKV_Sg_Bn are divisible by 8.
+    const uint M = args.m;
+    const uint K = args.k;
+    const uint N = args.n;
+    const uint Bm = QKV_Bm;
+    const uint Bn = QKV_Bn;
+    const uint Bk = QKV_Bk;
+    const uint Sg_Bm = QKV_Sg_Bm;
+    const uint Sg_Bn = QKV_Sg_Bn;
+    static_assert((Bm % 8u) == 0u, "Bm must be a multiple of 8");
+    static_assert((Bn % 8u) == 0u, "Bn must be a multiple of 8");
+    static_assert((Bk % 8u) == 0u, "Bk must be a multiple of 8");
+    static_assert((Sg_Bm % 8u) == 0u, "Bk must be a multiple of 8");
+    static_assert((Sg_Bn % 8u) == 0u, "Bk must be a multiple of 8");
+    static_assert((Bn % Sg_Bn) == 0u, "Bn must be a multiple of Sg_Bn");
+    static_assert((Bm % Sg_Bm) == 0u, "Bm must be a multiple of Sg_Bm");
+
+    // Get row and col tg.
+    const uint row_tg = tg_id.y;
+    const uint col_tg = tg_id.x;
+    // Get row and col local tid.
+    const uint row_tg_offset = row_tg * Bm;
+    const uint col_tg_offset = col_tg * Bn;
+
+    const uint sg_col_count = Bn / Sg_Bn;
+    const uint row_sg = sg_id / sg_col_count;
+    const uint col_sg = sg_id % sg_col_count;
+
+    const uint row_sg_offset = row_sg * Sg_Bm;
+    const uint col_sg_offset = col_sg * Sg_Bn;
+    constexpr uint temp_result_size = (Sg_Bm / 8) * (Sg_Bn / 8);
+    // Create an array of simdgroup_float8x8 to hold temp results.
+    metal::simdgroup_float8x8 OutTiles[temp_result_size];
+#pragma clang loop unroll(full)
+    for (uint i = 0; i < temp_result_size; i++) {
+        OutTiles[i] = metal::make_filled_simdgroup_matrix<float, 8, 8>(
+            static_cast<float>(0.0));
+    }
+
+    for (uint k_offset = 0; k_offset < K; k_offset += Bk) {
+#pragma clang loop unroll(full)
+        for (uint k = 0; k < Bk; k += 8) {
+#pragma clang loop unroll(full)
+            for (uint m_subtile_ = 0; m_subtile_ < Sg_Bm; m_subtile_ += 8) {
+                const uint row_index_in_out_tile = m_subtile_ / 8;
+                metal::simdgroup_float8x8 LHStile;
+                const uint k_id = k + k_offset;
+                const uint row_offset = row_tg_offset + row_sg_offset + m_subtile_;
+                metal::simdgroup_load(LHStile, lhs, K, ulong2(k_id, row_offset));
+                metal::simdgroup_bfloat8x8 RHStile;
+#pragma clang loop unroll(full)
+                for (uint n_subtile_ = 0; n_subtile_ < Sg_Bn; n_subtile_ += 8) {
+                    const uint col_index_in_out_tile = n_subtile_ / 8;
+                    const uint current_index_out_tile =
+                        row_index_in_out_tile * (Sg_Bn / 8) + col_index_in_out_tile;
+                    const uint col_offset = col_tg_offset + col_sg_offset + n_subtile_;
+                    simdgroup_load(RHStile, rhs, K, ulong2(k_id, col_offset), /*transpose=*/true);
+                    simdgroup_multiply_accumulate(OutTiles[current_index_out_tile],
+                                                  LHStile, RHStile,
+                                                  OutTiles[current_index_out_tile]);
+                }
+            }
+        }
+    }
+    // Epilogue.
+#pragma clang loop unroll(full)
+    for (uint n_subtile_ = 0; n_subtile_ < Sg_Bn; n_subtile_ += 8) {
+        const uint col_index_in_out_tile = n_subtile_ / 8;
+        const uint local_col_offset = col_sg_offset + n_subtile_;
+#pragma clang loop unroll(full)
+        for (uint m_subtile_ = 0; m_subtile_ < Sg_Bm; m_subtile_ += 8) {
+            const uint row_index_in_out_tile = m_subtile_ / 8;
+            const uint local_row_offset = row_sg_offset + m_subtile_;
+            const uint current_index_out_tile =
+                row_index_in_out_tile * (Sg_Bn / 8) + col_index_in_out_tile;
+            simdgroup_store(OutTiles[current_index_out_tile], scratch, Bn,
+                            ulong2(local_col_offset, local_row_offset));
+        }
+    }
+    // TODO(ibahmed): vectorize these loads an maybe unroll the loop.
+    const uint thread_count_per_tg =
+        threadgroup_size.x * threadgroup_size.y * threadgroup_size.z;
+    for (uint c_local = local_tid.x; c_local < Bn;
+         c_local += thread_count_per_tg) {
+        const uint c_global = col_tg_offset + c_local;
+        bias_tile[c_local] =
+            (c_global < N) ? static_cast<float>(bias[c_global]) : 0.0f;
+    }
+
+    metal::threadgroup_barrier(metal::mem_flags::mem_threadgroup);
+    const uint q_heads = 64;
+    const uint kv_heads = 8;
+    const uint head_dim = 64;
+    const uint q_cols = q_heads * head_dim;
+    const uint k_cols = kv_heads * head_dim;
+
+    // TODO(ibahmed): vectorize these stores and maybe unroll the loop.
+    for (uint idx = local_tid.x; idx < Bm * Bn; idx += thread_count_per_tg) {
+        const uint r = idx / Bn;
+        const uint c = idx % Bn;
+
+        const uint out_row = row_tg_offset + r;
+        const uint out_col = col_tg_offset + c;
+
+        if (out_row < M && out_col < N) {
+            float acc = scratch[idx] + bias_tile[c];
+            if ((out_col < q_cols + k_cols)) {
+                out[out_row * N + out_col] = acc;
+            } else {
+                // Write v into kv cache.
+                const uint v_col = out_col - q_cols - k_cols;
+                const uint v_head = v_col / head_dim;
+                const uint dim_idx = v_col % head_dim;
+                const uint token_idx = args.token_offset + out_row;
+                kv[(v_head * args.max_tokens + token_idx) * 2 * head_dim + head_dim + dim_idx] = acc;
+            }
+        }
+    }
 }
 
 kernel void gptoss_f32_bf16w_dense_matmul_attn_output(
