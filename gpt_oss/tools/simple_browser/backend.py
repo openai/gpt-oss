@@ -296,7 +296,7 @@ class ParallelBackend(Backend):
         titles_and_urls = []
         if "results" in data:
             titles_and_urls = [
-                (result["title"], result["url"], " ".join(result.get("excerpts", [])))
+                (result["title"], result["url"], " ".join(result.get("excerpts", []) or []))
                 for result in data["results"]
             ]
         html_page = f"""
