@@ -46,7 +46,7 @@ def compute_routing(logits, n_expts_act, n_expts_tot):
 
     rdata = RoutingData(
         gate_scal,
-        ragged_batch_metadata.batch_sizes,
+        ragged_batch_metadata.slice_sizes,
         n_expts_tot,
         n_expts_act,
         ragged_batch_metadata
