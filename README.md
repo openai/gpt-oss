@@ -78,16 +78,33 @@ print(outputs[0]["generated_text"][-1])
 
 #### vLLM
 
-vLLM recommends using [`uv`](https://docs.astral.sh/uv/) for Python dependency management. You can use vLLM to spin up an OpenAI-compatible web server. The following command will automatically download the model and start the server.
+
+**If your container/environment ALREADY HAS CUDA libraries pre-installed**:
 
 ```bash
-uv pip install --pre vllm==0.10.1+gptoss \
-    --extra-index-url https://wheels.vllm.ai/gpt-oss/ \
-    --extra-index-url https://download.pytorch.org/whl/nightly/cu128 \
-    --index-strategy unsafe-best-match
+uv pip install vllm==0.11.0 huggingface_hub[hf_transfer]==0.35.0 flashinfer-python==0.3.1
+```
 
+No extra steps required—vllm will detect your CUDA setup, and manage the correct torch version automatically.
+
+**If your environment DOES NOT have CUDA libraries installed** (e.g., plain Ubuntu, minimal Python install, or a non-CUDA VM):
+
+```bash
+uv pip install vllm==0.11.0 \
+    --extra-index-url https://download.pytorch.org/whl/nightly/cu128 \
+    huggingface_hub[hf_transfer]==0.35.0 \
+    flashinfer-python==0.3.1
+```
+
+You may need to change `cu128` to match your system CUDA version (e.g., `cu121`, `cu118`, etc.).
+
+**Serve the model:**
+
+```bash
 vllm serve openai/gpt-oss-20b
 ```
+
+> **Tip:** For most cloud or Docker GPU setups, use the first install command (no extra index). If you encounter CUDA or torch import errors on a bare-metal system, use the second install command.
 
 [Learn more about how to use gpt-oss with vLLM.](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 
