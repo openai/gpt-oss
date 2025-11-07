@@ -235,8 +235,6 @@ def replace_node_with_text(node: lxml.html.HtmlElement, text: str) -> None:
 
 def replace_images(
     root: lxml.html.HtmlElement,
-    base_url: str,
-    session: aiohttp.ClientSession | None,
 ) -> None:
     """Finds all image tags and replaces them with numbered placeholders (includes alt/title if available)."""
     cnt = 0
@@ -274,11 +272,7 @@ def process_html(
         final_title = ""
 
     urls = _clean_links(root, url)
-    replace_images(
-        root=root,
-        base_url=url,
-        session=session,
-    )
+    replace_images(root=root)
     _remove_math(root)
     clean_html = lxml.etree.tostring(root, encoding="UTF-8").decode()
     text = html_to_text(clean_html)
