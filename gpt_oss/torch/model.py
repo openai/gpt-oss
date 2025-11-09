@@ -312,7 +312,7 @@ class MLPBlock(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         t = self.norm(x)
         g = self.gate(t)
-        experts = torch.topk(g, k=self.experts_per_token, dim=-1, sorted=True)
+        experts = torch.topk(g, k=self.experts_per_token, dim=-1)
         expert_weights = torch.nn.functional.softmax(experts.values, dim=1)
         expert_indices = experts.indices
 
