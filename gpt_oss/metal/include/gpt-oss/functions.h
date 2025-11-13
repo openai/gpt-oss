@@ -168,8 +168,9 @@ enum gptoss_status GPTOSS_ABI gptoss_tokenizer_release(
  * @param model Model object to create a context for.
  * @param context_length Maximum number of tokens in the context.
  *                       Specify 0 to use the maximum context length supported by the model.
- * @param batch_size Maximum number of tokens that can be processed in a single batch.
- *                   Larger values may improve performance, but require more memory.
+ * @param max_batch_size Maximum number of tokens that can be processed in a single batch.
+ *                       Larger values may improve prefill performance, but require more memory.
+ *                       Specify 0 to use the default value.
  * @param context_out Pointer to the Context object that will be created.
  *                    Must be released with gptoss_release_context.
  *
@@ -179,6 +180,7 @@ enum gptoss_status GPTOSS_ABI gptoss_tokenizer_release(
 enum gptoss_status GPTOSS_ABI gptoss_context_create(
     gptoss_model_t model,
     size_t context_length,
+    size_t max_batch_tokens,
     gptoss_context_t* context_out);
 
 /*
@@ -290,7 +292,9 @@ enum gptoss_status GPTOSS_ABI gptoss_context_sample(
     gptoss_context_t context,
     float temperature,
     uint64_t seed,
-    uint32_t* token_out);
+    size_t max_tokens,
+    uint32_t* tokens_out,
+    size_t* num_tokens_out);
 
 /*
  * Increments a Context object's reference count.

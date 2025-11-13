@@ -134,6 +134,7 @@ def run(container):
     )
 
     text_delta = ""
+    code_interpreter_sessions: dict[str, dict] = {}
 
     _current_output_index = 0
     for line in response.iter_lines(decode_unicode=True):
@@ -166,8 +167,25 @@ def run(container):
                 )
                 placeholder = output.empty()
             elif output_type == "code_interpreter_call":
-                output = container.chat_message("code_interpreter_call", avatar="🧪")
-                placeholder = output.empty()
+                item = data.get("item", {})
+                item_id = item.get("id")
+                message_container = container.chat_message(
+                    "code_interpreter_call", avatar="🧪"
+                )
+                status_placeholder = message_container.empty()
+                code_placeholder = message_container.empty()
+                outputs_container = message_container.container()
+                code_text = item.get("code") or ""
+                if code_text:
+                    code_placeholder.code(code_text, language="python")
+                code_interpreter_sessions[item_id] = {
+                    "status": status_placeholder,
+                    "code": code_placeholder,
+                    "outputs": outputs_container,
+                    "code_text": code_text,
+                    "rendered_outputs": False,
+                }
+                placeholder = status_placeholder
             text_delta = ""
         elif event_type == "response.reasoning_text.delta":
             output.avatar = "🤔"
@@ -186,17 +204,77 @@ def run(container):
             if item.get("type") == "web_search_call":
                 placeholder.markdown("✅ Done")
             if item.get("type") == "code_interpreter_call":
-                placeholder.markdown("✅ Done")
+                item_id = item.get("id")
+                session = code_interpreter_sessions.get(item_id)
+                if session:
+                    session["status"].markdown("✅ Done")
+                    final_code = item.get("code") or session["code_text"]
+                    if final_code:
+                        session["code"].code(final_code, language="python")
+                        session["code_text"] = final_code
+                    outputs = item.get("outputs") or []
+                    if outputs and not session["rendered_outputs"]:
+                        with session["outputs"]:
+                            st.markdown("**Outputs**")
+                            for output_item in outputs:
+                                output_type = output_item.get("type")
+                                if output_type == "logs":
+                                    st.code(
+                                        output_item.get("logs", ""),
+                                        language="text",
+                                    )
+                                elif output_type == "image":
+                                    st.image(
+                                        output_item.get("url", ""),
+                                        caption="Code interpreter image",
+                                    )
+                        session["rendered_outputs"] = True
+                    elif not outputs and not session["rendered_outputs"]:
+                        with session["outputs"]:
+                            st.caption("(No outputs)")
+                        session["rendered_outputs"] = True
+                else:
+                    placeholder.markdown("✅ Done")
         elif event_type == "response.code_interpreter_call.in_progress":
-            try:
-                placeholder.markdown("⏳ Running")
-            except Exception:
-                pass
+            item_id = data.get("item_id")
+            session = code_interpreter_sessions.get(item_id)
+            if session:
+                session["status"].markdown("⏳ Running")
+            else:
+                try:
+                    placeholder.markdown("⏳ Running")
+                except Exception:
+                    pass
+        elif event_type == "response.code_interpreter_call.interpreting":
+            item_id = data.get("item_id")
+            session = code_interpreter_sessions.get(item_id)
+            if session:
+                session["status"].markdown("🧮 Interpreting")
         elif event_type == "response.code_interpreter_call.completed":
-            try:
-                placeholder.markdown("✅ Done")
-            except Exception:
-                pass
+            item_id = data.get("item_id")
+            session = code_interpreter_sessions.get(item_id)
+            if session:
+                session["status"].markdown("✅ Done")
+            else:
+                try:
+                    placeholder.markdown("✅ Done")
+                except Exception:
+                    pass
+        elif event_type == "response.code_interpreter_call_code.delta":
+            item_id = data.get("item_id")
+            session = code_interpreter_sessions.get(item_id)
+            if session:
+                session["code_text"] += data.get("delta", "")
+                if session["code_text"].strip():
+                    session["code"].code(session["code_text"], language="python")
+        elif event_type == "response.code_interpreter_call_code.done":
+            item_id = data.get("item_id")
+            session = code_interpreter_sessions.get(item_id)
+            if session:
+                final_code = data.get("code") or session["code_text"]
+                session["code_text"] = final_code
+                if final_code:
+                    session["code"].code(final_code, language="python")
         elif event_type == "response.completed":
             response = data.get("response", {})
             if debug_mode:

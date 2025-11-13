@@ -6,26 +6,30 @@
 
 
 static int PyGPTOSSContext_init(PyGPTOSSContext* self, PyObject* args, PyObject* kwargs) {
-    static char *kwlist[] = {"model", "context_length", NULL};
+    static char *kwlist[] = {"model", "context_length", "max_batch_tokens", NULL};
     PyObject* model = NULL;
     Py_ssize_t context_length = 0; // Default to 0 if None
+    Py_ssize_t max_batch_tokens = 0; // Default to 0 if None
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|$i", kwlist,
-                                     &model, &context_length)) {
-        return -1;
-    }
-    if (!PyObject_TypeCheck(model, &PyGPTOSSModel_Type)) {
-        PyErr_SetString(PyExc_TypeError, "model must be an gptoss.Model object");
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!|$ii", kwlist,
+                                     &PyGPTOSSModel_Type, &model,
+                                     &context_length, &max_batch_tokens))
+    {
         return -1;
     }
     if (context_length < 0) {
         PyErr_SetString(PyExc_ValueError, "context_length must be a positive integer");
         return -1;
     }
+    if (max_batch_tokens < 0) {
+        PyErr_SetString(PyExc_ValueError, "max_batch_tokens must be a positive integer");
+        return -1;
+    }
 
     enum gptoss_status status = gptoss_context_create(
         ((const PyGPTOSSModel*) model)->handle,
         (size_t) context_length,
+        (size_t) max_batch_tokens,
         &self->handle);
     if (status != gptoss_status_success) {
         // TODO: set exception
@@ -120,25 +124,54 @@ static PyObject* PyGPTOSSContext_process(PyGPTOSSContext* self) {
 }
 
 static PyObject* PyGPTOSSContext_sample(PyGPTOSSContext* self, PyObject* args, PyObject* kwargs) {
-    static char *kwlist[] = {"temperature", "seed", NULL};
+    static char *kwlist[] = {"max_output_tokens", "temperature", "seed", NULL};
+    PyObject* token_list_obj = NULL;
+    uint32_t* token_ptr = NULL;
 
+    unsigned int max_output_tokens = 0;
     unsigned long long seed = 0;
     float temperature = 1.0f;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$fK", kwlist,
-            &temperature, &seed))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "I|$fK", kwlist,
+            &max_output_tokens, &temperature, &seed))
     {
         return NULL;
     }
 
-    uint32_t token_out = UINT32_MAX;
-    enum gptoss_status status = gptoss_context_sample(
-        self->handle, temperature, (uint64_t) seed, &token_out);
-    if (status != gptoss_status_success) {
-        // TODO: set exception
-        return NULL;
+    token_ptr = (uint32_t*) PyMem_Malloc(max_output_tokens * sizeof(uint32_t));
+    if (token_ptr == NULL) {
+        goto error;
     }
 
-    return PyLong_FromUnsignedLong((unsigned long) token_out);
+    size_t num_tokens = 0;
+    const enum gptoss_status status = gptoss_context_sample(
+        self->handle, temperature, (uint64_t) seed,
+        (size_t) max_output_tokens, token_ptr, &num_tokens);
+    if (status != gptoss_status_success) {
+        // TODO: set exception
+        goto error;
+    }
+
+    token_list_obj = PyList_New((Py_ssize_t) num_tokens);
+    if (token_list_obj == NULL) {
+        goto error;
+    }
+
+    for (size_t t = 0; t < num_tokens; t++) {
+        PyObject* token_obj = PyLong_FromUnsignedLong((unsigned long) token_ptr[t]);
+        if (token_obj == NULL) {
+            goto error;
+        }
+
+        PyList_SET_ITEM(token_list_obj, (Py_ssize_t) t, token_obj);
+    }
+    
+    PyMem_Free(token_ptr);
+    return token_list_obj;
+    
+error:
+    PyMem_Free(token_ptr);
+    Py_XDECREF(token_list_obj);
+    return NULL;
 }
 
 static PyObject* PyGPTOSSContext_reset(PyGPTOSSContext* self) {
@@ -155,7 +188,7 @@ static PyMethodDef PyGPTOSSContext_methods[] = {
     {"__copy__", (PyCFunction) PyGPTOSSContext_copy, METH_NOARGS, "Create a copy of the Context"},
     {"append", (PyCFunction) PyGPTOSSContext_append, METH_O, "Append bytes to the Context"},
     {"process", (PyCFunction) PyGPTOSSContext_process, METH_NOARGS, "Process tokens in the Context"},
-    {"sample", (PyCFunction) PyGPTOSSContext_sample, METH_VARARGS | METH_KEYWORDS, "Sample token prediction from the Context"},
+    {"sample", (PyCFunction) PyGPTOSSContext_sample, METH_VARARGS | METH_KEYWORDS, "Sample token predictions from the Context"},
     {"reset", (PyCFunction) PyGPTOSSContext_reset, METH_NOARGS, "Discard the content of the Context"},
     {NULL},
 };
@@ -184,7 +217,6 @@ static PyObject* PyGPTOSSContext_get_max_tokens(PyGPTOSSContext* self, void* clo
 
 static PyObject* PyGPTOSSContext_get_tokens(PyGPTOSSContext* self, void* closure) {
     PyObject* token_list_obj = NULL;
-    PyObject* token_obj = NULL;
     uint32_t* token_ptr = NULL;
 
     size_t num_tokens = 0;
@@ -210,14 +242,12 @@ static PyObject* PyGPTOSSContext_get_tokens(PyGPTOSSContext* self, void* closure
     }
 
     for (size_t t = 0; t < num_tokens; t++) {
-        token_obj = PyLong_FromUnsignedLong((unsigned long) token_ptr[t]);
+        PyObject* token_obj = PyLong_FromUnsignedLong((unsigned long) token_ptr[t]);
         if (token_obj == NULL) {
             goto error;
         }
-        if (PyList_SetItem(token_list_obj, (Py_ssize_t) t, token_obj) < 0) {
-            goto error;
-        }
-        token_obj = NULL;  // PyList_SetItem stole the reference
+
+        PyList_SET_ITEM(token_list_obj, (Py_ssize_t) t, token_obj);
     }
 
     PyMem_Free(token_ptr);
@@ -225,7 +255,6 @@ static PyObject* PyGPTOSSContext_get_tokens(PyGPTOSSContext* self, void* closure
 
 error:
     PyMem_Free(token_ptr);
-    Py_XDECREF(token_obj);
     Py_XDECREF(token_list_obj);
     return NULL;
 }

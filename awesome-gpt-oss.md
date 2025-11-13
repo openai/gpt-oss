@@ -35,6 +35,7 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Running gpt-oss on STX Halo and Radeon dGPUs using Lemonade](https://lemonade-server.ai/news/gpt-oss.html)
 - llama.cpp
   - [Running gpt-oss with llama.cpp](https://github.com/ggml-org/llama.cpp/discussions/15396)
+  - [Running gpt-oss with Unsloth GGUFs](https://docs.unsloth.ai/new/gpt-oss-how-to-run-and-fine-tune#run-gpt-oss-20b)
 
 ### Server
 
@@ -66,8 +67,11 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [gpt-oss-20b on Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b)
 - AMD
   - [gpt-oss-120B on AMD MI300X](https://huggingface.co/spaces/amd/gpt-oss-120b-chatbot)
-- AWS (Deploy via Tensorfuse)
-  - [Deploy gpt-oss for both 20b and 120b models on AWS EKS](https://tensorfuse.io/docs/guides/modality/text/openai_oss)
+- AWS
+  - Deploy via Tensorfuse: [Deploy gpt-oss for both 20b and 120b models on AWS EKS](https://tensorfuse.io/docs/guides/modality/text/openai_oss)
+  - [AWS launch blog post](https://aws.amazon.com/blogs/aws/openai-open-weight-models-now-available-on-aws/)
+- Google Colab
+  - [gpt-oss-20b inference notebook](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/GPT_OSS_MXFP4_(20B)-Inference.ipynb)
 
 ## Examples & Tutorials
 
@@ -83,6 +87,9 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 - [Hugging Face TRL examples](https://github.com/huggingface/gpt-oss-recipes)
 - [LlamaFactory examples](https://llamafactory.readthedocs.io/en/latest/advanced/best_practice/gpt-oss.html)
 - [Unsloth examples](https://docs.unsloth.ai/basics/gpt-oss-how-to-run-and-fine-tune)
+
+### Reinforcement Learning
+- [Auto solving the 2048 game](https://github.com/openai/gpt-oss/blob/main/examples/reinforcement-fine-tuning.ipynb)
 
 ## Contributing
 

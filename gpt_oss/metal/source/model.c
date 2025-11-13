@@ -192,8 +192,6 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     model->yarn_multiplier = model_header.yarn_multiplier;
     model->rmsnorm_epsilon = model_header.rmsnorm_epsilon;
 
-    model->max_batch_tokens = GPTOSS_DEFAULT_BATCH_SIZE;
-
     struct gptoss_uuid tokenizer_uuid;
     status = read_fd(fd, &tokenizer_uuid, sizeof(tokenizer_uuid), path);
     if (status != gptoss_status_success) {
@@ -324,11 +322,47 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_matmul_qkv", &model->f32_bf16w_matmul_qkv_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_dense_matmul_qkv", &model->f32_bf16w_dense_matmul_qkv_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_dense_matmul_attn_output", &model->f32_bf16w_dense_matmul_attn_output_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_dense_matmul_mlp_gate", &model->f32_bf16w_dense_matmul_mlp_gate_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_bf16w_unembedding", &model->f32_bf16w_unembedding_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
     }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_rope", &model->f32_rope_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_expert_routing_metadata", &model->f32_expert_routing_metadata_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_scatter_e4", &model->f32_scatter_e4_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_dense_matmul_swiglu", &model->f32_mf4w_moe_dense_matmul_swiglu_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_mf4w_moe_dense_matmul", &model->f32_mf4w_moe_dense_matmul_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_gather_and_accumulate_e4", &model->f32_gather_and_accumulate_e4_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
     }
@@ -356,10 +390,24 @@ enum gptoss_status GPTOSS_ABI gptoss_model_create_from_file(
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+    status = gptoss_metal_function_create(&model->library, "gptoss_f32_sample", &model->f32_sample_fn);
+    if (status != gptoss_status_success) {
+        goto cleanup;
+    }
     status = gptoss_metal_function_create(&model->library, "gptoss_f32_sdpa_q8_d64", &model->f32_sdpa_q8_d64_fn);
     if (status != gptoss_status_success) {
         goto cleanup;
     }
+
+    // Kernel launch parameters
+    model->embeddings_threadgroup_size = 512;
+    model->attn_qkv_threadgroup_size = 1024;
+    model->attn_out_threadgroup_size = 768;
+    model->mlp_gate_threadgroup_size = 256;
+    model->mlp_swiglu_threadgroup_size = 192;
+    model->mlp_out_threadgroup_size = 192;
+    model->mlp_acc_threadgroup_size = 768;
+    model->unembedding_threadgroup_size = 416;
 
     // Weight buffers
     const char* current_ptr = (const char*) model->mapping_ptr;
@@ -487,14 +535,24 @@ enum gptoss_status GPTOSS_ABI gptoss_model_release(
             gptoss_metal_function_release(&model->bf16_f32_embeddings_fn);
             gptoss_metal_function_release(&model->f32_bf16w_rmsnorm_fn);
             gptoss_metal_function_release(&model->f32_bf16w_matmul_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_matmul_qkv_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_qkv_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_attn_output_fn);
+            gptoss_metal_function_release(&model->f32_bf16w_dense_matmul_mlp_gate_fn);
             gptoss_metal_function_release(&model->f32_bf16w_unembedding_fn);
             gptoss_metal_function_release(&model->f32_rope_fn);
+            gptoss_metal_function_release(&model->f32_expert_routing_metadata_fn);
+            gptoss_metal_function_release(&model->f32_scatter_e4_fn);
+            gptoss_metal_function_release(&model->f32_mf4w_moe_dense_matmul_swiglu_fn);
+            gptoss_metal_function_release(&model->f32_mf4w_moe_dense_matmul_fn);
+            gptoss_metal_function_release(&model->f32_gather_and_accumulate_e4_fn);
             gptoss_metal_function_release(&model->f32_mf4w_moe_matmul_swiglu_fn);
             gptoss_metal_function_release(&model->f32_mf4w_moe_matmul_fn);
             gptoss_metal_function_release(&model->f32_accumulate_e4_fn);
             gptoss_metal_function_release(&model->f32_topk_softmax_e32_k4_fn);
             gptoss_metal_function_release(&model->f32_topk_softmax_e128_k4_fn);
             gptoss_metal_function_release(&model->f32_softmax_fn);
+            gptoss_metal_function_release(&model->f32_sample_fn);
             gptoss_metal_function_release(&model->f32_sdpa_q8_d64_fn);
             gptoss_metal_library_release(&model->library);
 
