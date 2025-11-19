@@ -1,6 +1,6 @@
 """
-NOTE: this is a stiched together implementation that uses Ollama for inference. It's primarily used
-for testing and development. It does not leverage any prompt caching or other optimizations and 
+NOTE: this is a stitched together implementation that uses Ollama for inference. It's primarily used
+for testing and development. It does not leverage any prompt caching or other optimizations and
 can therefore be slow between turns.
 """
 
@@ -8,17 +8,17 @@ import json
 import threading
 import time
 from typing import Callable, Optional
-import requests
 
-from openai_harmony import load_harmony_encoding, HarmonyEncodingName
+import requests
+from openai_harmony import HarmonyEncodingName, load_harmony_encoding
 
 EOS_TOKEN = 200002  # only used on hard timeout
 
 # Tunables
-POLL_INTERVAL_S = 0.01           # 10ms between buffer checks
-CALL_MAX_WAIT_S = 0.250          # max time to block inside a single infer call
-NO_TOKEN_TIMEOUT_S = 15.0        # overall inactivity timeout before emitting EOS
-FIRST_BYTE_TIMEOUT_S = 30.0      # time to wait for first token before EOS
+POLL_INTERVAL_S = 0.01  # 10ms between buffer checks
+CALL_MAX_WAIT_S = 0.250  # max time to block inside a single infer call
+NO_TOKEN_TIMEOUT_S = 15.0  # overall inactivity timeout before emitting EOS
+FIRST_BYTE_TIMEOUT_S = 30.0  # time to wait for first token before EOS
 
 # Shared state
 _token_buffer: list[int] = []
@@ -26,8 +26,9 @@ _buffer_lock = threading.Lock()
 _stream_thread: Optional[threading.Thread] = None
 _stream_done = threading.Event()
 _stream_error: Optional[Exception] = None
-_last_progress_ts: float = 0.0    # updated whenever we enqueue or dequeue tokens
+_last_progress_ts: float = 0.0  # updated whenever we enqueue or dequeue tokens
 _previous_request_tokens: list[int] = []
+
 
 def lcp(cache: list[int], inp: list[int]) -> list[int]:
     i = 0
@@ -36,12 +37,15 @@ def lcp(cache: list[int], inp: list[int]) -> list[int]:
         i += 1
     return cache[:i]
 
+
 def _now():
     return time.monotonic()
+
 
 def _touch_progress():
     global _last_progress_ts
     _last_progress_ts = _now()
+
 
 def _reset_stream_state():
     global _token_buffer, _stream_thread, _stream_error
@@ -52,12 +56,14 @@ def _reset_stream_state():
     _stream_error = None
     _touch_progress()
 
+
 def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
     model_name = checkpoint
 
     def _start_stream(token_ids: list[int], temperature: float):
         prompt_text = encoding.decode(token_ids)
+
         def run():
             nonlocal prompt_text, temperature
             global _stream_error
@@ -68,21 +74,13 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
 
             try:
                 url = "http://localhost:11434/api/generate"
-                context = None
-                if len(_previous_request_tokens) > 0:
-                    context = _previous_request_tokens
-                    # cache_hit = lcp(_previous_request_tokens, token_ids)
-                    # if len(cache_hit) > 0:
-                    #     context = cache_hit
-                    #     print(f"Cache hit: {encoding.decode(context)}")
-                    #     prompt_text = encoding.decode(token_ids[len(context):])
 
                 payload = {
                     "model": model_name,
                     "prompt": prompt_text,
                     "stream": True,
-                    "context": context,
                     "options": {"temperature": temperature},
+                    "raw": True,
                 }
 
                 with requests.post(url, json=payload, stream=True, timeout=60) as resp:
@@ -106,9 +104,6 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
                             _token_buffer.append(EOS_TOKEN)
                             last_len = len(toks)
                             _touch_progress()
-                            context = obj.get("context")
-                            if context and len(context) > 0:
-                                _previous_request_tokens = context
                             break
 
                 _stream_done.set()
@@ -187,6 +182,8 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
         # If we reach here, we still haven't got a token—ask the caller to call again soon.
         # Return a harmless token that the server will replace/ignore if your interface supports it.
         # If your interface does NOT allow a sentinel, keep the short-blocking behavior above.
-        return EOS_TOKEN if False else 0  # replace `0` with a PAD/NOOP token your server ignores
+        return (
+            EOS_TOKEN if False else 0
+        )  # replace `0` with a PAD/NOOP token your server ignores
 
     return infer_next_token

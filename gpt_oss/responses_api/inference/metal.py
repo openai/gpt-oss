@@ -6,73 +6,39 @@ from gpt_oss.metal import Context, Model
 
 
 def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
+# Tunables
+MAX_OUTPUT_TOKENS = 100
+
+
+def setup_model(checkpoint: str) -> Callable[[list[int], float], int]:
     """Load the Metal model and return an inference function."""
 
     model = Model(checkpoint)
     context = Context(model)
 
-    def lcp(cache: list[int], inp: list[int]) -> list[int]:
-        i = 0
-        max_len = min(len(cache), len(inp))
-        while i < max_len and cache[i] == inp[i]:
-            i += 1
-        return cache[:i]
-
-    tokens_so_far = []
+    seed = 0
+    output_tokens = []
 
     def infer_next_token(
         tokens: list[int], temperature: float = 0.0, new_request: bool = False
     ) -> int:
         """Infer next token using incremental LCP caching when possible."""
-        nonlocal tokens_so_far
+        nonlocal output_tokens
 
-        # Fast path: first call or explicitly new request.
-        if new_request or not tokens_so_far:
+        if new_request:
+            output_tokens = []
+
+        if len(output_tokens) == 0:
+            # Context handles LCP caching internally; if `tokens` matches the
+            # tokens in the KV cache, the KV cache is reused after reset+append.
             context.reset()
             for t in tokens:
                 context.append(t)
-            tokens_so_far = tokens.copy()
-            context.process()
-            return int(context.sample(temperature=temperature))
 
-        # Longest common prefix length
-        overlap = lcp(tokens_so_far, tokens)
-        ol = len(overlap)
-        prev_len = len(tokens_so_far)
-        cur_len = len(tokens)
+            output_tokens = context.sample(max_output_tokens=MAX_OUTPUT_TOKENS,
+                                           temperature=temperature,
+                                           seed=seed)
 
-        diverged_midstream = (ol < prev_len) and (
-            ol < cur_len
-        )  # mismatch not at the end
-
-        if diverged_midstream:
-            # safest: rebuild
-            context.reset()
-            for t in tokens:
-                context.append(t)
-            tokens_so_far = tokens.copy()
-            context.process()
-            return int(context.sample(temperature=temperature))
-
-        if cur_len > prev_len:
-            # pure extension (good for KV reuse)
-            extension = tokens[prev_len:]
-            for t in extension:
-                context.append(t)
-            tokens_so_far = tokens.copy()
-            context.process()
-            return int(context.sample(temperature=temperature))
-
-        if cur_len < prev_len:
-            # truncation/backspace; easiest correct behavior is rebuild
-            context.reset()
-            for t in tokens:
-                context.append(t)
-            tokens_so_far = tokens.copy()
-            context.process()
-            return int(context.sample(temperature=temperature))
-
-        # cur_len == prev_len and everything matches => no new tokens; just sample.
-        return int(context.sample(temperature=temperature))
+        return int(output_tokens.pop(0))
 
     return infer_next_token

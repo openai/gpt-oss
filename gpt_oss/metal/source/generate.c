@@ -162,7 +162,7 @@ struct options parse_options(int argc, char** argv) {
 static void print_profile() {
     const size_t num_prefill_tokens = atomic_load(&globals.num_prefill_tokens);
     const uint64_t prefill_microseconds = atomic_load(&globals.prefill_microseconds);
-    const size_t num_generated_tokens = atomic_load(&globals.num_generated_tokens) - 1;
+    const size_t num_generated_tokens = atomic_load(&globals.num_generated_tokens);
     const uint64_t generation_microseconds = atomic_load(&globals.generation_microseconds);
     const uint64_t inference_bytes = atomic_load(&globals.inference_bytes);
     if (num_prefill_tokens != 0 || num_generated_tokens != 0) {
@@ -173,10 +173,10 @@ static void print_profile() {
             num_prefill_tokens,
             (double) num_prefill_tokens / (double) prefill_microseconds * 1.0e+6);
     }
-    if (num_generated_tokens > 5) {
-        printf("Generation speed (%zu tokens, excluding the first 5): %.1f tokens/second\n",
-            (num_generated_tokens - 5),
-            (double) (num_generated_tokens - 5) / (double) generation_microseconds * 1.0e+6);
+    if (num_generated_tokens != 0) {
+        printf("Generation speed (%zu tokens): %.1f tokens/second\n",
+            num_generated_tokens,
+            (double) num_generated_tokens / (double) generation_microseconds * 1.0e+6);
     }
 }
 
@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
         goto error;
     }
 
-    status = gptoss_context_create(model, options.context_length, &context);
+    status = gptoss_context_create(model, options.context_length, /*max_batch_tokens=*/0, &context);
     if (status != gptoss_status_success) {
         fprintf(stderr, "Error: failed to create Context object\n");
         goto error;
@@ -268,8 +268,9 @@ int main(int argc, char *argv[]) {
     while (options.max_tokens == 0 || atomic_load(&globals.num_generated_tokens) < options.max_tokens) {
 
         uint32_t predicted_token = UINT32_MAX;
+        size_t num_predicted_tokens = 0;
         const uint64_t inference_start_timestamp = mach_continuous_time();
-        status = gptoss_context_sample(context, options.temperature, /*rng_state=*/0, &predicted_token);
+        status = gptoss_context_sample(context, options.temperature, /*rng_state=*/0, /*num_tokens=*/1, &predicted_token, &num_predicted_tokens);
         if (status != gptoss_status_success) {
             fprintf(stderr, "Error: failed to sample from the Context object\n");
             goto error;
@@ -292,7 +293,7 @@ int main(int argc, char *argv[]) {
         const size_t previous_num_generated_tokens = atomic_fetch_add(&globals.num_generated_tokens, 1);
         if (previous_num_generated_tokens == 0) {
             atomic_fetch_add(&globals.prefill_microseconds, mach_timestamp_diff_to_microseconds(prefill_start_time, prefill_end_time));
-        } else if (previous_num_generated_tokens > 5) {
+        } else {
             atomic_fetch_add(&globals.generation_microseconds, mach_timestamp_diff_to_microseconds(inference_start_timestamp, inference_end_timestamp));
         }
         printf("%.*s", (int) token_size, (const char*) token_ptr);
