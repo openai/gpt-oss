@@ -26,6 +26,8 @@ class ChatCompletionsSampler(SamplerBase):
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
         base_url: str = "http://localhost:8000/v1",
+        top_p: float | None = None,
+        top_k: int | None = None,
     ):
         self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
         self.model = model
@@ -35,6 +37,8 @@ class ChatCompletionsSampler(SamplerBase):
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
         self.image_format = "url"
+        self.top_p = top_p
+        self.top_k = top_k
 
     def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
         return {"role": str(role), "content": content}
@@ -47,6 +51,13 @@ class ChatCompletionsSampler(SamplerBase):
         trial = 0
         while True:
             try:
+                # Build extra kwargs for optional sampling parameters
+                extra_kwargs = {}
+                if self.top_p is not None:
+                    extra_kwargs["top_p"] = self.top_p
+                if self.top_k is not None:
+                    extra_kwargs["extra_body"] = {"top_k": self.top_k}
+
                 if self.reasoning_model:
                     response = self.client.chat.completions.create(
                         model=self.model,
@@ -54,6 +65,7 @@ class ChatCompletionsSampler(SamplerBase):
                         reasoning_effort=self.reasoning_effort,
                         temperature=self.temperature,
                         max_tokens=self.max_tokens,
+                        **extra_kwargs,
                     )
                 else:
                     response = self.client.chat.completions.create(
@@ -61,6 +73,7 @@ class ChatCompletionsSampler(SamplerBase):
                         messages=message_list,
                         temperature=self.temperature,
                         max_tokens=self.max_tokens,
+                        **extra_kwargs,
                     )
 
                 choice = response.choices[0]

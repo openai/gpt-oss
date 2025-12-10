@@ -57,6 +57,24 @@ def main():
         help="Sampling temperature",
     )
     parser.add_argument(
+        "--top-p",
+        type=float,
+        default=None,
+        help="Top-p (nucleus) sampling parameter",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=None,
+        help="Top-k sampling parameter (sglang/vLLM specific)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=32768,
+        help="Maximum number of output tokens",
+    )
+    parser.add_argument(
         "--n-threads",
         type=int,
         default=1584,
@@ -81,8 +99,10 @@ def main():
                 reasoning_model=True,
                 reasoning_effort=reasoning_effort,
                 temperature=args.temperature,
+                top_p=args.top_p,
+                top_k=args.top_k,
                 base_url=args.base_url,
-                max_tokens=131_072,
+                max_tokens=args.max_tokens,
             )
 
     print(f"Running with args {args}")
