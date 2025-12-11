@@ -28,8 +28,9 @@ class ChatCompletionsSampler(SamplerBase):
         base_url: str = "http://localhost:8000/v1",
         top_p: float | None = None,
         top_k: int | None = None,
+        timeout: int = 1800,
     ):
-        self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
+        self.client = OpenAI(base_url=base_url, timeout=timeout)
         self.model = model
         self.system_message = system_message
         self.temperature = temperature

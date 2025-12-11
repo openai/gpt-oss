@@ -97,7 +97,18 @@ def main():
         "--dump-inputs",
         type=str,
         default=None,
-        help="Directory to dump input tokens to JSON files (harmony sampler only)",
+        help="Path to JSONL file to dump input tokens (harmony sampler only)",
+    )
+    parser.add_argument(
+        "--decode-output-tokens",
+        action="store_true",
+        help="Decode output tokens using our tokenizer instead of using server's decoded text (harmony sampler only)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=1800,
+        help="Request timeout in seconds (default: 1800)",
     )
 
     args = parser.parse_args()
@@ -121,10 +132,14 @@ def main():
                 top_k=args.top_k,
                 base_url=args.base_url,
                 max_tokens=args.max_tokens,
+                timeout=args.timeout,
             )
-            # Add dump_inputs_dir for harmony sampler
-            if args.sampler == "harmony" and args.dump_inputs:
-                sampler_kwargs["dump_inputs_dir"] = args.dump_inputs
+            # Add harmony sampler specific options
+            if args.sampler == "harmony":
+                if args.dump_inputs:
+                    sampler_kwargs["dump_inputs_dir"] = args.dump_inputs
+                if args.decode_output_tokens:
+                    sampler_kwargs["decode_output_tokens"] = True
             models[f"{model_name}-{reasoning_effort}"] = sampler_cls(**sampler_kwargs)
 
     print(f"Running with args {args}")

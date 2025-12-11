@@ -3,8 +3,8 @@ Harmony Sampler - converts chat messages to Harmony tokens and sends to SGLang /
 """
 import json
 import os
+import threading
 import time
-import uuid
 from typing import Any
 
 import requests
@@ -50,6 +50,8 @@ class HarmonySampler(SamplerBase):
         top_p: float | None = None,
         top_k: int | None = None,
         dump_inputs_dir: str | None = None,
+        decode_output_tokens: bool = False,
+        timeout: int = 1800,
     ):
         self.model = model
         self.temperature = temperature
@@ -60,17 +62,25 @@ class HarmonySampler(SamplerBase):
         self.top_p = top_p
         self.top_k = top_k
         self.image_format = "url"
-        self.dump_inputs_dir = dump_inputs_dir
+        self.dump_inputs_file = dump_inputs_dir  # renamed but keeping param name for compatibility
+        self.decode_output_tokens = decode_output_tokens
+        self.timeout = timeout
+        self._dump_lock = threading.Lock()
         
-        # Create dump directory if specified
-        if self.dump_inputs_dir:
-            os.makedirs(self.dump_inputs_dir, exist_ok=True)
-            # Load tokenizer for decoding tokens to text
-            print(f"Loading tokenizer for model: {model}")
-            self.tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
-            print("Tokenizer loaded successfully")
-        else:
-            self.tokenizer = None
+        # Load tokenizer for decoding tokens to text (always needed for HTML reports)
+        print(f"Loading tokenizer for model: {model}")
+        self.tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
+        print("Tokenizer loaded successfully")
+
+        # Initialize dump file if specified
+        if self.dump_inputs_file:
+            # Create parent directory if needed
+            dump_dir = os.path.dirname(self.dump_inputs_file)
+            if dump_dir:
+                os.makedirs(dump_dir, exist_ok=True)
+            # Clear/create the file
+            with open(self.dump_inputs_file, "w") as f:
+                pass  # Create empty file
         
         # Load the Harmony encoding for gpt-oss models
         self.enc = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
@@ -89,6 +99,7 @@ class HarmonySampler(SamplerBase):
         
         # Check if there's a system message, if not create a default one
         has_system = any(msg.get("role") == "system" for msg in message_list)
+        assert not has_system, "System message not supported"
         
         if not has_system:
             # Create default system message with reasoning effort
@@ -105,26 +116,8 @@ class HarmonySampler(SamplerBase):
         for msg in message_list:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            
-            if role == "system":
-                # Create SystemContent with reasoning effort
-                system_content = (
-                    SystemContent.new()
-                    .with_reasoning_effort(reasoning_effort_enum)
-                    .with_conversation_start_date("2025-09-30")
-                    .with_required_channels(["analysis", "commentary", "final"])
-                )
-                # If there's additional content, we add it via developer message
-                harmony_messages.append(
-                    Message.from_role_and_content(Role.SYSTEM, system_content)
-                )
-                # Add the system message content as developer instructions if present
-                if content:
-                    developer_content = DeveloperContent.new().with_instructions(content)
-                    harmony_messages.append(
-                        Message.from_role_and_content(Role.DEVELOPER, developer_content)
-                    )
-            elif role == "developer":
+
+            if role == "developer":
                 developer_content = DeveloperContent.new().with_instructions(content)
                 harmony_messages.append(
                     Message.from_role_and_content(Role.DEVELOPER, developer_content)
@@ -159,13 +152,11 @@ class HarmonySampler(SamplerBase):
                 tokens = self.enc.render_conversation_for_completion(convo, Role.ASSISTANT)
                 tokens_list = tokens.tolist() if hasattr(tokens, 'tolist') else list(tokens)
                 
-                # Dump inputs if directory is specified
-                if self.dump_inputs_dir:
-                    dump_filename = os.path.join(
-                        self.dump_inputs_dir, f"input_{uuid.uuid4().hex}.json"
-                    )
-                    # Decode tokens to text using the model's tokenizer
-                    text_input = self.tokenizer.decode(tokens_list, skip_special_tokens=False)
+                # Decode tokens to text for HTML reports
+                text_input = self.tokenizer.decode(tokens_list, skip_special_tokens=False)
+                
+                # Dump inputs if file is specified
+                if self.dump_inputs_file:
                     dump_data = {
                         "input_tokens": tokens_list,
                         "num_tokens": len(tokens_list),
@@ -178,8 +169,15 @@ class HarmonySampler(SamplerBase):
                             "top_k": self.top_k,
                         },
                     }
-                    with open(dump_filename, "w") as f:
-                        json.dump(dump_data, f, indent=2)
+                    # Thread-safe append to JSONL file
+                    with self._dump_lock:
+                        with open(self.dump_inputs_file, "a") as f:
+                            f.write(json.dumps(dump_data) + "\n")
+                
+                # Create de-tokenized message list for HTML reports
+                detokenized_message_list = [
+                    {"role": "user", "content": text_input}
+                ]
                 
                 # Build sampling params
                 sampling_params = {
@@ -195,10 +193,11 @@ class HarmonySampler(SamplerBase):
                 response = requests.post(
                     f"{self.base_url}/generate",
                     json={
+                        "model": self.model,
                         "input_ids": tokens_list,
                         "sampling_params": sampling_params,
                     },
-                    timeout=24 * 60 * 60,  # 24 hour timeout
+                    timeout=self.timeout,
                 )
                 
                 if response.status_code != 200:
@@ -206,8 +205,13 @@ class HarmonySampler(SamplerBase):
                 
                 result = response.json()
                 
-                # Extract response text
-                response_text = result.get("text", "")
+                # Extract response text - optionally decode output tokens ourselves
+                if self.decode_output_tokens and "output_ids" in result:
+                    output_ids = result["output_ids"]
+                    response_text = self.tokenizer.decode(output_ids, skip_special_tokens=False)
+                else:
+                    response_text = result.get("text", "")
+                
                 if not response_text:
                     raise ValueError("Generate endpoint returned empty response; retrying")
                 
@@ -217,7 +221,7 @@ class HarmonySampler(SamplerBase):
                         "input_tokens": len(tokens_list),
                         "output_tokens": result.get("meta_info", {}).get("completion_tokens"),
                     },
-                    actual_queried_message_list=message_list,
+                    actual_queried_message_list=detokenized_message_list,
                 )
                 
             except requests.exceptions.RequestException as e:
