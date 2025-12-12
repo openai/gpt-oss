@@ -25,11 +25,11 @@ from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
 
 # HuggingFace dataset configuration
 LCB_HF_DATASET = "livecodebench/code_generation_lite"
-LCB_VERSION_TAG = "release_v5"
+LCB_DEFAULT_VERSION = "release_v6"
 
 LIVECODEBENCH_INSTRUCTIONS = """
-You are a python coding expert that solves problems step-by-step. 
-You must provide the reasoning to arriving at your solution and the code to solve the problem. 
+You are a python coding expert that solves problems step-by-step.
+You must provide the reasoning to arriving at your solution and the code to solve the problem.
 Do not try simulating the code execution. The code must be enclosed within ```python delimiters.
 """
 
@@ -43,7 +43,7 @@ def parse_code(text: str) -> Optional[str]:
     """
     if not text or not isinstance(text, str):
         return None
-    
+
     text = text.strip()
     if not text:
         return None
@@ -71,31 +71,50 @@ def get_lcb_dir() -> str:
         os.path.dirname(__file__), "submodules", "LiveCodeBench"))
 
 
-@lru_cache(maxsize=1)
-def load_lcb_from_huggingface() -> List[Dict[str, Any]]:
+@lru_cache(maxsize=4)
+def load_lcb_from_huggingface(version_tag: str = LCB_DEFAULT_VERSION) -> List[Dict[str, Any]]:
     """Load LiveCodeBench questions from HuggingFace.
-    
+
+    Args:
+        version_tag: Version tag for the dataset (e.g., "release_v5", "release_v6")
+
     Returns:
-        List of examples with question_id and question_content (prompt).
+        List of examples with question_id, question_content (prompt), and starter_code.
     """
-    print(f"Loading LiveCodeBench from HuggingFace: {LCB_HF_DATASET} ({LCB_VERSION_TAG})...")
-    ds = load_dataset(LCB_HF_DATASET, version_tag=LCB_VERSION_TAG, split="test")
-    
+    print(f"Loading LiveCodeBench from HuggingFace: {LCB_HF_DATASET} ({version_tag})...")
+    ds = load_dataset(LCB_HF_DATASET, version_tag=version_tag, split="test")
+
     examples = []
     for row in ds:
         examples.append({
             "question_id": row["question_id"],
             "prompt": row["question_content"],  # The problem description
+            "starter_code": row.get("starter_code", ""),  # Starter code if available
         })
-    
+
     print(f"Loaded {len(examples)} problems from HuggingFace")
     return examples
 
 
-@lru_cache(maxsize=1)
-def load_lcb_benchmark_for_eval() -> Dict[str, Any]:
+def format_prompt_with_starter_code(prompt: str, starter_code: str = "") -> str:
+    """Append the format section with starter code to the prompt.
+
+    This matches the format used in the working harmonize_inputs.py pipeline.
+    """
+    format_section = "\n### Format: You will use the following starter code to write the solution to the problem and enclose your code within delimiters.\n```python\n"
+    if starter_code:
+        format_section += starter_code + "\n"
+    format_section += "```\n"
+    return prompt + format_section
+
+
+@lru_cache(maxsize=4)
+def load_lcb_benchmark_for_eval(version_tag: str = LCB_DEFAULT_VERSION) -> Dict[str, Any]:
     """Load LiveCodeBench benchmark from submodule for test execution.
-    
+
+    Args:
+        version_tag: Version tag for the dataset (e.g., "release_v5", "release_v6")
+
     This is needed because test execution requires the LCB library's
     instance objects which contain test cases.
     """
@@ -118,7 +137,7 @@ def load_lcb_benchmark_for_eval() -> Dict[str, Any]:
         from lcb_runner.runner.scenario_router import build_prompt_benchmark
 
         mock_args = argparse.Namespace(
-            scenario=Scenario.codegeneration, release_version="release_v6",
+            scenario=Scenario.codegeneration, release_version=version_tag,
             subset="code_generation", language="python", not_fast=False,
             start_date=None, end_date=None, k=[1], num_samples=1,
             timeout=60, num_workers=1, num_process_evaluate=1,
@@ -135,8 +154,14 @@ def load_lcb_benchmark_for_eval() -> Dict[str, Any]:
 
 
 def evaluate_livecodebench_detailed(
-        code: Optional[str], question_id: str) -> Tuple[bool, str]:
+        code: Optional[str], question_id: str,
+        version_tag: str = LCB_DEFAULT_VERSION) -> Tuple[bool, str]:
     """Evaluate LiveCodeBench code generation with detailed results.
+
+    Args:
+        code: The code to evaluate
+        question_id: The question ID to look up test cases
+        version_tag: Version tag for the dataset (e.g., "release_v5", "release_v6")
 
     Returns:
         Tuple[bool, str]: (passed, detailed_reason)
@@ -147,7 +172,7 @@ def evaluate_livecodebench_detailed(
     lcb_dir = get_lcb_dir()
 
     try:
-        benchmark_map = load_lcb_benchmark_for_eval()
+        benchmark_map = load_lcb_benchmark_for_eval(version_tag)
     except Exception as e:
         return False, f"Failed to load benchmark: {type(e).__name__}: {e}"
 
@@ -168,7 +193,7 @@ def evaluate_livecodebench_detailed(
         from lcb_runner.runner.scenario_router import sort_and_extract_save_results, get_metrics
 
         mock_args = argparse.Namespace(
-            scenario=Scenario.codegeneration, release_version="release_v6",
+            scenario=Scenario.codegeneration, release_version=version_tag,
             subset="code_generation", language="python", not_fast=False,
             start_date=None, end_date=None, k=[1], num_samples=1,
             timeout=60, num_workers=1, num_process_evaluate=1,
@@ -227,23 +252,23 @@ def evaluate_livecodebench_detailed(
         os.environ.pop('TQDM_DISABLE', None)
 
 
-def evaluate_livecodebench_worker(args: Tuple[int, str, str]) -> Tuple[int, bool, str]:
+def evaluate_livecodebench_worker(args: Tuple[int, str, str, str]) -> Tuple[int, bool, str]:
     """Worker function for parallel LiveCodeBench evaluation.
 
     Args:
-        args: (index, code, question_id)
+        args: (index, code, question_id, version_tag)
 
     Returns:
         Tuple[int, bool, str]: (index, passed, detailed_reason)
     """
-    idx, code, question_id = args
+    idx, code, question_id, version_tag = args
 
     # Suppress all stdout/stderr from worker processes to prevent pollution
     try:
         with open(os.devnull, 'w') as devnull:
             with redirect_stdout(devnull), redirect_stderr(devnull):
                 os.environ['TQDM_DISABLE'] = '1'
-                passed, reason = evaluate_livecodebench_detailed(code, question_id)
+                passed, reason = evaluate_livecodebench_detailed(code, question_id, version_tag)
                 return idx, passed, reason
     except Exception as e:
         return idx, False, f"Error: {type(e).__name__}: {e}"
@@ -263,6 +288,7 @@ class LiveCodeBenchEval(Eval):
         n_threads: int = 1,
         lcb_workers: int = 64,
         test_timeout: int = 60,
+        lcb_version: str = LCB_DEFAULT_VERSION,
     ):
         """
         Initialize LiveCodeBench evaluation.
@@ -273,14 +299,16 @@ class LiveCodeBenchEval(Eval):
             n_threads: Number of threads for collecting model responses
             lcb_workers: Number of parallel workers for code evaluation
             test_timeout: Timeout for each test execution in seconds
+            lcb_version: LiveCodeBench version tag (e.g., "release_v5", "release_v6")
         """
         self.n_repeats = n_repeats
         self.n_threads = n_threads
         self.lcb_workers = lcb_workers
         self.test_timeout = test_timeout
+        self.lcb_version = lcb_version
 
         # Load questions from HuggingFace
-        examples = load_lcb_from_huggingface()
+        examples = load_lcb_from_huggingface(lcb_version)
 
         # Limit examples if specified
         if num_examples:
@@ -303,13 +331,18 @@ class LiveCodeBenchEval(Eval):
 
         def collect_response(row: dict) -> Dict[str, Any]:
             """Collect a single model response."""
+            question_id = row["question_id"]
+
+            # Construct prompt with starter code format section
+            user_prompt = format_prompt_with_starter_code(
+                row["prompt"],
+                row.get("starter_code", "")
+            )
+            # Combine instructions and user prompt into a single user message
+            full_prompt = f"{LIVECODEBENCH_INSTRUCTIONS}\n\n{user_prompt}"
             prompt_messages = [
                 sampler._pack_message(
-                    content=LIVECODEBENCH_INSTRUCTIONS,
-                    role="developer"
-                ),
-                sampler._pack_message(
-                    content=row["prompt"],
+                    content=full_prompt,
                     role="user"
                 ),
             ]
@@ -321,7 +354,7 @@ class LiveCodeBenchEval(Eval):
             extracted_code = parse_code(response_text)
 
             return {
-                "question_id": row["question_id"],
+                "question_id": question_id,
                 "prompt": row["prompt"],
                 "response_text": response_text,
                 "extracted_code": extracted_code,
@@ -338,7 +371,7 @@ class LiveCodeBenchEval(Eval):
 
         # Pre-load benchmark in main process before forking (for test execution)
         try:
-            _ = load_lcb_benchmark_for_eval()
+            _ = load_lcb_benchmark_for_eval(self.lcb_version)
         except Exception as e:
             print(f"Warning: Failed to pre-load benchmark for evaluation: {e}")
 
@@ -346,7 +379,7 @@ class LiveCodeBenchEval(Eval):
         work_items = []
         for idx, result in enumerate(collected_results):
             if result["extracted_code"]:
-                work_items.append((idx, result["extracted_code"], result["question_id"]))
+                work_items.append((idx, result["extracted_code"], result["question_id"], self.lcb_version))
 
         print(f"Extracted code from {len(work_items)} / {len(collected_results)} responses")
         # Initialize scores to 0
@@ -386,7 +419,7 @@ class LiveCodeBenchEval(Eval):
         for idx, result in enumerate(collected_results):
             score = scores[idx]
             detail = eval_details[idx]
-            
+
             # Generate HTML report
             html = report.jinja_env.from_string(report.HTML_JINJA).render(
                 prompt_messages=result["actual_queried_prompt_messages"],
@@ -414,7 +447,7 @@ class LiveCodeBenchEval(Eval):
         total = len(single_results)
         passed = sum(1 for r in single_results if r.score > 0)
         code_extracted = sum(1 for r in collected_results if r["extracted_code"])
-        
+
         print(f"\nLiveCodeBench Results:")
         print(f"  Total samples: {total}")
         print(f"  Code extracted: {code_extracted}/{total} ({100*code_extracted/total:.1f}%)")

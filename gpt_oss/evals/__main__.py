@@ -117,6 +117,12 @@ def main():
         default=64,
         help="Number of parallel workers for LiveCodeBench code evaluation (default: 64)",
     )
+    parser.add_argument(
+        "--lcb-version",
+        type=str,
+        default="release_v6",
+        help="LiveCodeBench version tag (default: release_v6). Options: release_v5, release_v6",
+    )
 
     args = parser.parse_args()
 
@@ -214,6 +220,7 @@ def main():
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                     lcb_workers=args.lcb_workers,
+                    lcb_version=args.lcb_version,
                 )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
