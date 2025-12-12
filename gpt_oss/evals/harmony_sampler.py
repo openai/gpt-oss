@@ -50,7 +50,6 @@ class HarmonySampler(SamplerBase):
         top_p: float | None = None,
         top_k: int | None = None,
         dump_inputs_dir: str | None = None,
-        decode_output_tokens: bool = False,
         timeout: int = 1800,
     ):
         self.model = model
@@ -63,7 +62,6 @@ class HarmonySampler(SamplerBase):
         self.top_k = top_k
         self.image_format = "url"
         self.dump_inputs_file = dump_inputs_dir  # renamed but keeping param name for compatibility
-        self.decode_output_tokens = decode_output_tokens
         self.timeout = timeout
         self._dump_lock = threading.Lock()
         
@@ -205,12 +203,11 @@ class HarmonySampler(SamplerBase):
                 
                 result = response.json()
                 
-                # Extract response text - optionally decode output tokens ourselves
-                if self.decode_output_tokens and "output_ids" in result:
-                    output_ids = result["output_ids"]
-                    response_text = self.tokenizer.decode(output_ids, skip_special_tokens=False)
-                else:
-                    response_text = result.get("text", "")
+                # Always decode output tokens using our tokenizer for consistency
+                if "output_ids" not in result:
+                    raise ValueError(f"Response missing 'output_ids' field. Got keys: {list(result.keys())}")
+                output_ids = result["output_ids"]
+                response_text = self.tokenizer.decode(output_ids, skip_special_tokens=False)
                 
                 if not response_text:
                     raise ValueError("Generate endpoint returned empty response; retrying")
