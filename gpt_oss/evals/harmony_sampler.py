@@ -249,4 +249,3 @@ class HarmonySampler(SamplerBase):
                         response_metadata={"error": str(e)},
                         actual_queried_message_list=message_list,
                     )
-

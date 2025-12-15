@@ -1,0 +1,3 @@
+[submodule "gpt_oss/evals/submodules/LiveCodeBench"]
+	path = gpt_oss/evals/submodules/LiveCodeBench
+	url = https://github.com/LiveCodeBench/LiveCodeBench.git

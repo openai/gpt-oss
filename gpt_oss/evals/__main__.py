@@ -7,6 +7,7 @@ from .basic_eval import BasicEval
 from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
 from .healthbench_eval import HealthBenchEval
+from .livecodebench_eval import LiveCodeBenchEval
 from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
@@ -49,7 +50,7 @@ def main():
         "--eval",
         type=str,
         default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25",
-        help="Select an eval by name. Accepts a comma-separated list.",
+        help="Select an eval by name. Accepts a comma-separated list. Options: basic, gpqa, healthbench, healthbench_hard, healthbench_consensus, aime25, livecodebench",
     )
     parser.add_argument(
         "--temperature",
@@ -104,6 +105,18 @@ def main():
         type=int,
         default=1800,
         help="Request timeout in seconds (default: 1800)",
+    )
+    parser.add_argument(
+        "--lcb-workers",
+        type=int,
+        default=64,
+        help="Number of parallel workers for LiveCodeBench code evaluation (default: 64)",
+    )
+    parser.add_argument(
+        "--lcb-version",
+        type=str,
+        default="release_v6",
+        help="LiveCodeBench version tag (default: release_v6). Options: release_v5, release_v6",
     )
 
     args = parser.parse_args()
@@ -193,6 +206,14 @@ def main():
                     n_repeats=n_repeats,
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
+                )
+            case "livecodebench":
+                return LiveCodeBenchEval(
+                    n_repeats=n_repeats,
+                    num_examples=num_examples,
+                    n_threads=args.n_threads or 1,
+                    lcb_workers=args.lcb_workers,
+                    lcb_version=args.lcb_version,
                 )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
