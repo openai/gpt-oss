@@ -55,6 +55,6 @@ jobs:
 
       - name: Publish to PyPI using Trusted Publishing
         # Note: No pypi_token / username / password provided — Trusted Publishing via OIDC is used.
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@v1
         with:
           attestations: true # optional (default for Trusted Publishing) - set to false to disable
