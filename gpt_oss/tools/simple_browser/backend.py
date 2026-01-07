@@ -7,6 +7,7 @@ import asyncio
 import logging
 import os
 from abc import abstractmethod
+from importlib.metadata import version
 from typing import Callable, ParamSpec, TypeVar
 from urllib.parse import quote
 
@@ -33,6 +34,11 @@ logger = logging.getLogger(__name__)
 
 
 VIEW_SOURCE_PREFIX = "view-source:"
+
+try:
+    _GPT_OSS_VERSION = version("gpt-oss")
+except Exception:
+    _GPT_OSS_VERSION = "0.0.8"  # fallback version
 
 
 class BackendError(Exception):
@@ -89,7 +95,10 @@ class Backend:
         pass
 
     async def _post(self, session: ClientSession, endpoint: str, payload: dict) -> dict:
-        headers = {"x-api-key": self._get_api_key()}
+        headers = {
+            "x-api-key": self._get_api_key(),
+            "user-agent": f"gpt-oss/{_GPT_OSS_VERSION}",
+        }
         async with session.post(f"{self.BASE_URL}{endpoint}", json=payload, headers=headers) as resp:
             if resp.status != 200:
                 raise BackendError(
@@ -98,7 +107,10 @@ class Backend:
             return await resp.json()
 
     async def _get(self, session: ClientSession, endpoint: str, params: dict) -> dict:
-        headers = {"x-api-key": self._get_api_key()}
+        headers = {
+            "x-api-key": self._get_api_key(),
+            "user-agent": f"gpt-oss/{_GPT_OSS_VERSION}",
+        }
         async with session.get(f"{self.BASE_URL}{endpoint}", params=params, headers=headers) as resp:
             if resp.status != 200:
                 raise BackendError(
