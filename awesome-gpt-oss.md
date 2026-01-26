@@ -36,6 +36,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 - llama.cpp
   - [Running gpt-oss with llama.cpp](https://github.com/ggml-org/llama.cpp/discussions/15396)
   - [Running gpt-oss with Unsloth GGUFs](https://docs.unsloth.ai/new/gpt-oss-how-to-run-and-fine-tune#run-gpt-oss-20b)
+- TVM
+  - [Compile & Run gpt-oss with TVM](https://github.com/brekkylab/gpt-oss-tvm)
 
 ### Server
 
