@@ -130,6 +130,18 @@ class RotaryEmbedding(torch.nn.Module):
         sin = freqs.sin() * concentration
         return cos, sin
 
+    def _apply_rope_to_tensor(self, 
+                              tensor: torch.Tensor,
+                              cos: torch.Tensor, sin: torch.Tensor
+                              ) -> torch.Tensor:
+        """Helper function to apply RoPE to a given tensor."""
+        original_shape = tensor.shape
+        num_tokens = original_shape[0]
+        tensor_reshaped = tensor.view(num_tokens, -1, self.head_dim)
+        tensor_reshaped = _apply_rotary_emb(tensor_reshaped, cos, sin)
+        tensor_reshaped = tensor_reshaped.reshape(original_shape)
+        return tensor_reshaped
+
     def forward(
         self,
         query: torch.Tensor,
@@ -137,16 +149,8 @@ class RotaryEmbedding(torch.nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         num_tokens = query.shape[0]
         cos, sin = self._compute_cos_sin(num_tokens)
-
-        query_shape = query.shape
-        query = query.view(num_tokens, -1, self.head_dim)
-        query = _apply_rotary_emb(query, cos, sin)
-        query = query.reshape(query_shape)
-
-        key_shape = key.shape
-        key = key.view(num_tokens, -1, self.head_dim)
-        key = _apply_rotary_emb(key, cos, sin)
-        key = key.reshape(key_shape)
+        query = self._apply_rope_to_tensor(query, cos, sin)
+        key = self._apply_rope_to_tensor(key, cos, sin)
         return query, key
 
 
