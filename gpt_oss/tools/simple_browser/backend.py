@@ -202,7 +202,7 @@ class YouComBackend(Backend):
             raise BackendError("You.com API key not provided")
         return key
 
-    
+
     async def search(
         self, query: str, topn: int, session: ClientSession
     ) -> PageContents:
@@ -258,6 +258,102 @@ class YouComBackend(Backend):
             html=data[0].get("html", ""),
             url=url,
             title=data[0].get("title", ""),
+            display_urls=True,
+            session=session,
+        )
+
+@chz.chz(typecheck=True)
+class ParallelBackend(Backend):
+    """Backend that uses the Parallel Search and Extract API."""
+
+    source: str = chz.field(doc="Description of the backend source")
+
+    BASE_URL: str = "https://api.parallel.ai"
+
+    def _get_api_key(self) -> str:
+        key = os.environ.get("PARALLEL_API_KEY")
+        if not key:
+            raise BackendError("Parallel API key not provided")
+        return key
+
+    async def _post_parallel(self, session: ClientSession, endpoint: str, payload: dict) -> dict:
+        """Custom post method for Parallel API which uses different auth header."""
+        headers = {
+            "x-api-key": self._get_api_key(),
+            "Content-Type": "application/json"
+        }
+        # Add parallel-beta header for beta endpoints
+        if endpoint.startswith("/v1beta/"):
+            headers["parallel-beta"] = "search-extract-2025-10-10"
+
+        async with session.post(f"{self.BASE_URL}{endpoint}", json=payload, headers=headers) as resp:
+            if resp.status != 200:
+                raise BackendError(
+                    f"{self.__class__.__name__} error {resp.status}: {await resp.text()}"
+                )
+            return await resp.json()
+
+    async def search(
+        self, query: str, topn: int, session: ClientSession
+    ) -> PageContents:
+        data = await self._post_parallel(
+            session,
+            "/v1beta/search",
+            {
+                "objective": query,
+                "max_results": topn,
+            },
+        )
+        # make a simple HTML page to work with browser format
+        titles_and_urls = []
+        if "results" in data:
+            titles_and_urls = [
+                (result["title"], result["url"], " ".join(result.get("excerpts", []) or []))
+                for result in data["results"]
+            ]
+        html_page = f"""
+<html><body>
+<h1>Search Results</h1>
+<ul>
+{"".join([f"<li><a href='{url}'>{title}</a> {summary}</li>" for title, url, summary in titles_and_urls])}
+</ul>
+</body></html>
+"""
+
+        return process_html(
+            html=html_page,
+            url="",
+            title=query,
+            display_urls=True,
+            session=session,
+        )
+
+    async def fetch(self, url: str, session: ClientSession) -> PageContents:
+        is_view_source = url.startswith(VIEW_SOURCE_PREFIX)
+        if is_view_source:
+            url = url[len(VIEW_SOURCE_PREFIX) :]
+
+        # Use Parallel's extract functionality to fetch webpage content
+        data = await self._post_parallel(
+            session,
+            "/v1beta/extract",
+            {"urls": [url], "full_content": True},
+        )
+
+        if not data or "results" not in data or not data["results"]:
+            raise BackendError(f"No contents returned for {url}")
+
+        result = data["results"][0]
+        full_content = result.get("full_content", "")
+
+        # If full_content is empty, fall back to excerpts
+        if not full_content and result.get("excerpts"):
+            full_content = "\n\n".join(result["excerpts"])
+
+        return process_html(
+            html=full_content,
+            url=url,
+            title=result.get("title", ""),
             display_urls=True,
             session=session,
         )
