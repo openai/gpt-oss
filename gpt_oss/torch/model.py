@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import torch
 import torch.distributed as dist
 
+#from xformers.ops import RMSNorm
+
 from gpt_oss.torch.weights import Checkpoint
 
 try:
@@ -33,6 +35,84 @@ class ModelConfig:
     rope_ntk_alpha: float = 1.0
     rope_ntk_beta: float = 32.0
 
+p ="""
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def rms_norm_forward_kernel(
+        x_ptr,  # Pointer to the input tensor
+        output_ptr,  # Pointer to the output tensor
+        scale_ptr,  # Pointer to the scaling tensor
+        x_row_stride,  # Stride to move to the next row in the input tensor
+        output_row_stride,  # Stride to move to the next row in the output tensor
+        num_features,  # Number of features in each row
+        eps,  # Epsilon value for numerical stability
+        BLOCK_SIZE: tl.constexpr,  # Block size for Triton kernel
+):
+
+    # Get the row index of the current program instance
+    row_idx = tl.program_id(axis=0)
+
+    # --- Load the row of data from the input tensor ---
+    row_start_ptr = x_ptr + row_idx * x_row_stride
+    offsets = tl.arange(0, BLOCK_SIZE)
+    x_ptrs = row_start_ptr + offsets
+    mask = offsets < num_features
+    x = tl.load(x_ptrs, mask=mask, other=0.0)
+
+    # --- Compute the sum of squares for the row ---
+    row_var = tl.sum(x * x, axis=0) / num_features
+    rstd = tl.math.rsqrt(row_var + eps)
+
+    # --- Normalize the input and apply the scaling factor ---
+    scale = tl.load(scale_ptr + offsets, mask=mask)
+    normalized_x = x * rstd
+    output = normalized_x * scale
+
+    # --- Write the result to the output tensor ---
+    output_start_ptr = output_ptr + row_idx * output_row_stride
+    output_ptrs = output_start_ptr + offsets
+    tl.store(output_ptrs, output, mask=mask)
+
+
+class RMSNorm_(torch.nn.Module):
+    def __init__(
+            self, num_features: int, eps: float = 1e-05, device: torch.device | None = None
+    ):
+        super().__init__()
+        self.num_features = num_features
+        self.eps = eps
+        self.scale = torch.nn.Parameter(
+            torch.ones(num_features, device=device, dtype=torch.float32)
+        )
+    @profile
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        assert x.shape[-1] == self.num_features
+
+        output = torch.empty_like(x)
+
+        # Get the number of rows
+        n_rows = x.numel() // self.num_features
+
+        # Define the block size for the Triton kernel
+        BLOCK_SIZE = triton.next_power_of_2(self.num_features)
+
+        # Launch the Triton kernel
+        rms_norm_forward_kernel[(n_rows,)](
+            x,
+            output,
+            self.scale,
+            x.stride(0),
+            output.stride(0),
+            self.num_features,
+            self.eps,
+            BLOCK_SIZE=BLOCK_SIZE,
+        )
+        return output
+"""
+
 
 class RMSNorm(torch.nn.Module):
     def __init__(
@@ -45,6 +125,7 @@ class RMSNorm(torch.nn.Module):
             torch.ones(num_features, device=device, dtype=torch.float32)
         )
 
+    @profile
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[-1] == self.num_features
         t, dtype = x.float(), x.dtype
@@ -588,6 +669,7 @@ class Transformer(torch.nn.Module):
                 self.loaded[1] = True
             x = self.embedding(x)
             if self.extremly_low_memory:
+                torch.cuda.synchronize()
                 self.embedding = None
                 torch.cuda.empty_cache()
         else:
@@ -635,6 +717,7 @@ class Transformer(torch.nn.Module):
                 self.loaded[0] = True
             x = self.unembedding(x)
             if self.extremly_low_memory:
+                torch.cuda.synchronize()
                 self.unembedding = None
                 torch.cuda.empty_cache()
         else:
