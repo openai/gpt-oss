@@ -25,7 +25,7 @@ def main(args):
             from gpt_oss.torch.utils import init_distributed
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
             device = init_distributed()
-            generator = TorchGenerator(args.checkpoint, device=device, pin_memory=False)
+            generator = TorchGenerator(args.checkpoint, device=device, mlp_safetensors=r"./gpt-oss-20b/optimized")
         case "triton":
             from gpt_oss.torch.utils import init_distributed
             from gpt_oss.triton.model import TokenGenerator as TritonGenerator

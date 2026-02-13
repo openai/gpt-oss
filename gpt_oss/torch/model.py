@@ -1,14 +1,10 @@
 import json
 import math
-import os
 from dataclasses import dataclass
 
-import torch
-import torch.distributed as dist
-
-#from xformers.ops import RMSNorm
-
 from gpt_oss.torch.weights import Checkpoint
+
+#from line_profiler import profile
 
 try:
     profile # type: ignore
@@ -35,83 +31,192 @@ class ModelConfig:
     rope_ntk_alpha: float = 1.0
     rope_ntk_beta: float = 32.0
 
-p ="""
-import triton
-import triton.language as tl
+    gpu_expert_cache_size: int = 5  # How many experts per block to keep in VRAM
+    ram_expert_cache_size: int = 15  # How many experts per block to keep in Pinned RAM
+    weights_path: str = ""  # Path to the folder containing converted mlp safetensors
 
 
-@triton.jit
-def rms_norm_forward_kernel(
-        x_ptr,  # Pointer to the input tensor
-        output_ptr,  # Pointer to the output tensor
-        scale_ptr,  # Pointer to the scaling tensor
-        x_row_stride,  # Stride to move to the next row in the input tensor
-        output_row_stride,  # Stride to move to the next row in the output tensor
-        num_features,  # Number of features in each row
-        eps,  # Epsilon value for numerical stability
-        BLOCK_SIZE: tl.constexpr,  # Block size for Triton kernel
-):
-
-    # Get the row index of the current program instance
-    row_idx = tl.program_id(axis=0)
-
-    # --- Load the row of data from the input tensor ---
-    row_start_ptr = x_ptr + row_idx * x_row_stride
-    offsets = tl.arange(0, BLOCK_SIZE)
-    x_ptrs = row_start_ptr + offsets
-    mask = offsets < num_features
-    x = tl.load(x_ptrs, mask=mask, other=0.0)
-
-    # --- Compute the sum of squares for the row ---
-    row_var = tl.sum(x * x, axis=0) / num_features
-    rstd = tl.math.rsqrt(row_var + eps)
-
-    # --- Normalize the input and apply the scaling factor ---
-    scale = tl.load(scale_ptr + offsets, mask=mask)
-    normalized_x = x * rstd
-    output = normalized_x * scale
-
-    # --- Write the result to the output tensor ---
-    output_start_ptr = output_ptr + row_idx * output_row_stride
-    output_ptrs = output_start_ptr + offsets
-    tl.store(output_ptrs, output, mask=mask)
+from collections import OrderedDict
+import os
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.distributed as dist
+from safetensors import safe_open
 
 
-class RMSNorm_(torch.nn.Module):
+class LazyMLPBlock(nn.Module):
     def __init__(
-            self, num_features: int, eps: float = 1e-05, device: torch.device | None = None
+            self,
+            config,
+            layer_idx: int,
+            device: torch.device | None = None,
     ):
         super().__init__()
-        self.num_features = num_features
-        self.eps = eps
-        self.scale = torch.nn.Parameter(
-            torch.ones(num_features, device=device, dtype=torch.float32)
+        self.config = config
+        self.layer_idx = layer_idx
+        self.device = device or torch.device("cuda")
+
+        self.num_experts = config.num_experts
+        self.experts_per_token = config.experts_per_token
+        self.swiglu_limit = config.swiglu_limit
+        self.hidden_size = config.hidden_size
+
+        if dist.is_initialized():
+            self.my_rank = dist.get_rank()
+            self.world_size = dist.get_world_size()
+        else:
+            self.my_rank = 0
+            self.world_size = 1
+
+        self.per_rank_intermediate_size = config.intermediate_size // self.world_size
+
+        # Permanent GPU layers
+        self.norm = RMSNorm(config.hidden_size, device=device)
+        self.gate = nn.Linear(
+            config.hidden_size, config.num_experts, device=device, dtype=torch.bfloat16
         )
-    @profile
+
+        # Path Setup
+        self.prefix = f"block.{layer_idx}.mlp"
+        self.file_path = os.path.join(config.weights_path, "model.safetensors")
+
+        # --- Preload Scales and Biases to CUDA ---
+        self._preload_metadata_to_cuda()
+
+        self.gpu_cache = OrderedDict()
+        self.max_gpu_cache = getattr(config, "gpu_expert_cache_size", 6)
+        self.ram_cache = OrderedDict()
+        self.max_ram_cache = getattr(config, "ram_expert_cache_size", 18)
+
+
+    def _preload_metadata_to_cuda(self):
+        """Loads all scales and biases for all experts into GPU memory once."""
+        with safe_open(self.file_path, framework="pt", device="cpu") as f:
+            # Load full tensors for all experts
+            s1 = f.get_tensor(f"{self.prefix}.mlp1_weight_scale")
+            b1 = f.get_tensor(f"{self.prefix}.mlp1_bias")
+            s2 = f.get_tensor(f"{self.prefix}.mlp2_weight_scale")
+            b2 = f.get_tensor(f"{self.prefix}.mlp2_bias")
+
+            if self.world_size > 1:
+                p = self.per_rank_intermediate_size
+                start = self.my_rank * 2 * p
+                end = (self.my_rank + 1) * 2 * p
+                b1 = b1[:, start:end]
+
+            self.all_s1 = s1.to(self.device, non_blocking=True)
+            self.all_b1 = b1.to(self.device, non_blocking=True)
+            self.all_s2 = s2.to(self.device, non_blocking=True)
+            self.all_b2 = b2.to(self.device, non_blocking=True)
+
+    #@profile
+    def _load_from_disk(self, expert_idx: int):
+        """Loads only FP8 weights from disk and applies TP sharding."""
+        with safe_open(self.file_path, framework="pt", device="cuda") as f:
+            w1_fp8 = f.get_slice(f"{self.prefix}.mlp1_weight")[expert_idx:expert_idx + 1].squeeze(0)
+            w2_fp8 = f.get_slice(f"{self.prefix}.mlp2_weight")[expert_idx:expert_idx + 1].squeeze(0)
+
+            if self.world_size > 1:
+                p = self.per_rank_intermediate_size
+                w1_fp8 = w1_fp8[self.my_rank * 2 * p: (self.my_rank + 1) * 2 * p, :]
+                w2_fp8 = w2_fp8[:, self.my_rank * p: (self.my_rank + 1) * p]
+
+        return w1_fp8, w2_fp8
+
+    #@profile
+    def _get_expert_weights(self, idx: int):
+        """Retrieves ONLY weights (FP8) from cache or disk."""
+        if idx in self.gpu_cache:
+            self.gpu_cache.move_to_end(idx)
+            return self.gpu_cache[idx]
+
+        if idx in self.ram_cache:
+            tensors = self.ram_cache.pop(idx)
+            gpu_tensors = tuple(t.to(self.device, non_blocking=True) for t in tensors)
+            self._add_to_gpu_cache(idx, gpu_tensors)
+            return gpu_tensors
+
+        cpu_tensors = self._load_from_disk(idx)
+        gpu_tensors = tuple(t.to(self.device, non_blocking=True) for t in cpu_tensors)
+        self._add_to_gpu_cache(idx, gpu_tensors)
+        return gpu_tensors
+
+    #@profile
+    def _add_to_gpu_cache(self, idx, weights):
+        if len(self.gpu_cache) >= self.max_gpu_cache:
+            evict_idx, evict_weights = self.gpu_cache.popitem(last=False)
+            self._add_to_ram_cache(evict_idx, evict_weights)
+        self.gpu_cache[idx] = weights
+
+    #@profile
+    def _add_to_ram_cache(self, idx, weights):
+        if self.max_ram_cache > 0:
+            if len(self.ram_cache) >= self.max_ram_cache:
+                self.ram_cache.popitem(last=False)
+            pinned = tuple(t.to("cpu", non_blocking=True).pin_memory() for t in weights)
+            self.ram_cache[idx] = pinned
+
+    #@profile
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.shape[-1] == self.num_features
+        original_shape = x.shape
+        batch_size = x.shape[0] * x.shape[1] if len(x.shape) > 2 else x.shape[0]
+        x_flat = x.view(-1, self.hidden_size)
 
-        output = torch.empty_like(x)
+        t = self.norm(x_flat)
+        gate_logits = self.gate(t)
+        experts = torch.topk(gate_logits, k=self.experts_per_token, dim=-1)
 
-        # Get the number of rows
-        n_rows = x.numel() // self.num_features
+        expert_weights = F.softmax(experts.values, dim=-1)
+        expert_indices = experts.indices
 
-        # Define the block size for the Triton kernel
-        BLOCK_SIZE = triton.next_power_of_2(self.num_features)
+        flat_expert_indices = expert_indices.view(-1)
+        flat_expert_weights = expert_weights.view(-1)
 
-        # Launch the Triton kernel
-        rms_norm_forward_kernel[(n_rows,)](
-            x,
-            output,
-            self.scale,
-            x.stride(0),
-            output.stride(0),
-            self.num_features,
-            self.eps,
-            BLOCK_SIZE=BLOCK_SIZE,
-        )
-        return output
-"""
+        sorted_experts, sorted_indices = torch.sort(flat_expert_indices)
+
+        token_row_indices = torch.arange(batch_size, device=self.device).repeat_interleave(self.experts_per_token)
+        sorted_row_indices = token_row_indices[sorted_indices]
+
+        x_sorted = t[sorted_row_indices]
+
+        active_experts, counts = torch.unique_consecutive(sorted_experts, return_counts=True)
+        active_experts_list = active_experts.tolist()
+        counts_list = counts.tolist()
+
+        final_output = torch.zeros_like(x_flat)
+
+        start_idx = 0
+        for i, exp_idx in enumerate(active_experts_list):
+            count = counts_list[i]
+            current_tokens = x_sorted[start_idx: start_idx + count]
+            routing_weights = flat_expert_weights[sorted_indices[start_idx: start_idx + count]]
+
+            w1_fp8, w2_fp8 = self._get_expert_weights(exp_idx)
+            s1, b1 = self.all_s1[exp_idx], self.all_b1[exp_idx]
+            s2, b2 = self.all_s2[exp_idx], self.all_b2[exp_idx]
+
+            # MLP1
+            w1_bf16 = w1_fp8.to(torch.bfloat16) * s1
+            h = F.linear(current_tokens, w1_bf16, bias=b1)
+            h = swiglu(h, limit=self.swiglu_limit)
+
+            # MLP2
+            w2_bf16 = w2_fp8.to(torch.bfloat16) * s2
+            h = F.linear(h, w2_bf16, bias=None)
+
+            if self.world_size > 1:
+                dist.all_reduce(h, op=dist.ReduceOp.SUM)
+
+            h = h + b2
+            h = h * routing_weights.unsqueeze(-1)
+
+            active_rows = sorted_row_indices[start_idx: start_idx + count]
+            final_output.index_add_(0, active_rows, h)
+
+            start_idx += count
+
+        return x + final_output.view(original_shape)
 
 
 class RMSNorm(torch.nn.Module):
@@ -125,7 +230,6 @@ class RMSNorm(torch.nn.Module):
             torch.ones(num_features, device=device, dtype=torch.float32)
         )
 
-    @profile
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.shape[-1] == self.num_features
         t, dtype = x.float(), x.dtype
@@ -382,193 +486,6 @@ def swiglu(x, alpha: float = 1.702, limit: float = 7.0):
     return out_glu * (x_linear + 1)
 
 
-class MLPBlock_(torch.nn.Module): # memory unefficient
-    def __init__(
-        self,
-        config: ModelConfig,
-        device: torch.device | None = None,
-    ):
-        super().__init__()
-        self.num_experts = config.num_experts
-        self.experts_per_token = config.experts_per_token
-        self.swiglu_limit = config.swiglu_limit
-        self.world_size = dist.get_world_size() if dist.is_initialized() else 1
-        self.norm = RMSNorm(config.hidden_size, device=device)
-        self.gate = torch.nn.Linear(
-            config.hidden_size, config.num_experts, device=device, dtype=torch.bfloat16
-        )
-        assert config.intermediate_size % self.world_size == 0
-        self.mlp1_weight = torch.nn.Parameter(
-            torch.empty(
-                (
-                    config.num_experts,
-                    config.intermediate_size * 2 // self.world_size,
-                    config.hidden_size,
-                ),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-        self.mlp1_bias = torch.nn.Parameter(
-            torch.empty(
-                (config.num_experts, config.intermediate_size * 2 // self.world_size),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-        self.mlp2_weight = torch.nn.Parameter(
-            torch.empty(
-                (
-                    config.num_experts,
-                    config.hidden_size,
-                    config.intermediate_size // self.world_size,
-                ),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-        self.mlp2_bias = torch.nn.Parameter(
-            torch.empty(
-                (config.num_experts, config.hidden_size),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        t = self.norm(x)
-        g = self.gate(t)
-        experts = torch.topk(g, k=self.experts_per_token, dim=-1, sorted=True)
-        expert_weights = torch.nn.functional.softmax(experts.values, dim=1)
-        expert_indices = experts.indices
-
-        # MLP #1
-        mlp1_weight = self.mlp1_weight[expert_indices, ...]
-        mlp1_bias = self.mlp1_bias[expert_indices, ...]
-        t = torch.einsum("beck,bk->bec", mlp1_weight, t) + mlp1_bias
-        t = swiglu(t, limit=self.swiglu_limit)
-
-        # MLP #2
-        mlp2_weight = self.mlp2_weight[expert_indices, ...]
-        mlp2_bias = self.mlp2_bias[expert_indices, ...]
-        t = torch.einsum("beck,bek->bec", mlp2_weight, t)
-        if self.world_size > 1:
-            dist.all_reduce(t, op=dist.ReduceOp.SUM)
-        t += mlp2_bias
-
-        # Weighted sum of experts
-        t = torch.einsum("bec,be->bc", t, expert_weights)
-
-        return x + t
-
-class MLPBlock(torch.nn.Module):
-    def __init__(
-            self,
-            config: ModelConfig,
-            device: torch.device | None = None,
-    ):
-        super().__init__()
-        self.num_experts = config.num_experts
-        self.experts_per_token = config.experts_per_token
-        self.swiglu_limit = config.swiglu_limit
-        self.world_size = dist.get_world_size() if dist.is_initialized() else 1
-        self.hidden_size = config.hidden_size
-        self.intermediate_size = config.intermediate_size
-        self.norm = RMSNorm(config.hidden_size, device=device)
-        self.gate = torch.nn.Linear(
-            config.hidden_size, config.num_experts, device=device, dtype=torch.bfloat16
-        )
-        assert config.intermediate_size % self.world_size == 0
-        self.mlp1_weight = torch.nn.Parameter(
-            torch.empty(
-                (
-                    config.num_experts,
-                    config.intermediate_size * 2 // self.world_size,
-                    config.hidden_size,
-                ),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-        self.mlp1_bias = torch.nn.Parameter(
-            torch.empty(
-                (config.num_experts, config.intermediate_size * 2 // self.world_size),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-        self.mlp2_weight = torch.nn.Parameter(
-            torch.empty(
-                (
-                    config.num_experts,
-                    self.hidden_size,
-                    config.intermediate_size // self.world_size,
-                ),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-        self.mlp2_bias = torch.nn.Parameter(
-            torch.empty(
-                (config.num_experts, self.hidden_size),
-                device=device,
-                dtype=torch.bfloat16,
-            )
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        t = self.norm(x)
-        g = self.gate(t)
-
-        if t.dim() == 2:
-            t = t.unsqueeze(1)
-            g = g.unsqueeze(1)
-            added_seq_dim = True
-        else:
-            added_seq_dim = False
-
-        batch_size, seq_len, hidden_size = t.shape
-
-        t_flat = t.reshape(-1, hidden_size)
-        g_flat = g.reshape(-1, self.num_experts)
-
-        experts = torch.topk(g_flat, k=self.experts_per_token, dim=-1, sorted=True)
-        expert_weights = torch.nn.functional.softmax(experts.values, dim=-1)
-        expert_indices = experts.indices
-
-        output_flat = torch.zeros_like(t_flat)
-
-        for k in range(self.experts_per_token):
-            current_expert_indices = expert_indices[:, k]
-            current_expert_weights = expert_weights[:, k]
-
-            mlp1_w = self.mlp1_weight[
-                current_expert_indices]
-            mlp1_b = self.mlp1_bias[current_expert_indices]
-            mlp2_w = self.mlp2_weight[
-                current_expert_indices]
-            mlp2_b = self.mlp2_bias[current_expert_indices]
-
-            t_k = torch.bmm(t_flat.unsqueeze(1), mlp1_w.transpose(1, 2)).squeeze(1) + mlp1_b
-            t_k = swiglu(t_k, limit=self.swiglu_limit)
-
-            t_k = torch.bmm(t_k.unsqueeze(1), mlp2_w.transpose(1, 2)).squeeze(1)
-
-            if self.world_size > 1:
-                dist.all_reduce(t_k, op=dist.ReduceOp.SUM)
-
-            t_k += mlp2_b
-
-            output_flat += t_k * current_expert_weights.unsqueeze(1)
-
-        output = output_flat.reshape(batch_size, seq_len, hidden_size)
-
-        if added_seq_dim:
-            output = output.squeeze(1)
-
-        return x + output
-
-
 class TransformerBlock(torch.nn.Module):
     def __init__(
         self,
@@ -579,9 +496,9 @@ class TransformerBlock(torch.nn.Module):
         super().__init__()
         self.layer_idx = layer_idx
         self.attn = AttentionBlock(config, layer_idx, device)
-        self.mlp = MLPBlock(config, device)
+        self.mlp = LazyMLPBlock(config, layer_idx, device)
 
-    @profile
+    #@profile
     def forward(self,
                 x: torch.Tensor,
                 past_kv: tuple[torch.Tensor, torch.Tensor] | None = None,
@@ -614,146 +531,46 @@ class Transformer(torch.nn.Module):
         self,
         config: ModelConfig,
         device: torch.device | None = None,
-        lazy_load: bool = True,
-        extremly_low_memory: bool = False,
     ):
         super().__init__()
-        free_mem = get_free_gpu_memory_gb()
-        if free_mem < 6:
-            lazy_load = True
-            extremly_low_memory = True
-        elif free_mem < 8:
-            lazy_load = True
-        self.lazy_load = lazy_load
-        self.extremly_low_memory = extremly_low_memory
         self.config = config
-        self.device = device
-        self.loaded = {0: False, 1: False, 2: False}
-        if self.lazy_load:
-            self.block = torch.nn.ModuleList([
-                TransformerBlock(config, 0, device=device),
-            ])
-        else:
-            self.block = torch.nn.ModuleList(
-                [
-                    TransformerBlock(config, layer_idx, device)
-                    for layer_idx in range(config.num_hidden_layers)
-                ]
-            )
-            self.norm = RMSNorm(config.hidden_size, device=device)
-            self.embedding = torch.nn.Embedding(
-                config.vocab_size, config.hidden_size, device=device, dtype=torch.bfloat16
-            )
-            self.unembedding = torch.nn.Linear(
-                config.hidden_size,
-                config.vocab_size,
-                bias=False,
-                device=device,
-                dtype=torch.bfloat16,
-            )
+        self.embedding = torch.nn.Embedding(
+            config.vocab_size, config.hidden_size, device=device, dtype=torch.bfloat16
+        )
+        self.block = torch.nn.ModuleList(
+            [
+                TransformerBlock(config, layer_idx, device)
+                for layer_idx in range(config.num_hidden_layers)
+            ]
+        )
+        self.norm = RMSNorm(config.hidden_size, device=device)
+        self.unembedding = torch.nn.Linear(
+            config.hidden_size,
+            config.vocab_size,
+            bias=False,
+            device=device,
+            dtype=torch.bfloat16,
+        )
 
-    @profile
-    def forward(self,
-                x: torch.Tensor,
-                kv_cache: list[tuple[torch.Tensor, torch.Tensor] | None] | None = None,
-                start_pos: int = 0,
-                ) -> tuple[
-        torch.Tensor, list[tuple[torch.Tensor, torch.Tensor] | None]]:
-        if self.lazy_load:
-            if not self.loaded[1] or self.extremly_low_memory:
-                self.embedding = torch.nn.Embedding(
-                    self.config.vocab_size, self.config.hidden_size, device=self.device, dtype=torch.bfloat16
-                )
-                for name, param in self.embedding.named_parameters():
-                    self.load_weights(param, f"embedding.{name}")
-                self.loaded[1] = True
-            x = self.embedding(x)
-            if self.extremly_low_memory:
-                torch.cuda.synchronize()
-                self.embedding = None
-                torch.cuda.empty_cache()
-        else:
-            x = self.embedding(x)
-
+    #@profile
+    def forward(self, x: torch.Tensor,  kv_cache: list[tuple[torch.Tensor, torch.Tensor] | None] | None = None,
+                start_pos: int = 0,) -> torch.Tensor:
+        x = self.embedding(x)
         if kv_cache is None:
             kv_cache = [None] * self.config.num_hidden_layers
-
-        if self.lazy_load:
-            for layer_idx in range(self.config.num_hidden_layers):
-                # layers skipping experiment
-                #if layer_idx % 2 == 0:
-                #    continue
-                for name, param in self.block[0].named_parameters():
-                    self.load_weights(param, f"block.{layer_idx}.{name}")
-                past_kv_for_layer = kv_cache[layer_idx]
-                x, new_kv_for_layer = self.block[0](x, past_kv_for_layer, start_pos)
-                kv_cache[layer_idx] = new_kv_for_layer
-        else:
-            for layer_idx in range(self.config.num_hidden_layers):
-                past_kv_for_layer = kv_cache[layer_idx]
-                x, new_kv_for_layer = self.block[layer_idx](x, past_kv_for_layer, start_pos)
-                kv_cache[layer_idx] = new_kv_for_layer
-
-        if self.lazy_load:
-            norm = RMSNorm(self.config.hidden_size, device=self.device)
-            for name, param in norm.named_parameters():
-                self.load_weights(param, f"norm.{name}")
-            x = norm(x)
-            del norm
-        else:
-            x = self.norm(x)
-
-        if self.lazy_load:
-            if not self.loaded[0] or self.extremly_low_memory:
-                self.unembedding = torch.nn.Linear(
-                    self.config.hidden_size,
-                    self.config.vocab_size,
-                    bias=False,
-                    device=self.device,
-                    dtype=torch.bfloat16,
-                 )
-                for name, param in self.unembedding.named_parameters():
-                    self.load_weights(param, f"unembedding.{name}")
-                self.loaded[0] = True
-            x = self.unembedding(x)
-            if self.extremly_low_memory:
-                torch.cuda.synchronize()
-                self.unembedding = None
-                torch.cuda.empty_cache()
-        else:
-            x = self.unembedding(x)
+        layer_idx = 0
+        for block in self.block:
+            past_kv_for_layer = kv_cache[layer_idx]
+            x, new_kv_for_layer = block(x, past_kv_for_layer, start_pos)
+            kv_cache[layer_idx] = new_kv_for_layer
+            layer_idx += 1
+        x = self.norm(x)
+        x = self.unembedding(x)
         return x, kv_cache
-
-    def load_weights(self, param, name):
-        global checkpoint
-        my_rank = dist.get_rank() if dist.is_initialized() else 0
-        world_size = dist.get_world_size() if dist.is_initialized() else 1
-        per_rank_intermediate_size = self.config.intermediate_size // world_size
-        loaded_tensor = checkpoint.get(name)
-        if "mlp1" in name:
-            loaded_tensor = loaded_tensor[
-                :,
-                my_rank * 2
-                * per_rank_intermediate_size: (my_rank + 1) * 2
-                                              * per_rank_intermediate_size,
-                ...,
-                ]
-        elif "mlp2_weight" in name:
-            loaded_tensor = loaded_tensor[
-                ...,
-                my_rank
-                * per_rank_intermediate_size: (my_rank + 1)
-                                              * per_rank_intermediate_size,
-                ]
-        try:
-            param.data.copy_(loaded_tensor)
-        except:
-            print(f"{name=} {param.data.shape=} {loaded_tensor.shape=}")
-            raise
 
     @staticmethod
     def from_checkpoint(
-        path: str, device: str | torch.device = "cuda", lazy_load: bool = True, pin_memory: bool = False
+        path: str, device: str | torch.device = "cuda", mlp_safetensors: str = ""
     ) -> "Transformer":
         if not isinstance(device, torch.device):
             device = torch.device(device)
@@ -761,62 +578,35 @@ class Transformer(torch.nn.Module):
         config_path = os.path.join(path, "config.json")
         with open(config_path, "r") as f:
             json_config = json.load(f)
-            config = ModelConfig(**json_config)
-
-        extremly_low_memory = False
-        if not pin_memory:
-            extremly_low_memory = True
+            config = ModelConfig(**json_config,
+                weights_path = mlp_safetensors,
+                gpu_expert_cache_size = 6,
+                ram_expert_cache_size = 18
+            )
 
         model = Transformer(
             config=config,
             device=device,
-            extremly_low_memory=extremly_low_memory,
         )
-        if not lazy_load:
-            model.eval()
+        model.eval()
 
-        global checkpoint
-        checkpoint = Checkpoint(path, device, pin_memory)
-
-        if not lazy_load:
-            # Load weights
-            my_rank = dist.get_rank() if dist.is_initialized() else 0
-            world_size = dist.get_world_size() if dist.is_initialized() else 1
-            per_rank_intermediate_size = config.intermediate_size // world_size
-            for name, param in model.named_parameters():
-                loaded_tensor = checkpoint.get(name)
-                # Note: it would be more efficient to do sharding before upcasting from MXFP4,
-                # but for simplicity we do it after.
-                if "mlp1" in name:  # both weight and bias
-                    loaded_tensor = loaded_tensor[
-                        :,
-                        my_rank * 2
-                        * per_rank_intermediate_size : (my_rank + 1) * 2
-                        * per_rank_intermediate_size,
-                        ...,
-                    ]
-                elif "mlp2_weight" in name:  # only weight
-                    loaded_tensor = loaded_tensor[
-                        ...,
-                        my_rank
-                        * per_rank_intermediate_size : (my_rank + 1)
-                        * per_rank_intermediate_size,
-                    ]
-                try:
-                    param.data.copy_(loaded_tensor)
-                except:
-                    print(f"{name=} {param.data.shape=} {loaded_tensor.shape=}")
-                    raise
+        checkpoint = Checkpoint(path, device)
+        for name, param in model.named_parameters():
+            loaded_tensor = checkpoint.get(name)
+            try:
+                param.data.copy_(loaded_tensor)
+            except:
+                print(f"{name=} {param.data.shape=} {loaded_tensor.shape=}")
+                raise
 
         return model
 
 
 class TokenGenerator:
     @torch.inference_mode()
-    def __init__(self, checkpoint: str, device: torch.device, pin_memory: bool = False):
+    def __init__(self, checkpoint: str, device: torch.device, mlp_safetensors: str = ""):
         self.device = device
-        self.model = Transformer.from_checkpoint(
-            checkpoint, device=self.device, pin_memory=pin_memory)
+        self.model = Transformer.from_checkpoint(checkpoint, device=self.device, mlp_safetensors=mlp_safetensors)
 
     @torch.inference_mode()
     def generate(self,
