@@ -135,7 +135,6 @@ class Checkpoint:
         if self.lut_buffer:
             self._lut = torch.tensor(FP4_VALUES, dtype=torch.bfloat16, device=device)
 
-    @profile
     #@TensorLRUCache(max_memory_gb=3.6, max_individual_size_gb=0.2, min_individual_size_gb=0.03) # (3.6, 0.2, 0.03) cache for mlp1 use additional memory but 5% faster, use it only for gpt_oss.generate (Max vram used: 7.6Gb)
     def _get_tensor(self, name: str) -> torch.Tensor:
         assert name in self.tensor_name_to_file, f"Tensor {name} not found."
@@ -153,7 +152,6 @@ class Checkpoint:
         for handle in self.file_handles.values():
             pass
 
-    @profile
     def get(self, name: str) -> torch.Tensor:
         match PARAM_NAME_MAP.get(name, name):
             case (blocks_name, scales_name):
@@ -163,7 +161,6 @@ class Checkpoint:
                 # MoE biases and other weights
                 return self._get_tensor(tensor_name)
 
-    @profile
     def _get_mxfp4_tensor(
         self,
         blocks_name: str,

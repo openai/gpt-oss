@@ -6,6 +6,7 @@
 import argparse
 
 from gpt_oss.tokenizer import get_tokenizer
+import time
 
 from line_profiler import profile
 
@@ -24,7 +25,7 @@ def main(args):
             from gpt_oss.torch.utils import init_distributed
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
             device = init_distributed()
-            generator = TorchGenerator(args.checkpoint, device=device, pin_memory=True)
+            generator = TorchGenerator(args.checkpoint, device=device, mlp_safetensors=r"./gpt-oss-20b/optimized")
         case "triton":
             from gpt_oss.torch.utils import init_distributed
             from gpt_oss.triton.model import TokenGenerator as TritonGenerator
@@ -39,11 +40,15 @@ def main(args):
     tokenizer = get_tokenizer()
     tokens = tokenizer.encode(args.prompt)
     max_tokens = None if args.limit == 0 else args.limit
+    start_time = time.time_ns()
     for token, logprob in generator.generate(tokens, stop_tokens=[tokenizer.eot_token], temperature=args.temperature, max_tokens=max_tokens, return_logprobs=True):
         tokens.append(token)
         token_text = tokenizer.decode([token])
+        end_time = time.time_ns()
+        sec = (end_time-start_time)/1000000000
+        start_time = end_time
         print(
-            f"Generated token: {repr(token_text)}, logprob: {logprob}"
+            f"Generated token: {repr(token_text)}, logprob: {logprob}, time: {sec} sec"
         )
 
 

@@ -72,7 +72,7 @@ def main(args):
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
             from gpt_oss.torch.utils import init_distributed
             device = init_distributed()
-            generator = TorchGenerator(args.checkpoint, device, pin_memory=False)
+            generator = TorchGenerator(args.checkpoint, device, mlp_safetensors=r"./gpt-oss-20b/optimized")
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
             generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
