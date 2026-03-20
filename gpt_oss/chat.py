@@ -19,7 +19,7 @@ import termcolor
 
 from gpt_oss.tools import apply_patch
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import YouComBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend, YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 
 from openai_harmony import (
@@ -85,9 +85,13 @@ def main(args):
     )
 
     if args.browser:
-        backend = YouComBackend(
-            source="web",
-        )
+        tool_backend = os.getenv("BROWSER_BACKEND", "exa")
+        if tool_backend == "youcom":
+            backend = YouComBackend(source="web")
+        elif tool_backend == "exa":
+            backend = ExaBackend(source="web")
+        else:
+            raise ValueError(f"Invalid tool backend: {tool_backend}")
         browser_tool = SimpleBrowserTool(backend=backend)
         system_message_content = system_message_content.with_tools(browser_tool.tool_config)
 
