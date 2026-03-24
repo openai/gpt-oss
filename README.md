@@ -426,7 +426,7 @@ codex -p oss
 ### Browser
 
 > [!WARNING]
-> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`YouComBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment. Currently we have available `YouComBackend` and `ExaBackend`. 
+> This implementation is purely for educational purposes and should not be used in production. You should implement your own equivalent of the [`ExaBackend`](gpt_oss/tools/simple_browser/backend.py) class with your own browsing environment. Currently we have available `ExaBackend` and `YouComBackend`. 
 
 Both gpt-oss models were trained with the capability to browse using the `browser` tool that exposes the following three methods:
 
@@ -441,18 +441,18 @@ To enable the browser tool, you'll have to place the definition into the `system
 ```python
 import datetime
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import YouComBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend
 from openai_harmony import SystemContent, Message, Conversation, Role, load_harmony_encoding, HarmonyEncodingName
 
 encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
 # Depending on the choice of the browser backend you need corresponding env variables setup
-# In case you use You.com backend requires you to have set the YDC_API_KEY environment variable,
-# while for Exa you might need EXA_API_KEY environment variable set
-backend = YouComBackend(
+# Exa backend requires the EXA_API_KEY environment variable,
+# while for You.com you need the YDC_API_KEY environment variable set
+backend = ExaBackend(
     source="web",
 )
-# backend = ExaBackend(
+# backend = YouComBackend(
 #  source="web",
 # )
 browser_tool = SimpleBrowserTool(backend=backend)

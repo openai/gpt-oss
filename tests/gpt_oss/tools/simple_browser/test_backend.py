@@ -3,7 +3,7 @@ from typing import Generator, Any
 from unittest import mock
 from aiohttp import ClientSession
 
-from gpt_oss.tools.simple_browser.backend import YouComBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend, YouComBackend
 
 class MockAiohttpResponse:
     """Mocks responses for get/post requests from async libraries."""
@@ -61,6 +61,48 @@ async def test_youcom_backend_fetch(mock_session_get):
     ]
     with mock.patch("os.environ.get", wraps=mock_os_environ_get):
         mock_session_get.return_value = MockAiohttpResponse(api_response, 200)
+        async with ClientSession() as session:
+            result = await backend.fetch(url="https://www.example.com/fetch1", session=session)
+        assert result.title == "Fetch Result 1"
+        assert result.text == "\nURL: https://www.example.com/fetch1\nFetch Result 1 text"
+
+
+def mock_exa_environ_get(name: str, default: Any = "test_api_key"):
+    assert name in ["EXA_API_KEY"]
+    return default
+
+def test_exa_backend():
+    backend = ExaBackend(source="web")
+    assert backend.source == "web"
+
+@pytest.mark.asyncio
+@mock.patch("aiohttp.ClientSession.post")
+async def test_exa_backend_search(mock_session_post):
+    backend = ExaBackend(source="web")
+    api_response = {
+        "results": [
+            {"title": "Result 1", "url": "https://www.example.com/1", "summary": "Result 1 summary"},
+            {"title": "Result 2", "url": "https://www.example.com/2", "summary": "Result 2 summary"},
+        ]
+    }
+    with mock.patch("os.environ.get", wraps=mock_exa_environ_get):
+        mock_session_post.return_value = MockAiohttpResponse(api_response, 200)
+        async with ClientSession() as session:
+            result = await backend.search(query="test", topn=10, session=session)
+        assert result.title == "test"
+        assert result.urls == {"0": "https://www.example.com/1", "1": "https://www.example.com/2"}
+
+@pytest.mark.asyncio
+@mock.patch("aiohttp.ClientSession.post")
+async def test_exa_backend_fetch(mock_session_post):
+    backend = ExaBackend(source="web")
+    api_response = {
+        "results": [
+            {"title": "Fetch Result 1", "url": "https://www.example.com/fetch1", "text": "<div>Fetch Result 1 text</div>"},
+        ]
+    }
+    with mock.patch("os.environ.get", wraps=mock_exa_environ_get):
+        mock_session_post.return_value = MockAiohttpResponse(api_response, 200)
         async with ClientSession() as session:
             result = await backend.fetch(url="https://www.example.com/fetch1", session=session)
         assert result.title == "Fetch Result 1"
