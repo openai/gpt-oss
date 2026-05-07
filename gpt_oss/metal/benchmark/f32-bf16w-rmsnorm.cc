@@ -26,6 +26,8 @@ static void f32_bf16w_rnsnorm(benchmark::State& state) {
     Buffer input_buffer{device, num_tokens * num_channels * sizeof(float)};
     Buffer weight_buffer{device, num_channels * sizeof(gptoss_bfloat16)};
     Buffer output_buffer{device, num_tokens * num_channels * sizeof(float)};
+    Buffer control_buffer{device, sizeof(gptoss_control)};
+    std::memset(control_buffer.ptr(), 0, sizeof(gptoss_control));
 
     {
         CommandBuffer command_buffer{command_queue};
@@ -69,6 +71,8 @@ static void f32_bf16w_rnsnorm(benchmark::State& state) {
                 /*weight_offset=*/0,
                 output_buffer.handle(),
                 /*output_offset=*/0,
+                control_buffer.handle(),
+                /*control_offset=*/0,
                 num_tokens,
                 num_channels,
                 kEpsilon),

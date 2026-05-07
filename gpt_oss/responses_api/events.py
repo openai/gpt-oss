@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 from .types import (
     CodeInterpreterCallItem,
+    CodeInterpreterOutputImage,
+    CodeInterpreterOutputLogs,
     FunctionCallItem,
     Item,
     ReasoningItem,
@@ -160,6 +162,38 @@ class ResponseCodeInterpreterCallInProgress(ResponseEvent):
     )
     output_index: int = 0
     item_id: str = "item_1234"
+
+
+class ResponseCodeInterpreterCallInterpreting(ResponseEvent):
+    type: Literal["response.code_interpreter_call.interpreting"] = (
+        "response.code_interpreter_call.interpreting"
+    )
+    output_index: int = 0
+    item_id: str = "item_1234"
+
+
+class ResponseCodeInterpreterCallCodeDelta(ResponseEvent):
+    type: Literal["response.code_interpreter_call_code.delta"] = (
+        "response.code_interpreter_call_code.delta"
+    )
+    output_index: int = 0
+    item_id: str = "item_1234"
+    delta: str = ""
+    code_output: Optional[
+        Union[CodeInterpreterOutputLogs, CodeInterpreterOutputImage]
+    ] = None
+
+
+class ResponseCodeInterpreterCallCodeDone(ResponseEvent):
+    type: Literal["response.code_interpreter_call_code.done"] = (
+        "response.code_interpreter_call_code.done"
+    )
+    output_index: int = 0
+    item_id: str = "item_1234"
+    code: str = ""
+    outputs: Optional[
+        list[Union[CodeInterpreterOutputLogs, CodeInterpreterOutputImage]]
+    ] = None
 
 
 class ResponseCodeInterpreterCallCompleted(ResponseEvent):

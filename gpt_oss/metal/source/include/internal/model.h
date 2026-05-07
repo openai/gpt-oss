@@ -1,6 +1,9 @@
 #pragma once
 
-#include <stdatomic.h>
+#ifndef __cplusplus
+    #include <stdatomic.h>
+#endif
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -8,7 +11,11 @@
 
 
 struct gptoss_tokenizer {
+#ifndef __cplusplus
     atomic_uint_least64_t ref_count;
+#else
+    uint_least64_t ref_count;
+#endif
 
     void* mapping_ptr;
     size_t mapping_size;
@@ -23,7 +30,11 @@ struct gptoss_tokenizer {
 };
 
 struct gptoss_model {
+#ifndef __cplusplus
     atomic_uint_least64_t ref_count;
+#else
+    uint_least64_t ref_count;
+#endif
 
     struct gptoss_tokenizer* tokenizer;
 
@@ -50,9 +61,7 @@ struct gptoss_model {
 
     uint32_t vocabulary_size;
 
-    // Maximum number of tokens that can be processed in a single batch.
-    // Once the batch size is reached, we process it to fill the KV cache.
-    size_t max_batch_tokens;
+    bool lock_memory;
 
     size_t weights_size;
     size_t allocation_size;
@@ -65,18 +74,37 @@ struct gptoss_model {
     struct gptoss_metal_function bf16_f32_embeddings_fn;
     struct gptoss_metal_function f32_bf16w_rmsnorm_fn;
     struct gptoss_metal_function f32_bf16w_matmul_fn;
+    struct gptoss_metal_function f32_bf16w_matmul_qkv_fn;
+    struct gptoss_metal_function f32_bf16w_dense_matmul_qkv_fn;
+    struct gptoss_metal_function f32_bf16w_dense_matmul_attn_output_fn;
+    struct gptoss_metal_function f32_bf16w_dense_matmul_mlp_gate_fn;
     struct gptoss_metal_function f32_bf16w_unembedding_fn;
     struct gptoss_metal_function f32_rope_fn;
     struct gptoss_metal_function f32_mf4w_moe_matmul_swiglu_fn;
     struct gptoss_metal_function f32_mf4w_moe_matmul_fn;
     struct gptoss_metal_function f32_accumulate_e4_fn;
+    struct gptoss_metal_function f32_scatter_e4_fn;
+    struct gptoss_metal_function f32_mf4w_moe_dense_matmul_swiglu_fn;
+    struct gptoss_metal_function f32_mf4w_moe_dense_matmul_fn;
+    struct gptoss_metal_function f32_gather_and_accumulate_e4_fn;
+    struct gptoss_metal_function f32_expert_routing_metadata_fn;
     struct gptoss_metal_function f32_topk_softmax_e32_k4_fn;
     struct gptoss_metal_function f32_topk_softmax_e128_k4_fn;
     struct gptoss_metal_function f32_sdpa_q8_d64_fn;
     struct gptoss_metal_function f32_softmax_fn;
+    struct gptoss_metal_function f32_sample_fn;
 
     size_t per_block_shared_weights_size;
     size_t per_expert_block_weight_size;
+
+    size_t embeddings_threadgroup_size;
+    size_t attn_qkv_threadgroup_size;
+    size_t attn_out_threadgroup_size;
+    size_t mlp_gate_threadgroup_size;
+    size_t mlp_swiglu_threadgroup_size;
+    size_t mlp_out_threadgroup_size;
+    size_t mlp_acc_threadgroup_size;
+    size_t unembedding_threadgroup_size;
 
     size_t attn_rmsnorm_gain_offset;
     size_t attn_qkv_weight_offset;
@@ -104,7 +132,11 @@ struct gptoss_model {
 #define GPTOSS_DEFAULT_BATCH_SIZE 128
 
 struct gptoss_context {
+#ifndef __cplusplus
     atomic_uint_least64_t ref_count;
+#else
+    uint_least64_t ref_count;
+#endif
 
     struct gptoss_model* model;
     // Number of tokens processed in the context.
@@ -113,6 +145,10 @@ struct gptoss_context {
     size_t num_kv_tokens;
     // Length of the context.
     size_t max_tokens;
+    // Maximum number of tokens that can be processed in a single batch.
+    // Activation buffers are allocated with this size.
+    size_t max_batch_tokens;
+
 
     size_t kvcache_size;
     size_t allocation_size;
@@ -125,23 +161,18 @@ struct gptoss_context {
     struct gptoss_metal_buffer sdpa_activation_buffer;  // SDPA output
     struct gptoss_metal_buffer gate_activation_buffer;  // MoE gating output
     struct gptoss_metal_buffer expert_activation_buffer;  // MoE expert predictions
+    struct gptoss_metal_buffer expert_offset_buffer; // MoE expert histograms cumsum
+    struct gptoss_metal_buffer token_to_expert_routing_buffer; // MoE token to expert routing
+    struct gptoss_metal_buffer swiglu_input_buffer; // MLP+SwiGLU input for prefill.
     struct gptoss_metal_buffer swiglu_activation_buffer;  // MLP+SwiGLU output
     struct gptoss_metal_buffer moe_activation_buffer;  // MoE MLP output (per-active expert)
 
     // Input/output buffers.
+    struct gptoss_metal_buffer control_buffer;
     struct gptoss_metal_buffer token_buffer;  // uint32 token IDs
     struct gptoss_metal_buffer score_buffer;  // unembedding outputs
     struct gptoss_metal_buffer prob_buffer;
     struct gptoss_metal_buffer sum_buffer;
     struct gptoss_metal_buffer argmax_buffer;
     struct gptoss_metal_buffer kvcache_buffer;
-};
-
-struct gptoss_sampler {
-    atomic_uint_least64_t ref_count;
-
-    float temperature;
-    float top_p;
-    float presence_penalty;
-    float frequency_penalty;
 };

@@ -1,12 +1,12 @@
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
 REASONING_EFFORT = ReasoningEffort.LOW
-DEFAULT_MAX_OUTPUT_TOKENS = 10_000
+DEFAULT_MAX_OUTPUT_TOKENS = 131072
 
 
 class UrlCitation(BaseModel):
@@ -43,6 +43,7 @@ class ReasoningItem(BaseModel):
 
 
 class Item(BaseModel):
+    id: Optional[str] = None
     type: Optional[Literal["message"]] = "message"
     role: Literal["user", "assistant", "system"]
     content: Union[list[TextContentItem], str]
@@ -87,11 +88,31 @@ class WebSearchCallItem(BaseModel):
     action: Union[WebSearchActionSearch, WebSearchActionOpenPage, WebSearchActionFind]
 
 
+class CodeInterpreterOutputLogs(BaseModel):
+    type: Literal["logs"]
+    logs: str
+
+
+class CodeInterpreterOutputImage(BaseModel):
+    type: Literal["image"]
+    url: str
+
+
 class CodeInterpreterCallItem(BaseModel):
     type: Literal["code_interpreter_call"]
     id: str = "ci_1234"
-    status: Literal["in_progress", "completed", "incomplete"] = "completed"
-    input: Optional[str] = None
+    status: Literal[
+        "in_progress",
+        "completed",
+        "incomplete",
+        "interpreting",
+        "failed",
+    ] = "completed"
+    code: Optional[str] = None
+    container_id: Optional[str] = None
+    outputs: Optional[
+        list[Union[CodeInterpreterOutputLogs, CodeInterpreterOutputImage]]
+    ] = None
 
 
 class Error(BaseModel):
@@ -118,7 +139,8 @@ class FunctionToolDefinition(BaseModel):
 
 
 class BrowserToolConfig(BaseModel):
-    type: Literal["browser_search"]
+    model_config = ConfigDict(extra='allow')
+    type: Literal["browser_search"] | Literal["web_search"]
 
 
 class CodeInterpreterToolConfig(BaseModel):
@@ -141,6 +163,7 @@ class ResponsesRequest(BaseModel):
                 FunctionCallItem,
                 FunctionCallOutputItem,
                 WebSearchCallItem,
+                CodeInterpreterCallItem,
             ]
         ],
     ]

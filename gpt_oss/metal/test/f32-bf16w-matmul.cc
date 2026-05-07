@@ -58,3 +58,30 @@ TEST(F32_BF16W_MATMUL, multiple_tokens) {
         .threadgroup_size(threadgroup_size)
         .TestF32_BF16W();
 }
+
+TEST(F32_BF16W_DENSE_MATMUL_QKV, seq_len_1024) {
+    MatMulKernelTester()
+        .num_tokens(1024)
+        .num_rows(5120)
+        .num_cols(2880)
+        .TestF32_BF16W(
+            MatMulKernelTester::MatMulKernelType::PREFILL_QKV_OPTIMIZED);
+}
+
+TEST(F32_BF16W_DENSE_MATMUL_ATTN_OUTPUT, seq_len_1024) {
+    MatMulKernelTester()
+        .num_tokens(1024)
+        .num_rows(2880)
+        .num_cols(4096)
+        .TestF32_BF16W(
+            MatMulKernelTester::MatMulKernelType::PREFILL_ATTN_OUTPUT_OPTIMIZED);
+}
+
+TEST(F32_BF16W_DENSE_MATMUL_MLP_GATE, seq_len_1024) {
+    MatMulKernelTester()
+        .num_tokens(1024)
+        .num_rows(128)
+        .num_cols(2880)
+        .TestF32_BF16W(
+            MatMulKernelTester::MatMulKernelType::PREFILL_MLP_GATE_OPTIMIZED);
+}

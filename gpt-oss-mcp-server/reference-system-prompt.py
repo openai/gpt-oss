@@ -22,7 +22,7 @@ system_message_content = (SystemContent.new().with_reasoning_effort(
     ReasoningEffort.LOW).with_conversation_start_date(
         datetime.datetime.now().strftime("%Y-%m-%d")))
 
-backend = ExaBackend(source="web", )
+backend = ExaBackend(source="web")
 browser_tool = SimpleBrowserTool(backend=backend)
 system_message_content = system_message_content.with_tools(
     browser_tool.tool_config)

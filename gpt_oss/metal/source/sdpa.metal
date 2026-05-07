@@ -14,10 +14,10 @@
 kernel void gptoss_f32_sdpa_q8_d64(
     constant gptoss_sdpa_args& args [[ buffer(0) ]],
     const device float* q [[ buffer(1) ]],
-    const device float* k [[ buffer(2) ]],
-    const device float* v [[ buffer(3) ]],
-    const device bfloat* s [[ buffer(4) ]],
-    device float* output [[ buffer(5) ]],
+    const device float* kv [[ buffer(2) ]],
+    const device bfloat* s [[ buffer(3) ]],
+    device float* output [[ buffer(4) ]],
+    const device gptoss_control* control [[ buffer(6) ]],
     threadgroup void* threadgroup_buffer [[ threadgroup(0) ]],
     uint2 gid [[threadgroup_position_in_grid]],
     uint2 tid [[thread_position_in_threadgroup]],
@@ -26,20 +26,21 @@ kernel void gptoss_f32_sdpa_q8_d64(
     uint num_simdgroups [[simdgroups_per_threadgroup]])
 {
     const uint simdgroup_size = 32;
+    if (control->abort != 0) {
+        return;
+    }
 
     const uint num_q_heads = 64;
-    const uint num_kv_heads = 8;
     const uint head_dim = 64;
     const uint qmul = 8;
 
-    const uint token_stride = 2 * num_kv_heads * head_dim;
+    const uint token_stride = 2 * head_dim;
 
     const uint qt = gid.x;  // Q token index
     const uint h = gid.y;   // KV head index
 
     q += qt * args.qkv_dim + h * (qmul * head_dim);
-    k += h * head_dim;
-    v += h * head_dim;
+    kv += h * args.kv_stride;
     output += qt * (num_q_heads * head_dim) + h * (qmul * head_dim);
 
     float m0 = static_cast<float>(s[h * qmul + 0]);
@@ -80,11 +81,9 @@ kernel void gptoss_f32_sdpa_q8_d64(
 
     const uint kt_end = qt + args.num_kv_tokens + 1;
     const uint kt_start = metal::subsat(kt_end, args.window) + simdgroup_idx;
-    k += token_stride * kt_start;
-    v += token_stride * kt_start;
+    kv += token_stride * kt_start;
     for (uint kt = kt_start; kt < kt_end; kt += num_simdgroups) {
-        const float2 kval = reinterpret_cast<const device float2*>(k)[simdgroup_tid];
-        k += token_stride * num_simdgroups;
+        const float2 kval = reinterpret_cast<const device float2*>(kv)[simdgroup_tid];
 
         float qk0 = metal::dot(q0, kval);
         float qk1 = metal::dot(q1, kval);
@@ -149,8 +148,8 @@ kernel void gptoss_f32_sdpa_q8_d64(
         m6 = new_m6;
         m7 = new_m7;
 
-        const float2 vval = reinterpret_cast<const device float2*>(v)[simdgroup_tid];
-        v += token_stride * num_simdgroups;
+        const float2 vval = reinterpret_cast<const device float2*>(kv + head_dim)[simdgroup_tid];
+        kv += token_stride * num_simdgroups;
         out0 = metal::fma(vval, qk0, out0 * alpha0);
         out1 = metal::fma(vval, qk1, out1 * alpha1);
         out2 = metal::fma(vval, qk2, out2 * alpha2);
