@@ -67,6 +67,17 @@ async def test_youcom_backend_fetch(mock_session_get):
         assert result.text == "\nURL: https://www.example.com/fetch1\nFetch Result 1 text"
 
 
+@pytest.mark.asyncio
+@mock.patch("aiohttp.ClientSession.get")
+async def test_youcom_backend_search_no_results(mock_session_get):
+    backend = YouComBackend(source="web")
+    with mock.patch("os.environ.get", wraps=mock_os_environ_get):
+        mock_session_get.return_value = MockAiohttpResponse({}, 200)
+        async with ClientSession() as session:
+            with pytest.raises(Exception, match="No results returned"):
+                await backend.search(query="test", topn=10, session=session)
+
+
 def mock_exa_environ_get(name: str, default: Any = "test_api_key"):
     assert name in ["EXA_API_KEY"]
     return default
