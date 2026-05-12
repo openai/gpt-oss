@@ -85,7 +85,7 @@ def main(args):
     )
 
     if args.browser:
-        tool_backend = os.getenv("BROWSER_BACKEND", "exa")
+        tool_backend = os.getenv("BROWSER_BACKEND", "youcom")
         if tool_backend == "youcom":
             backend = YouComBackend(source="web")
         elif tool_backend == "exa":

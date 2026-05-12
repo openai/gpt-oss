@@ -211,6 +211,8 @@ class YouComBackend(Backend):
             "/v1/search",
             {"query": query, "count": topn},
         )
+        if "results" not in data:
+            raise BackendError(f"No results returned for query: {query}")
         # make a simple HTML page to work with browser format
         web_titles_and_urls, news_titles_and_urls = [], []
         if "web" in data["results"]:
