@@ -1,7 +1,8 @@
 import datetime
+import os
 
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
-from gpt_oss.tools.simple_browser.backend import ExaBackend
+from gpt_oss.tools.simple_browser.backend import ExaBackend, YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.tokenizer import tokenizer
 
@@ -22,7 +23,13 @@ system_message_content = (SystemContent.new().with_reasoning_effort(
     ReasoningEffort.LOW).with_conversation_start_date(
         datetime.datetime.now().strftime("%Y-%m-%d")))
 
-backend = ExaBackend(source="web")
+tool_backend = os.getenv("BROWSER_BACKEND", "youcom")
+if tool_backend == "youcom":
+    backend = YouComBackend(source="web")
+elif tool_backend == "exa":
+    backend = ExaBackend(source="web")
+else:
+    raise ValueError(f"Invalid tool backend: {tool_backend}")
 browser_tool = SimpleBrowserTool(backend=backend)
 system_message_content = system_message_content.with_tools(
     browser_tool.tool_config)

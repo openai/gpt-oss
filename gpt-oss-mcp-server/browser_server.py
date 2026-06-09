@@ -14,7 +14,7 @@ class AppContext:
 
     def create_or_get_browser(self, session_id: str) -> SimpleBrowserTool:
         if session_id not in self.browsers:
-            tool_backend = os.getenv("BROWSER_BACKEND", "exa")
+            tool_backend = os.getenv("BROWSER_BACKEND", "youcom")
             if tool_backend == "youcom":
                 backend = YouComBackend(source="web")
             elif tool_backend == "exa":
