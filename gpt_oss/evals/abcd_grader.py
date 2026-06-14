@@ -98,7 +98,11 @@ def extract_abcd(text: str) -> str | None:
     ))
     for _, match, letter in matches:
         return letter
-    return text.removeprefix('**')[:1]
+    # Fallback: a bare (optionally bold) leading letter such as "A" or "**A**".
+    # Only accept an actual choice letter; otherwise return None as documented,
+    # rather than leaking the first character of an unparseable response.
+    fallback = text.removeprefix('**')[:1].upper()
+    return fallback if fallback in ('A', 'B', 'C', 'D') else None
 
 
 def main():
