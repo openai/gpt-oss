@@ -98,11 +98,14 @@ def extract_abcd(text: str) -> str | None:
     ))
     for _, match, letter in matches:
         return letter
-    # Fallback: a bare (optionally bold) leading letter such as "A" or "**A**".
-    # Only accept an actual choice letter; otherwise return None as documented,
-    # rather than leaking the first character of an unparseable response.
-    fallback = text.removeprefix('**')[:1].upper()
-    return fallback if fallback in ('A', 'B', 'C', 'D') else None
+    # Fallback: accept only a response whose entire content is a single bare,
+    # optionally bold/italic, choice letter (e.g. "A", "**A**", "a", "B)").
+    # Anything longer (e.g. "because ...", "dunno") is not an answer, so return
+    # None as documented rather than leaking its first character.
+    bare = re.fullmatch(
+        r'\s*[*_]{0,2}\s*([ABCD])\s*[*_]{0,2}\s*[.):\]]?\s*', text, re.IGNORECASE
+    )
+    return bare.group(1).upper() if bare else None
 
 
 def main():
