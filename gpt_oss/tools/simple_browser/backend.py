@@ -193,13 +193,19 @@ class YouComBackend(Backend):
     """Backend that uses the You.com Search API."""
 
     source: str = chz.field(doc="Description of the backend source")
+    api_key: str | None = chz.field(
+        doc="You.com API key. Uses YDC_API_KEY environment variable if not provided.",
+        default=None,
+    )
 
     BASE_URL: str = "https://api.ydc-index.io"
 
     def _get_api_key(self) -> str:
-        key = os.environ.get("YDC_API_KEY")
+        key = self.api_key or os.environ.get("YDC_API_KEY")
         if not key:
-            raise BackendError("You.com API key not provided")
+            raise BackendError(
+                "You.com API key not provided. Get one at https://you.com/platform"
+            )
         return key
 
     
