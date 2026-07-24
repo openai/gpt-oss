@@ -11,7 +11,8 @@ from vllm import LLM, SamplingParams
 from vllm.inputs import TokensPrompt
 
 DEFAULT_TEMPERATURE = 0.0
-TP = os.environ.get("TP", 2)
+# BUG FIX: Make tensor_parallel_size configurable via environment variable
+TP = int(os.environ.get("TP", "2"))
 
 def load_model(checkpoint: str):
     """
