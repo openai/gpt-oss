@@ -29,6 +29,11 @@ def test_youcom_backend():
     backend = YouComBackend(source="web")
     assert backend.source == "web"
 
+def test_youcom_backend_api_key_param():
+    backend = YouComBackend(source="web", api_key="my_custom_key")
+    assert backend.api_key == "my_custom_key"
+    assert backend._get_api_key() == "my_custom_key"
+
 @pytest.mark.asyncio
 @mock.patch("aiohttp.ClientSession.get")
 async def test_youcom_backend_search(mock_session_get):
