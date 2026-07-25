@@ -17,8 +17,7 @@ from agents.mcp import MCPServerStdio
 
 async def prompt_user(question: str) -> str:
     """Async input prompt function"""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, input, question)
+    return await asyncio.to_thread(input, question)
 
 
 async def main():
