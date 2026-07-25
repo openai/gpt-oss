@@ -29,6 +29,7 @@ Both models were trained using our [harmony response format][harmony] and should
 - [Reference PyTorch implementation](#reference-pytorch-implementation)
 - [Reference Triton implementation (single GPU)](#reference-triton-implementation-single-gpu)
 - [Reference Metal implementation](#reference-metal-implementation)
+- [Reference JAX implementation](#reference-jax-implementation)
 - [Harmony format & tools](#harmony-format--tools)
 - [Clients](#clients)
 - [Tools](#tools)
@@ -210,6 +211,7 @@ This repository provides a collection of reference implementations:
   - [`torch`](#reference-pytorch-implementation) — a non-optimized [PyTorch](https://pytorch.org/) implementation for educational purposes only. Requires at least 4× H100 GPUs due to lack of optimization.
   - [`triton`](#reference-triton-implementation-single-gpu) — a more optimized implementation using [PyTorch](https://pytorch.org/) & [Triton](https://github.com/triton-lang/triton) incl. using CUDA graphs and basic caching
   - [`metal`](#reference-metal-implementation) — a Metal-specific implementation for running the models on Apple Silicon hardware
+  - [`jax`](#reference-jax-implementation) — a [JAX](https://jax.readthedocs.io/)/Flax implementation for CPU inference on Apple Silicon and x86-64
 - **Tools:**
   - [`browser`](#browser) — a reference implementation of the browser tool the models got trained on
   - [`python`](#python) — a stateless reference implementation of the python tool the model got trained on
@@ -237,6 +239,8 @@ pip install gpt-oss
 pip install gpt-oss[torch]
 # if you want to try the triton implementation
 pip install gpt-oss[triton]
+# if you want to try the jax implementation
+pip install gpt-oss[jax]
 ```
 
 If you want to modify the code or try the metal implementation set the project up locally:
@@ -330,6 +334,26 @@ To test it you can run:
 
 ```shell
 python gpt_oss/metal/examples/generate.py gpt-oss-20b/metal/model.bin -p "why did the chicken cross the road?"
+```
+
+## Reference JAX implementation
+
+We include a JAX/Flax reference implementation for CPU inference on Apple Silicon and x86-64. To install:
+
+```shell
+pip install -e ".[jax]"
+```
+
+For faster loading (~18x speedup), optionally convert SafeTensors to Orbax format:
+
+```shell
+python -m gpt_oss.jax --input gpt-oss-20b/original/ --output gpt-oss-20b-orbax/
+```
+
+Then run inference (supports both SafeTensors and Orbax formats):
+
+```shell
+python -m gpt_oss.generate --backend jax gpt-oss-20b-orbax/ -p "why did the chicken cross the road?"
 ```
 
 ## Harmony format & tools

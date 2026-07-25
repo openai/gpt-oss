@@ -27,6 +27,7 @@ version = "0.0.9"
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
+jax = ["jax>=0.4.20", "jaxlib>=0.4.20", "flax>=0.8.0", "orbax-checkpoint>=0.5.0", "safetensors>=0.5.3", "numpy", "tqdm"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
 eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile"]
 
