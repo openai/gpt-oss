@@ -82,6 +82,9 @@ class RotaryEmbedding(torch.nn.Module):
         self.ntk_beta = ntk_beta
         self.device = device
 
+        self._cached_cos_sin = None
+        self._cached_seq_len = None
+
     def _compute_concentration_and_inv_freq(self) -> torch.Tensor:
         """See YaRN paper: https://arxiv.org/abs/2309.00071"""
         freq = self.base ** (
@@ -130,13 +133,23 @@ class RotaryEmbedding(torch.nn.Module):
         sin = freqs.sin() * concentration
         return cos, sin
 
+    def _get_cos_sin(self, seq_len: int) -> tuple[torch.Tensor, torch.Tensor]:
+        if self._cached_cos_sin is None or self._cached_seq_len < seq_len:
+            cos, sin = self._compute_cos_sin(seq_len)
+            self._cached_cos_sin = (cos, sin)
+            self._cached_seq_len = seq_len
+        return (
+            self._cached_cos_sin[0][:seq_len],
+            self._cached_cos_sin[1][:seq_len],
+        )
+
     def forward(
         self,
         query: torch.Tensor,
         key: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         num_tokens = query.shape[0]
-        cos, sin = self._compute_cos_sin(num_tokens)
+        cos, sin = self._get_cos_sin(num_tokens)
 
         query_shape = query.shape
         query = query.view(num_tokens, -1, self.head_dim)
