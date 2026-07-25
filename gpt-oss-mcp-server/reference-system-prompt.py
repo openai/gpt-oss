@@ -4,7 +4,9 @@ import os
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import ExaBackend, YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
-from gpt_oss.tokenizer import tokenizer
+from gpt_oss.tokenizer import get_tokenizer
+
+tokenizer = get_tokenizer()
 
 from openai_harmony import (
     Conversation,
