@@ -1,0 +1,3 @@
+# Introduction to Vector Search
+
+Vector search is a technique that enables searching for information based on the semantic meaning of text, rather than exact keyword matches. It works by converting text into high-dimensional vectors (embeddings) and finding the most similar vectors using distance metrics like cosine similarity. This approach powers modern retrieval-augmented generation (RAG) systems and semantic search engines.

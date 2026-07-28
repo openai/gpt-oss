@@ -1,0 +1,5 @@
+faiss-cpu>=1.8
+sentence-transformers>=2.6
+pymupdf>=1.24
+tiktoken>=0.7
+openai>=1.40

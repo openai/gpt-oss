@@ -1,0 +1,6 @@
+Chunking and overlap are crucial for effective retrieval:
+
+- Use chunk sizes that balance context (e.g., 800 characters) and retrieval granularity.
+- Overlap chunks (e.g., 120 characters) to avoid missing relevant information at boundaries.
+- Clean and normalize text before indexing.
+- Always cite sources for transparency.
