@@ -382,6 +382,7 @@ You can start this server with the following inference backends:
 - `triton` — uses the triton implementation
 - `metal` — uses the metal implementation on Apple Silicon only
 - `ollama` — uses the Ollama /api/generate API as an inference solution
+- `llamaccp_server` — uses Llama.cpp server /complete API as an inference solution
 - `vllm` — uses your installed vllm version to perform inference
 - `transformers` — uses your installed transformers version to perform local inference
 
