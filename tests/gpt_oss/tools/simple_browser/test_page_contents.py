@@ -21,6 +21,18 @@ def test_get_domain_bare_host_containing_http():
     assert get_domain("sub.httpbin.org") == "sub.httpbin.org"
 
 
+def test_get_domain_bare_url_with_scheme_separator_later_in_url():
+    # A "://" can appear in a path or query of an otherwise scheme-less URL, so
+    # searching the whole string for a separator also misreads these as schemed.
+    assert get_domain("example.com/cb?next=wss://socket") == "example.com"
+    assert get_domain("example.com/redirect?to=https://other.com") == "example.com"
+    assert get_domain("httpbin.org/cb?next=wss://socket") == "httpbin.org"
+
+
+def test_get_domain_protocol_relative_url():
+    assert get_domain("//example.com/path") == "example.com"
+
+
 def test_same_domain_link_not_marked_external_for_bare_http_host():
     # A page opened via a bare host containing "http" previously resolved to
     # cur_domain == "", so every same-site link was rendered as external (with a

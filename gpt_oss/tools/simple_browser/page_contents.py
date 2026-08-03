@@ -65,13 +65,15 @@ class Tokens:
 
 def get_domain(url: str) -> str:
     """Extracts the domain from a URL."""
-    if "://" not in url:
-        # If `get_domain` is called on a bare domain, add a scheme so that the
-        # original domain is returned instead of the empty string. Test for the
-        # scheme separator rather than the substring "http", which misfires on
-        # scheme-less hosts that merely contain it (e.g. "httpbin.org").
-        url = "http://" + url
-    return urlparse(url).netloc
+    netloc = urlparse(url).netloc
+    if not netloc:
+        # If `get_domain` is called on a scheme-less URL, add a scheme so that the
+        # original domain is returned instead of the empty string. Decide on the
+        # parsed netloc rather than searching the string for a scheme: "http" is
+        # a substring of bare hosts like "httpbin.org", and "://" can appear
+        # later in a path or query, as in "example.com/cb?next=wss://socket".
+        netloc = urlparse("http://" + url).netloc
+    return netloc
 
 
 def multiple_replace(text: str, replacements: dict[str, str]) -> str:
