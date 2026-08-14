@@ -359,6 +359,47 @@ def peek_next_section(
 # --------------------------------------------------------------------------- #
 #  Patch → Commit and Commit application
 # --------------------------------------------------------------------------- #
+def _indent_of(line: str) -> str:
+    return line[: len(line) - len(line.lstrip())]
+
+
+def _match_indentation(orig_lines: List[str], chunk: Chunk) -> List[str]:
+    """Re-indent ``ins_lines`` when the context matched on stripped content.
+
+    Such a match ignores indentation, so inserting the lines verbatim would reindent the
+    region. Where it differs only by its base indentation, swap the patch's base for the
+    file's, substituting indent strings rather than counting columns so tabs survive.
+    Anything less uniform is returned untouched.
+    """
+    actual = orig_lines[chunk.orig_index : chunk.orig_index + len(chunk.del_lines)]
+    if not chunk.ins_lines or actual == chunk.del_lines:
+        return chunk.ins_lines
+    if [s.strip() for s in actual] != [s.strip() for s in chunk.del_lines]:
+        return chunk.ins_lines
+
+    # A blank line carries no indentation, so trailing whitespace on one is not evidence
+    # of a shift and must not seed the base.
+    differing = [(a, d) for a, d in zip(actual, chunk.del_lines) if a != d and d.strip()]
+    if not differing:
+        return chunk.ins_lines
+    file_base, patch_base = _indent_of(differing[0][0]), _indent_of(differing[0][1])
+    for file_line, patch_line in differing:
+        if not patch_line.startswith(patch_base):
+            return chunk.ins_lines
+        if file_line != file_base + patch_line[len(patch_base) :]:
+            return chunk.ins_lines
+
+    reindented = []
+    for line in chunk.ins_lines:
+        if not line.strip():
+            reindented.append(line)
+        elif line.startswith(patch_base):
+            reindented.append(file_base + line[len(patch_base) :])
+        else:
+            return chunk.ins_lines
+    return reindented
+
+
 def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
     if action.type is not ActionType.UPDATE:
         raise DiffError("_get_updated_file called with non-update action")
@@ -379,7 +420,7 @@ def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
         dest_lines.extend(orig_lines[orig_index : chunk.orig_index])
         orig_index = chunk.orig_index
 
-        dest_lines.extend(chunk.ins_lines)
+        dest_lines.extend(_match_indentation(orig_lines, chunk))
         orig_index += len(chunk.del_lines)
 
     dest_lines.extend(orig_lines[orig_index:])
