@@ -6,6 +6,7 @@ import torch
 from torch.profiler import record_function
 
 from gpt_oss.torch.model import ModelConfig, RMSNorm
+from gpt_oss.torch.sampling import sample_next_token
 from gpt_oss.torch.weights import Checkpoint
 from gpt_oss.triton.attention import attention, attention_ref
 from gpt_oss.triton.moe import quantize_mx4, moe
@@ -498,11 +499,7 @@ class TokenGenerator:
         while max_tokens == 0 or num_generated_tokens < max_tokens:
             self.input_token[0] = predicted_token
             self.graph.replay()
-            if temperature == 0.0:
-                predicted_token = torch.argmax(self.logits[-1, :], dim=-1).item()
-            else:
-                probs = torch.softmax(self.logits * (1.0 / temperature), dim=-1)
-                predicted_token = torch.multinomial(probs[-1, :], num_samples=1).item()
+            predicted_token = sample_next_token(self.logits[-1, :], temperature)
             num_generated_tokens += 1
 
             if return_logprobs:
