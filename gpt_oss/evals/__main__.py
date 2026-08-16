@@ -9,7 +9,7 @@ from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
-from .cli_utils import resolve_n_repeats, resolve_num_examples
+from .cli_utils import resolve_gpqa_debug_mode, resolve_n_repeats, resolve_num_examples
 from .gpqa_eval import GPQAEval
 from .healthbench_eval import HealthBenchEval
 from .responses_sampler import ResponsesSampler
@@ -107,7 +107,7 @@ def main():
                 return GPQAEval(
                     n_repeats=n_repeats,
                     num_examples=num_examples,
-                    debug=debug_mode,
+                    debug=resolve_gpqa_debug_mode(args.examples, debug_mode),
                     n_threads=args.n_threads or 1,
                 )
             case "healthbench":
