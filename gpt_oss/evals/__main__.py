@@ -14,6 +14,14 @@ from .chat_completions_sampler import (
 from .responses_sampler import ResponsesSampler
 
 
+def _resolve_num_examples(
+    explicit_examples: int | None, debug_mode: bool, debug_default: int
+) -> int | None:
+    if explicit_examples is not None:
+        return explicit_examples
+    return debug_default if debug_mode else None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate the models.",
@@ -95,9 +103,8 @@ def main():
     )
 
     def get_evals(eval_name, debug_mode):
-        num_examples = (
-            args.examples if args.examples is not None else (5 if debug_mode else None)
-        )
+        num_examples = _resolve_num_examples(args.examples, debug_mode, 5)
+        healthbench_num_examples = _resolve_num_examples(args.examples, debug_mode, 10)
         # Set num_examples = None to reproduce full evals
         match eval_name:
             case "basic":
@@ -112,7 +119,7 @@ def main():
             case "healthbench":
                 return HealthBenchEval(
                     grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
+                    num_examples=healthbench_num_examples,
                     n_repeats=1,
                     n_threads=args.n_threads or 1,
                     subset_name=None,
@@ -120,7 +127,7 @@ def main():
             case "healthbench_hard":
                 return HealthBenchEval(
                     grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
+                    num_examples=healthbench_num_examples,
                     n_repeats=1,
                     n_threads=args.n_threads or 1,
                     subset_name="hard",
@@ -128,7 +135,7 @@ def main():
             case "healthbench_consensus":
                 return HealthBenchEval(
                     grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
+                    num_examples=healthbench_num_examples,
                     n_repeats=1,
                     n_threads=args.n_threads or 1,
                     subset_name="consensus",
