@@ -14,15 +14,16 @@ CONCURRENT_SESSIONS = 1
 
 rank = int(
     os.environ.get("RANK", 0)
-)  # set this env var to another value to run on other GPUs
+)  # global distributed rank
+local_rank = int(os.environ.get("LOCAL_RANK", rank))
 
 
 def load_model(checkpoint: str):
     print(f"[{rank}] loading model...")
 
-    torch.cuda.set_device(rank)
+    torch.cuda.set_device(local_rank)
     torch.set_grad_enabled(False)
-    device = torch.device(f"cuda:{rank}")
+    device = torch.device(f"cuda:{local_rank}")
 
     # Load model
     model = Transformer.from_checkpoint(checkpoint, device=device)
