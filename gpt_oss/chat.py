@@ -58,6 +58,35 @@ def get_user_input():
     return user_input_list[0]
 
 
+def _run_tool_on_rank_zero(run_tool):
+    if not torch.distributed.is_initialized():
+        return run_tool()
+
+    payload = None
+    if torch.distributed.get_rank() == 0:
+        try:
+            result = run_tool()
+            payload = {
+                "messages": [message.to_dict() for message in result],
+                "error": None,
+            }
+        except Exception as exc:
+            payload = {
+                "messages": [],
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+
+    payload_list = [payload]
+    torch.distributed.broadcast_object_list(payload_list, 0)
+    payload = payload_list[0]
+    assert payload is not None
+
+    if payload["error"] is not None:
+        raise RuntimeError(f"Tool execution failed on rank 0: {payload['error']}")
+
+    return [Message.from_dict(message) for message in payload["messages"]]
+
+
 def main(args):
     match args.backend:
         case "triton":
@@ -177,7 +206,7 @@ def main(args):
                         results.append(msg)
                     return results
 
-                result = asyncio.run(run_tool())
+                result = _run_tool_on_rank_zero(lambda: asyncio.run(run_tool()))
                 messages += result
             elif last_message.recipient.startswith("python"):
                 assert args.python, "Python tool is not enabled"
@@ -188,40 +217,43 @@ def main(args):
                         results.append(msg)
                     return results
 
-                result = asyncio.run(run_tool())
+                result = _run_tool_on_rank_zero(lambda: asyncio.run(run_tool()))
                 messages += result
             elif last_message.recipient == "functions.apply_patch":
                 assert args.apply_patch, "Apply patch tool is not enabled"
                 tool_name = "Apply Patch"
-                text = last_message.content[0].text
-                tool_output = None
 
-                if text.startswith("{"):
-                    # this is json, try to extract the patch from it
-                    import json
-                    try:
-                        some_dict = json.loads(text)
-                        _, text = some_dict.popitem()
-                    except Exception as e:
-                        tool_output = f"Error parsing JSON: {e}"
+                def run_tool():
+                    text = last_message.content[0].text
+                    tool_output = None
 
-                if tool_output is None:
-                    try:
-                        tool_output = apply_patch.apply_patch(text)
-                    except Exception as e:
-                        tool_output = f"Error applying patch: {e}"
+                    if text.startswith("{"):
+                        # this is json, try to extract the patch from it
+                        import json
+                        try:
+                            some_dict = json.loads(text)
+                            _, text = some_dict.popitem()
+                        except Exception as e:
+                            tool_output = f"Error parsing JSON: {e}"
 
-                message = (
-                    Message(
-                        author=Author.new(Role.TOOL, last_message.recipient),
-                        content=[TextContent(text=tool_output)]
+                    if tool_output is None:
+                        try:
+                            tool_output = apply_patch.apply_patch(text)
+                        except Exception as e:
+                            tool_output = f"Error applying patch: {e}"
+
+                    message = (
+                        Message(
+                            author=Author.new(Role.TOOL, last_message.recipient),
+                            content=[TextContent(text=tool_output)]
+                        )
+                        .with_recipient("assistant")
                     )
-                    .with_recipient("assistant")
-                )
-                if last_message.channel:
-                    message = message.with_channel(last_message.channel)
+                    if last_message.channel:
+                        message = message.with_channel(last_message.channel)
+                    return [message]
 
-                result = [message]
+                result = _run_tool_on_rank_zero(run_tool)
                 messages += result
             else:
                 raise ValueError(f"Unknown tool or function call: {last_message.recipient}")
