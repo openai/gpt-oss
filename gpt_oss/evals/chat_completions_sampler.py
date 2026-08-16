@@ -65,14 +65,16 @@ class ChatCompletionsSampler(SamplerBase):
 
                 choice = response.choices[0]
                 content = choice.message.content
-                if getattr(choice.message, "reasoning", None):
-                    message_list.append(self._pack_message("assistant", choice.message.reasoning))
+                reasoning = getattr(choice.message, "reasoning", None)
 
                 if not content:
                     raise ValueError("OpenAI API returned empty response; retrying")
+                response_metadata = {"usage": response.usage}
+                if reasoning:
+                    response_metadata["reasoning"] = reasoning
                 return SamplerResponse(
                     response_text=content,
-                    response_metadata={"usage": response.usage},
+                    response_metadata=response_metadata,
                     actual_queried_message_list=message_list,
                 )
             except openai.BadRequestError as e:
