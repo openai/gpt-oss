@@ -3,23 +3,16 @@ import json
 from datetime import datetime
 
 from . import report
-from .basic_eval import BasicEval
-from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
-from .healthbench_eval import HealthBenchEval
+from .basic_eval import BasicEval
 from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
+from .cli_utils import resolve_num_examples
+from .gpqa_eval import GPQAEval
+from .healthbench_eval import HealthBenchEval
 from .responses_sampler import ResponsesSampler
-
-
-def _resolve_num_examples(
-    explicit_examples: int | None, debug_mode: bool, debug_default: int
-) -> int | None:
-    if explicit_examples is not None:
-        return explicit_examples
-    return debug_default if debug_mode else None
 
 
 def main():
@@ -103,8 +96,8 @@ def main():
     )
 
     def get_evals(eval_name, debug_mode):
-        num_examples = _resolve_num_examples(args.examples, debug_mode, 5)
-        healthbench_num_examples = _resolve_num_examples(args.examples, debug_mode, 10)
+        num_examples = resolve_num_examples(args.examples, debug_mode, 5)
+        healthbench_num_examples = resolve_num_examples(args.examples, debug_mode, 10)
         # Set num_examples = None to reproduce full evals
         match eval_name:
             case "basic":
