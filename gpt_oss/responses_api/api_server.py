@@ -1,3 +1,4 @@
+import asyncio
 import os
 import datetime
 import uuid
@@ -69,6 +70,7 @@ from .types import (
 )
 
 DEFAULT_TEMPERATURE = 0.0
+INFERENCE_POLL_INTERVAL_S = 0.01
 
 
 def get_reasoning_effort(
@@ -98,7 +100,7 @@ def is_not_builtin_tool(
 
 
 def create_api_server(
-    infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
+    infer_next_token: Callable[..., Optional[int]], encoding: HarmonyEncoding
 ) -> FastAPI:
     app = FastAPI()
 
@@ -546,6 +548,9 @@ def create_api_server(
                     new_request=self.new_request,
                 )
                 self.new_request = False
+                if next_tok is None:
+                    await asyncio.sleep(INFERENCE_POLL_INTERVAL_S)
+                    continue
                 self.tokens.append(next_tok)
                 try:
                     self.parser.process(next_tok)
