@@ -14,6 +14,24 @@ from .chat_completions_sampler import (
 from .responses_sampler import ResponsesSampler
 
 
+def _collect_merge_metrics(
+    result_paths: dict[tuple[str, str], str],
+) -> list[dict[str, str | float | None]]:
+    merge_metrics = []
+    for (eval_name, model_name), result_filename in result_paths.items():
+        try:
+            with open(result_filename) as f:
+                result = json.load(f)
+        except Exception as e:
+            print(e, result_filename)
+            continue
+        metric = result.get("f1_score", result.get("score", None))
+        merge_metrics.append(
+            {"eval_name": eval_name, "model_name": model_name, "metric": metric}
+        )
+    return merge_metrics
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Evaluate the models.",
@@ -148,7 +166,7 @@ def main():
 
     debug_suffix = "_DEBUG" if args.debug else ""
     print(debug_suffix)
-    mergekey2resultpath = {}
+    mergekey2resultpath: dict[tuple[str, str], str] = {}
     print(f"Running the following evals: {evals}")
     print(f"Running evals for the following models: {models}")
 
@@ -188,21 +206,9 @@ def main():
                 f.write(json.dumps(result_dict, indent=2))
                 print(f"Writing all results to {full_result_filename}")
 
-            mergekey2resultpath[f"{file_stem}"] = result_filename
+            mergekey2resultpath[(eval_name, model_name)] = result_filename
 
-    merge_metrics = []
-    for eval_model_name, result_filename in mergekey2resultpath.items():
-        try:
-            result = json.load(open(result_filename, "r+"))
-        except Exception as e:
-            print(e, result_filename)
-            continue
-        result = result.get("f1_score", result.get("score", None))
-        eval_name = eval_model_name[: eval_model_name.find("_")]
-        model_name = eval_model_name[eval_model_name.find("_") + 1 :]
-        merge_metrics.append(
-            {"eval_name": eval_name, "model_name": model_name, "metric": result}
-        )
+    merge_metrics = _collect_merge_metrics(mergekey2resultpath)
     print(merge_metrics)
     return merge_metrics
 
