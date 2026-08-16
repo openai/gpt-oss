@@ -8,3 +8,7 @@ def resolve_num_examples(
 
 def resolve_n_repeats(explicit_examples: int | None, debug_mode: bool) -> int:
     return 1 if explicit_examples is not None or debug_mode else 8
+
+
+def resolve_gpqa_debug_mode(explicit_examples: int | None, debug_mode: bool) -> bool:
+    return debug_mode and explicit_examples is None
