@@ -9,7 +9,7 @@ from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
-from .cli_utils import resolve_num_examples
+from .cli_utils import resolve_n_repeats, resolve_num_examples
 from .gpqa_eval import GPQAEval
 from .healthbench_eval import HealthBenchEval
 from .responses_sampler import ResponsesSampler
@@ -98,13 +98,14 @@ def main():
     def get_evals(eval_name, debug_mode):
         num_examples = resolve_num_examples(args.examples, debug_mode, 5)
         healthbench_num_examples = resolve_num_examples(args.examples, debug_mode, 10)
+        n_repeats = resolve_n_repeats(args.examples, debug_mode)
         # Set num_examples = None to reproduce full evals
         match eval_name:
             case "basic":
                 return BasicEval()
             case "gpqa":
                 return GPQAEval(
-                    n_repeats=1 if args.debug else 8,
+                    n_repeats=n_repeats,
                     num_examples=num_examples,
                     debug=debug_mode,
                     n_threads=args.n_threads or 1,
@@ -135,7 +136,7 @@ def main():
                 )
             case "aime25":
                 return AIME25Eval(
-                    n_repeats=1 if args.debug else 8,
+                    n_repeats=n_repeats,
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                 )
