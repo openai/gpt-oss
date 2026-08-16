@@ -8,6 +8,7 @@ import dataclasses
 import functools
 import logging
 import re
+import threading
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
@@ -28,6 +29,7 @@ HTML_TAGS_SEQ_RE = re.compile(r"(?<=\w)((<[^>]*>)+)(?=\w)")
 WHITESPACE_ANCHOR_RE = re.compile(r"(【\@[^】]+】)(\s+)")
 EMPTY_LINE_RE = re.compile(r"^\s+$", flags=re.MULTILINE)
 EXTRA_NEWLINE_RE = re.compile(r"\n(\s*\n)+")
+_HTML2TEXT_ESCAPE_LOCK = threading.Lock()
 
 
 class Extract(pydantic.BaseModel):  # A search result snippet or a quotable extract
@@ -170,7 +172,7 @@ def _get_text(node: lxml.html.HtmlElement) -> str:
 
 
 def _remove_node(node: lxml.html.HtmlElement) -> None:
-    """Removes a node from its parent in the lxml tree."""
+    """Removes a node from its parent."""
     node.getparent().remove(node)
 
 
@@ -188,22 +190,25 @@ def html_to_text(html: str) -> str:
     html = re.sub(HTML_SUB_RE, r"_{\2}", html)
     # add spaces between tags such as table cells
     html = re.sub(HTML_TAGS_SEQ_RE, r" \1", html)
-    # we don't need to escape markdown, so monkey-patch the logic
-    orig_escape_md = html2text.utils.escape_md
-    orig_escape_md_section = html2text.utils.escape_md_section
-    html2text.utils.escape_md = _escape_md
-    html2text.utils.escape_md_section = _escape_md_section
-    h = html2text.HTML2Text()
-    h.ignore_links = True
-    h.ignore_images = True
-    h.body_width = 0  # no wrapping
-    h.ignore_tables = True
-    h.unicode_snob = True
-    h.ignore_emphasis = True
-    result = h.handle(html).strip()
-    html2text.utils.escape_md = orig_escape_md
-    html2text.utils.escape_md_section = orig_escape_md_section
-    return result
+    # html2text uses module-level escape helpers. Serialize the temporary
+    # override and always restore the originals, including when handle() fails.
+    with _HTML2TEXT_ESCAPE_LOCK:
+        orig_escape_md = html2text.utils.escape_md
+        orig_escape_md_section = html2text.utils.escape_md_section
+        html2text.utils.escape_md = _escape_md
+        html2text.utils.escape_md_section = _escape_md_section
+        try:
+            h = html2text.HTML2Text()
+            h.ignore_links = True
+            h.ignore_images = True
+            h.body_width = 0  # no wrapping
+            h.ignore_tables = True
+            h.unicode_snob = True
+            h.ignore_emphasis = True
+            return h.handle(html).strip()
+        finally:
+            html2text.utils.escape_md = orig_escape_md
+            html2text.utils.escape_md_section = orig_escape_md_section
 
 
 def _remove_math(root: lxml.html.HtmlElement) -> None:
