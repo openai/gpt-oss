@@ -88,6 +88,9 @@ def map_with_progress(
     """
     Apply f to each element of xs, using a ThreadPool, and show progress.
     """
+    if not xs:
+        return []
+
     pbar_fn = tqdm if pbar else lambda x, *args, **kwargs: x
 
     if os.getenv("debug"):
