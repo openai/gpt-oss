@@ -3,14 +3,15 @@ import json
 from datetime import datetime
 
 from . import report
-from .basic_eval import BasicEval
-from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
-from .healthbench_eval import HealthBenchEval
+from .basic_eval import BasicEval
 from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
+from .cli_utils import resolve_gpqa_debug_mode, resolve_n_repeats, resolve_num_examples
+from .gpqa_eval import GPQAEval
+from .healthbench_eval import HealthBenchEval
 from .responses_sampler import ResponsesSampler
 
 
@@ -95,24 +96,24 @@ def main():
     )
 
     def get_evals(eval_name, debug_mode):
-        num_examples = (
-            args.examples if args.examples is not None else (5 if debug_mode else None)
-        )
+        num_examples = resolve_num_examples(args.examples, debug_mode, 5)
+        healthbench_num_examples = resolve_num_examples(args.examples, debug_mode, 10)
+        n_repeats = resolve_n_repeats(args.examples, debug_mode)
         # Set num_examples = None to reproduce full evals
         match eval_name:
             case "basic":
                 return BasicEval()
             case "gpqa":
                 return GPQAEval(
-                    n_repeats=1 if args.debug else 8,
+                    n_repeats=n_repeats,
                     num_examples=num_examples,
-                    debug=debug_mode,
+                    debug=resolve_gpqa_debug_mode(args.examples, debug_mode),
                     n_threads=args.n_threads or 1,
                 )
             case "healthbench":
                 return HealthBenchEval(
                     grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
+                    num_examples=healthbench_num_examples,
                     n_repeats=1,
                     n_threads=args.n_threads or 1,
                     subset_name=None,
@@ -120,7 +121,7 @@ def main():
             case "healthbench_hard":
                 return HealthBenchEval(
                     grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
+                    num_examples=healthbench_num_examples,
                     n_repeats=1,
                     n_threads=args.n_threads or 1,
                     subset_name="hard",
@@ -128,14 +129,14 @@ def main():
             case "healthbench_consensus":
                 return HealthBenchEval(
                     grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
+                    num_examples=healthbench_num_examples,
                     n_repeats=1,
                     n_threads=args.n_threads or 1,
                     subset_name="consensus",
                 )
             case "aime25":
                 return AIME25Eval(
-                    n_repeats=1 if args.debug else 8,
+                    n_repeats=n_repeats,
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                 )
