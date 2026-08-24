@@ -49,6 +49,7 @@ from .events import (
     ResponseWebSearchCallSearching,
 )
 from .types import (
+    DEFAULT_MAX_OUTPUT_TOKENS,
     CodeInterpreterCallItem,
     CodeInterpreterOutputImage,
     CodeInterpreterOutputLogs,
@@ -421,6 +422,13 @@ def create_api_server(
                 request_body.temperature
                 if request_body.temperature is not None
                 else DEFAULT_TEMPERATURE
+            )
+            # Same for the output token budget: the field is Optional, so an explicit
+            # `"max_output_tokens": null` must not reach the `>=` comparison below.
+            self.max_output_tokens = (
+                request_body.max_output_tokens
+                if request_body.max_output_tokens is not None
+                else DEFAULT_MAX_OUTPUT_TOKENS
             )
             self.request = request
             self.sequence_number = 0
@@ -856,34 +864,38 @@ def create_api_server(
                             )
                             function_name = browser_recipient[len("browser.") :]
                             action = None
-                            parsed_args = browser_tool.process_arguments(
-                                message_for_browser
-                            )
-                            if function_name == "search":
-                                action = WebSearchActionSearch(
-                                    type="search",
-                                    query=parsed_args["query"],
+                            try:
+                                parsed_args = browser_tool.process_arguments(
+                                    message_for_browser
                                 )
-                            elif function_name == "open":
-                                action = WebSearchActionOpenPage(
-                                    type="open_page",
-                                    url=(
-                                        parsed_args["url"]
-                                        if "url" in parsed_args
-                                        else None
-                                    ),
-                                )
-                            elif function_name == "find":
-                                action = WebSearchActionFind(
-                                    type="find",
-                                    pattern=parsed_args["pattern"],
-                                    url=(
-                                        parsed_args["url"]
-                                        if "url" in parsed_args
-                                        else None
-                                    ),
-                                )
+                            except Exception as e:
+                                print(f"Error processing browser tool arguments: {e}")
+                                parsed_args = None
 
+                            if parsed_args is not None:
+                                if function_name == "search":
+                                    action = WebSearchActionSearch(
+                                        type="search",
+                                        query=parsed_args.get("query"),
+                                    )
+                                elif function_name == "open":
+                                    action = WebSearchActionOpenPage(
+                                        type="open_page",
+                                        url=parsed_args.get("url"),
+                                    )
+                                elif function_name == "find":
+                                    action = WebSearchActionFind(
+                                        type="find",
+                                        pattern=parsed_args.get("pattern"),
+                                        url=parsed_args.get("url"),
+                                    )
+
+                            # `web_search_call_id` stays None for recipients we can't
+                            # map to a web search action (unknown `browser.*` function
+                            # or unparseable arguments). The tool still runs below so
+                            # the model receives its error message, but we must not
+                            # emit web_search_call lifecycle events for it.
+                            web_search_call_id = None
                             if action is not None:
                                 web_search_call_id = f"ws_{uuid.uuid4().hex}"
                                 self.browser_call_ids.append(web_search_call_id)
@@ -898,13 +910,13 @@ def create_api_server(
                                         ),
                                     )
                                 )
-                            yield self._send_event(
-                                ResponseWebSearchCallInProgress(
-                                    type="response.web_search_call.in_progress",
-                                    output_index=current_output_index,
-                                    item_id=web_search_call_id,
+                                yield self._send_event(
+                                    ResponseWebSearchCallInProgress(
+                                        type="response.web_search_call.in_progress",
+                                        output_index=current_output_index,
+                                        item_id=web_search_call_id,
+                                    )
                                 )
-                            )
 
                             async def run_tool():
                                 results = []
@@ -914,13 +926,14 @@ def create_api_server(
                                     results.append(msg)
                                 return results
 
-                            yield self._send_event(
-                                ResponseWebSearchCallSearching(
-                                    type="response.web_search_call.searching",
-                                    output_index=current_output_index,
-                                    item_id=web_search_call_id,
+                            if web_search_call_id is not None:
+                                yield self._send_event(
+                                    ResponseWebSearchCallSearching(
+                                        type="response.web_search_call.searching",
+                                        output_index=current_output_index,
+                                        item_id=web_search_call_id,
+                                    )
                                 )
-                            )
                             result = await run_tool()
 
                             new_tokens = encoding.render_conversation_for_completion(
@@ -938,24 +951,25 @@ def create_api_server(
                                 self.output_tokens.append(token)
                                 self.tokens.append(token)
 
-                            yield self._send_event(
-                                ResponseWebSearchCallCompleted(
-                                    type="response.web_search_call.completed",
-                                    output_index=current_output_index,
-                                    item_id=web_search_call_id,
+                            if web_search_call_id is not None:
+                                yield self._send_event(
+                                    ResponseWebSearchCallCompleted(
+                                        type="response.web_search_call.completed",
+                                        output_index=current_output_index,
+                                        item_id=web_search_call_id,
+                                    )
                                 )
-                            )
-                            yield self._send_event(
-                                ResponseOutputItemDone(
-                                    type="response.output_item.done",
-                                    output_index=current_output_index,
-                                    item=WebSearchCallItem(
-                                        type="web_search_call",
-                                        id=web_search_call_id,
-                                        action=action,
-                                    ),
+                                yield self._send_event(
+                                    ResponseOutputItemDone(
+                                        type="response.output_item.done",
+                                        output_index=current_output_index,
+                                        item=WebSearchCallItem(
+                                            type="web_search_call",
+                                            id=web_search_call_id,
+                                            action=action,
+                                        ),
+                                    )
                                 )
-                            )
 
                             current_output_index += 1
                             self.new_request = True
@@ -1099,7 +1113,7 @@ def create_api_server(
                             break
                     else:
                         raise ValueError("No messages to process")
-                if len(self.output_tokens) >= self.request_body.max_output_tokens:
+                if len(self.output_tokens) >= self.max_output_tokens:
                     break
 
                 # Adding in the end if we know we are not done
@@ -1232,7 +1246,7 @@ def create_api_server(
             )
 
             tools = []
-            for tool in body.tools:
+            for tool in body.tools or []:
                 if tool.type == "function":
                     tools.append(
                         ToolDescription.new(
