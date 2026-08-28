@@ -185,7 +185,7 @@ def strip_links(text: str) -> str:
 def maybe_get_function_args(
     message: Message, tool_name: str = "browser"
 ) -> dict[str, Any] | None:
-    if not message.recipient.startswith(f"{tool_name}."):
+    if message.recipient is None or not message.recipient.startswith(f"{tool_name}."):
         return None
 
     contents = ""
@@ -577,12 +577,24 @@ sources=""" + self.backend.source
         if function_args is None:
             raise ValueError("Invalid function arguments")
 
-        if "cursor" in function_args and function_args["cursor"] >= 0:
-            page = self.tool_state.get_page(cursor=function_args["cursor"])
-            if "id" in function_args:
-                function_args["url"] = page.urls[str(function_args["id"])]
-            else:
-                function_args["url"] = page.url
+        cursor = function_args.get("cursor", -1)
+        if self.tool_state.current_cursor >= 0:
+            try:
+                page = self.tool_state.get_page(cursor=cursor)
+            except Exception:
+                page = None
+            if page is not None:
+                if "id" in function_args:
+                    arg_id = function_args["id"]
+                    if isinstance(arg_id, str):
+                        function_args["url"] = arg_id
+                    elif isinstance(arg_id, int) and arg_id >= 0:
+                        if str(arg_id) in page.urls:
+                            function_args["url"] = page.urls[str(arg_id)]
+                    elif isinstance(arg_id, int) and arg_id < 0:
+                        function_args["url"] = page.url
+                elif "url" not in function_args:
+                    function_args["url"] = page.url
         elif "id" in function_args and isinstance(function_args["id"], str):
             function_args["url"] = function_args["id"]
         return function_args
