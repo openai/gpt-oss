@@ -76,6 +76,24 @@ def test_process_arguments_open_integer_id_default_cursor():
     assert args["url"] == "https://example.com/article1"
 
 
+def test_process_arguments_open_string_digit_preserves_direct_url():
+    tool = SimpleBrowserTool(backend=YouComBackend(source="web"))
+    search_page = PageContents(
+        url="http://example.com/search",
+        title="Search",
+        text="Results",
+        urls={"0": "https://example.com/article1"},
+    )
+    tool.tool_state.add_page(search_page)
+
+    msg = _make_tool_message(recipient="browser.open", payload={"id": "0"})
+    args = tool.process_arguments(msg)
+
+    # String IDs represent direct URLs matching open() semantics
+    assert args["id"] == "0"
+    assert args["url"] == "0"
+
+
 def test_process_arguments_open_string_url():
     tool = SimpleBrowserTool(backend=YouComBackend(source="web"))
     page = PageContents(
@@ -93,6 +111,23 @@ def test_process_arguments_open_string_url():
 
     assert args["id"] == "https://docs.example.com"
     assert args["url"] == "https://docs.example.com"
+
+
+def test_process_arguments_open_negative_id_stays_on_page():
+    tool = SimpleBrowserTool(backend=YouComBackend(source="web"))
+    page = PageContents(
+        url="http://example.com/current-page",
+        title="Current",
+        text="Current page content",
+        urls={"0": "https://example.com/other"},
+    )
+    tool.tool_state.add_page(page)
+
+    msg = _make_tool_message(recipient="browser.open", payload={"id": -1, "loc": 10})
+    args = tool.process_arguments(msg)
+
+    assert args["id"] == -1
+    assert args["url"] == "http://example.com/current-page"
 
 
 def test_process_arguments_open_explicit_cursor():

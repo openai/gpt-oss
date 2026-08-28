@@ -585,11 +585,14 @@ sources=""" + self.backend.source
                 page = None
             if page is not None:
                 if "id" in function_args:
-                    arg_id = str(function_args["id"])
-                    if arg_id in page.urls:
-                        function_args["url"] = page.urls[arg_id]
-                    elif isinstance(function_args["id"], str):
-                        function_args["url"] = function_args["id"]
+                    arg_id = function_args["id"]
+                    if isinstance(arg_id, str):
+                        function_args["url"] = arg_id
+                    elif isinstance(arg_id, int) and arg_id >= 0:
+                        if str(arg_id) in page.urls:
+                            function_args["url"] = page.urls[str(arg_id)]
+                    elif isinstance(arg_id, int) and arg_id < 0:
+                        function_args["url"] = page.url
                 elif "url" not in function_args:
                     function_args["url"] = page.url
         elif "id" in function_args and isinstance(function_args["id"], str):
