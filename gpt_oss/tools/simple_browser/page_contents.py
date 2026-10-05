@@ -124,7 +124,16 @@ def merge_whitespace(text: str) -> str:
 
 def arxiv_to_ar5iv(url: str) -> str:
     """Converts an arxiv.org URL to its ar5iv.org equivalent."""
-    return re.sub(r"arxiv.org", r"ar5iv.org", url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return url
+    if parsed.hostname != "arxiv.org":
+        return url
+    # Rewrite only the hostname, preserving user info, port and URL components.
+    start = parsed.netloc.rfind("@") + 1
+    netloc = parsed.netloc[:start] + "ar5iv.org" + parsed.netloc[start + len("arxiv.org"):]
+    return parsed._replace(netloc=netloc).geturl()
 
 
 def _clean_links(root: lxml.html.HtmlElement, cur_url: str) -> dict[str, str]:
