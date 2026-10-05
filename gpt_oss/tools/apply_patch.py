@@ -504,6 +504,14 @@ def apply_patch(
         raise DiffError("Patch text must start with *** Begin Patch")
     paths = identify_files_needed(text)
     orig = load_files(paths, open_fn)
+    # Include existing add targets so the parser can reject accidental overwrites.
+    for path in identify_files_added(text):
+        if path in orig:
+            continue
+        try:
+            orig[path] = open_fn(path)
+        except (FileNotFoundError, KeyError):
+            pass  # Filesystem and mapping-backed readers both support new files.
     patch, _fuzz = text_to_patch(text, orig)
     commit = patch_to_commit(patch, orig)
     apply_commit(commit, write_fn, remove_fn)
