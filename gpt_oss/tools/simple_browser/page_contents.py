@@ -171,7 +171,7 @@ def _get_text(node: lxml.html.HtmlElement) -> str:
 
 def _remove_node(node: lxml.html.HtmlElement) -> None:
     """Removes a node from its parent in the lxml tree."""
-    node.getparent().remove(node)
+    node.drop_tree()
 
 
 def _escape_md(text: str) -> str:
