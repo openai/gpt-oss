@@ -473,7 +473,7 @@ def apply_commit(
                 raise DiffError(f"UPDATE change for {path} has no new content")
             target = change.move_path or path
             write_fn(target, change.new_content)
-            if change.move_path:
+            if change.move_path and change.move_path != path:
                 remove_fn(path)
 
 
