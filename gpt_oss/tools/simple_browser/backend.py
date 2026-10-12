@@ -198,7 +198,7 @@ class YouComBackend(Backend):
         default=None,
     )
 
-    BASE_URL: str = "https://api.ydc-index.io"
+    BASE_URL: str = "https://ydc-index.io"
 
     def _get_api_key(self) -> str:
         key = self.api_key or os.environ.get("YDC_API_KEY")
