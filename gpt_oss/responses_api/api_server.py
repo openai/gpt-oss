@@ -526,7 +526,7 @@ def create_api_server(
             current_content_index = (
                 0  # for this implementation we will always have one content item only
             )
-            current_output_index = -1
+            current_output_index = 0
             sent_output_item_added = False
 
             # we use this if the model outputs a citation to buffer until completed
@@ -553,7 +553,6 @@ def create_api_server(
                     pass
 
                 if self.parser.state == StreamState.EXPECT_START:
-                    current_output_index += 1
                     sent_output_item_added = False
 
                     if len(self.parser.messages) > 0:
@@ -597,6 +596,7 @@ def create_api_server(
                                         ),
                                     )
                                 )
+                                current_output_index += 1
                         if (
                             previous_item.channel == "analysis"
                             and previous_item.recipient is None
@@ -646,6 +646,7 @@ def create_api_server(
                                 )
                             )
                             self.current_reasoning_item_id = None
+                            current_output_index += 1
                         if previous_item.channel == "final":
                             annotations = [
                                 UrlCitation(**a) for a in current_annotations
@@ -704,6 +705,7 @@ def create_api_server(
                             current_annotations = []
                             current_output_text_content = ""
                             self.current_message_item_id = None
+                            current_output_index += 1
 
                 if (
                     self.parser.last_content_delta
