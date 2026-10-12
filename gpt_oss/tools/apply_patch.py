@@ -413,8 +413,17 @@ def patch_to_commit(patch: Patch, orig: Dict[str, str]) -> Commit:
 # --------------------------------------------------------------------------- #
 #  User-facing helpers
 # --------------------------------------------------------------------------- #
+def _split_patch_lines(text: str) -> List[str]:
+    # Match text-file newlines without splitting Unicode/control characters
+    # that are literal content inside a diff line or file path.
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return lines
+
+
 def text_to_patch(text: str, orig: Dict[str, str]) -> Tuple[Patch, int]:
-    lines = text.splitlines()  # preserves blank lines, no strip()
+    lines = _split_patch_lines(text)  # preserves blank lines, no strip()
     if (
         len(lines) < 2
         or not Parser._norm(lines[0]).startswith("*** Begin Patch")
@@ -428,7 +437,7 @@ def text_to_patch(text: str, orig: Dict[str, str]) -> Tuple[Patch, int]:
 
 
 def identify_files_needed(text: str) -> List[str]:
-    lines = text.splitlines()
+    lines = _split_patch_lines(text)
     return [
         line[len("*** Update File: ") :]
         for line in lines
@@ -441,7 +450,7 @@ def identify_files_needed(text: str) -> List[str]:
 
 
 def identify_files_added(text: str) -> List[str]:
-    lines = text.splitlines()
+    lines = _split_patch_lines(text)
     return [
         line[len("*** Add File: ") :]
         for line in lines
