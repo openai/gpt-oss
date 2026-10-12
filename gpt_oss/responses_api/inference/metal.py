@@ -5,6 +5,7 @@ from typing import Callable
 from gpt_oss.metal import Context, Model
 
 
+def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
 # Tunables
 MAX_OUTPUT_TOKENS = 100
 
