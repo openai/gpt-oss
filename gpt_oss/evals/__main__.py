@@ -68,6 +68,12 @@ def main():
     parser.add_argument(
         "--examples", type=int, help="Number of examples to use (overrides default)"
     )
+    parser.add_argument(
+        "--output-path",
+        type=str,
+        default="/tmp/",
+        help="Output directory for results",
+    )
 
     args = parser.parse_args()
 
@@ -162,7 +168,7 @@ def main():
             file_stem = f"{eval_name}_{model_name}_temp{args.temperature}"
             # file stem should also include the year, month, day, and time in hours and minutes
             file_stem += f"_{date_str}"
-            report_filename = f"/tmp/{file_stem}{debug_suffix}.html"
+            report_filename = f"{args.output_path.rstrip('/')}/{file_stem}{debug_suffix}.html"
             print(f"Writing report to {report_filename}")
             with open(report_filename, "w") as fh:
                 fh.write(report.make_report(result))
@@ -171,12 +177,12 @@ def main():
             # Sort metrics by key
             metrics = dict(sorted(metrics.items()))
             print(metrics)
-            result_filename = f"/tmp/{file_stem}{debug_suffix}.json"
+            result_filename = f"{args.output_path.rstrip('/')}/{file_stem}{debug_suffix}.json"
             with open(result_filename, "w") as f:
                 f.write(json.dumps(metrics, indent=2))
             print(f"Writing results to {result_filename}")
 
-            full_result_filename = f"/tmp/{file_stem}{debug_suffix}_allresults.json"
+            full_result_filename = f"{args.output_path.rstrip('/')}/{file_stem}{debug_suffix}_allresults.json"
             with open(full_result_filename, "w") as f:
                 result_dict = {
                     "score": result.score,
