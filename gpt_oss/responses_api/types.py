@@ -1,12 +1,14 @@
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Annotated, Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
 REASONING_EFFORT = ReasoningEffort.LOW
 DEFAULT_MAX_OUTPUT_TOKENS = 131072
+
+FunctionCallId = Annotated[str, StringConstraints(min_length=1, pattern=r"\\S")]
 
 
 class UrlCitation(BaseModel):
@@ -56,12 +58,12 @@ class FunctionCallItem(BaseModel):
     arguments: str
     status: Literal["in_progress", "completed", "incomplete"] = "completed"
     id: str = "fc_1234"
-    call_id: str = "call_1234"
+    call_id: FunctionCallId
 
 
 class FunctionCallOutputItem(BaseModel):
     type: Literal["function_call_output"]
-    call_id: str = "call_1234"
+    call_id: FunctionCallId
     output: str
 
 
