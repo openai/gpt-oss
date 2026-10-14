@@ -35,8 +35,21 @@ _PATTERNS = [
     # 2) Answer: C    or   Answers – D
     re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*([ABCD])\b'),
 
-    # 3) Option B   or   Choice: C
-    re.compile(r'(?ix)\b(?:Option|Choice)\b\s*[:\-–]?\s*([ABCD])\b'),
+    # 3) Standalone Option/Choice declarations, e.g. "Option B" or "Choice: C".
+    # Requiring the whole line prevents explanatory prose such as
+    # "Option B is incorrect" from overriding an earlier explicit answer.
+    re.compile(
+        r'''(?imx)^\s*
+        (?:\*{1,2}|_{1,2})?
+        (?:Option|Choice)
+        (?:\*{1,2}|_{1,2})?
+        \s*[:\-–]?\s*
+        (?:\*{1,2}|_{1,2})?
+        ([ABCD])
+        (?:\*{1,2}|_{1,2})?
+        \s*[\.)]?\s*$
+        '''
+    ),
 
     # 7) LaTeX \boxed{...A...}, catches both \boxed{A} and
     #    \boxed{\text{A } 2.08\times10^{-6}\,\mathrm{m}} etc.
@@ -77,6 +90,14 @@ _PATTERNS = [
     ''', re.MULTILINE),
 ]
 
+# Patterns 0 through 4 explicitly declare an answer using words such as
+# "Answer", "Option", or "Choice". Treat them as one declaration class so a
+# later declaration wins even when the model changes formatting while
+# self-correcting. The remaining patterns are permissive fallbacks and keep
+# their historical first-match behavior so later prose cannot override an
+# earlier fallback answer.
+_NUM_DECLARATION_PATTERNS = 5
+
 
 def extract_abcd(text: str) -> str | None:
     """
@@ -84,20 +105,27 @@ def extract_abcd(text: str) -> str | None:
     'A', 'B', 'C', or 'D' if a correct-answer declaration is found.
     Otherwise return None.
     """
-    matches = []
-    for prio, pat in enumerate(_PATTERNS):
-        m = pat.search(text)
-        if m:
-            letter = m.group(1).upper()
+    declaration_matches = []
+    for prio, pat in enumerate(_PATTERNS[:_NUM_DECLARATION_PATTERNS]):
+        for match in pat.finditer(text):
+            letter = match.group(1).upper()
             if letter in 'ABCD':
-                matches.append((prio, m, letter))
+                declaration_matches.append((prio, match, letter))
 
-    matches.sort(key=lambda triple: (
-        triple[0],
-        len(triple[1].group(0))
-    ))
-    for _, match, letter in matches:
+    if declaration_matches:
+        _, _, letter = max(
+            declaration_matches,
+            key=lambda triple: (triple[1].start(), -triple[0]),
+        )
         return letter
+
+    for pat in _PATTERNS[_NUM_DECLARATION_PATTERNS:]:
+        match = pat.search(text)
+        if match:
+            letter = match.group(1).upper()
+            if letter in 'ABCD':
+                return letter
+
     return text.removeprefix('**')[:1]
 
 
@@ -118,4 +146,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
