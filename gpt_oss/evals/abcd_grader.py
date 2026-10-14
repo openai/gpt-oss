@@ -16,7 +16,7 @@ _PATTERNS = [
         re.X
     ),
 
-    # 0.1)
+    # 0.1) Answer: A, with a complete answer declaration.
     re.compile(r'''(?ix)           # ignore case, allow verbose mode
         ^\s*                      # optional leading whitespace
         (?:\*{1,2}|_{1,2})?       # optional markdown wrapper
@@ -24,16 +24,17 @@ _PATTERNS = [
         (?:\*{1,2}|_{1,2})?       # optional markdown wrapper again
         \s*:?\s*                  # optional colon with optional spaces
         (?:\*{1,2}|_{1,2})?       # optional markdown wrapper before letter
-        ([ABCD])                 # capture the letter
+        ((?-i:[ABCD]))          # capture an uppercase answer letter
         (?:\*{1,2}|_{1,2})?       # optional markdown wrapper after letter
-        \s*                     # optional trailing whitespace, end of line
+        (?![A-Za-z0-9])          # do not accept a letter prefix in prose
+        \s*$                    # optional trailing whitespace, end of line
     ''', re.MULTILINE),
 
     # 1) Answer: (C)   or   Answers: (B)
     re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*\(\s*([ABCD])\s*\)'),
 
     # 2) Answer: C    or   Answers – D
-    re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*([ABCD])\b'),
+    re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*((?-i:[ABCD]))\b'),
 
     # 3) Option B   or   Choice: C
     re.compile(r'(?ix)\b(?:Option|Choice)\b\s*[:\-–]?\s*([ABCD])\b'),
@@ -72,8 +73,7 @@ _PATTERNS = [
         (?:\*{1,2}|_{1,2})?     # optional markdown wrapper
         ([ABCD])                # capture group for letter
         (?:\*{1,2}|_{1,2})?     # optional closing markdown
-        \s*[\.\)\-–:]?          # optional separator after the letter
-        \s*.*$                  # allow any following text
+        \s*(?:[\.\)\-–:]\s*.*)?$ # description only after a separator
     ''', re.MULTILINE),
 ]
 
@@ -98,7 +98,7 @@ def extract_abcd(text: str) -> str | None:
     ))
     for _, match, letter in matches:
         return letter
-    return text.removeprefix('**')[:1]
+    return None
 
 
 def main():
@@ -118,4 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
