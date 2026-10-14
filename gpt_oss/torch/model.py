@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import torch
 import torch.distributed as dist
 
+from gpt_oss.torch.sampling import sample_next_token
 from gpt_oss.torch.weights import Checkpoint
 
 
@@ -458,11 +459,7 @@ class TokenGenerator:
         num_generated_tokens = 0
         while max_tokens == 0 or num_generated_tokens < max_tokens:
             logits = self.model(torch.as_tensor(tokens, dtype=torch.int32, device=self.device))[-1]
-            if temperature == 0.0:
-                predicted_token = torch.argmax(logits, dim=-1).item()
-            else:
-                probs = torch.softmax(logits * (1.0 / temperature), dim=-1)
-                predicted_token = torch.multinomial(probs, num_samples=1).item()
+            predicted_token = sample_next_token(logits, temperature)
             tokens.append(predicted_token)
             num_generated_tokens += 1
 
