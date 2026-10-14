@@ -12,11 +12,9 @@ from typing import Callable, Optional
 import requests
 from openai_harmony import HarmonyEncodingName, load_harmony_encoding
 
-EOS_TOKEN = 200002  # only used on hard timeout
+EOS_TOKEN = 200002
 
 # Tunables
-POLL_INTERVAL_S = 0.01  # 10ms between buffer checks
-CALL_MAX_WAIT_S = 0.250  # max time to block inside a single infer call
 NO_TOKEN_TIMEOUT_S = 15.0  # overall inactivity timeout before emitting EOS
 FIRST_BYTE_TIMEOUT_S = 30.0  # time to wait for first token before EOS
 
@@ -25,7 +23,9 @@ _token_buffer: list[int] = []
 _buffer_lock = threading.Lock()
 _stream_thread: Optional[threading.Thread] = None
 _stream_done = threading.Event()
+_stream_has_output = threading.Event()
 _stream_error: Optional[Exception] = None
+_stream_started_ts: float = 0.0
 _last_progress_ts: float = 0.0  # updated whenever we enqueue or dequeue tokens
 _previous_request_tokens: list[int] = []
 
@@ -49,15 +49,22 @@ def _touch_progress():
 
 def _reset_stream_state():
     global _token_buffer, _stream_thread, _stream_error
+    global _stream_started_ts, _last_progress_ts
+
     with _buffer_lock:
         _token_buffer = []
     _stream_done.clear()
+    _stream_has_output.clear()
     _stream_thread = None
     _stream_error = None
-    _touch_progress()
+    now = _now()
+    _stream_started_ts = now
+    _last_progress_ts = now
 
 
-def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
+def setup_model(
+    checkpoint: str,
+) -> Callable[[list[int], float, bool], Optional[int]]:
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
     model_name = checkpoint
 
@@ -98,11 +105,12 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
                                 with _buffer_lock:
                                     _token_buffer.extend(new_toks)
                                 last_len = len(toks)
+                                _stream_has_output.set()
                                 _touch_progress()
 
                         if obj.get("done", False):
-                            _token_buffer.append(EOS_TOKEN)
-                            last_len = len(toks)
+                            with _buffer_lock:
+                                _token_buffer.append(EOS_TOKEN)
                             _touch_progress()
                             break
 
@@ -118,72 +126,38 @@ def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
 
     def infer_next_token(
         tokens: list[int], temperature: float = 0.0, new_request: bool = False
-    ) -> int:
+    ) -> Optional[int]:
         """
         - Starts a new Ollama stream on new_request.
-        - Forwards tokens as they arrive.
-        - Only emits EOS_TOKEN if we exceed an inactivity timeout.
+        - Forwards only tokens produced by that stream.
+        - Returns None while the stream is still active but no token is buffered.
+        - Emits EOS_TOKEN when the stream completes or a timeout expires.
         """
         global _stream_thread
 
         if new_request:
             _reset_stream_state()
             _stream_thread = _start_stream(token_ids=tokens, temperature=temperature)
-            # Wait for first byte within FIRST_BYTE_TIMEOUT_S (without emitting EOS early)
-            start = _now()
-            while _now() - start < FIRST_BYTE_TIMEOUT_S:
-                with _buffer_lock:
-                    if _token_buffer:
-                        tok = _token_buffer.pop(0)
-                        _touch_progress()
-                        return tok
-                if _stream_error is not None:
-                    raise RuntimeError(f"Ollama stream error: {_stream_error!r}")
-                # If Ollama finished instantly with no output, continue loop until timeout
-                time.sleep(POLL_INTERVAL_S)
-            # Hard first-byte timeout -> emit EOS so the server can stop this request
-            return EOS_TOKEN
 
         if _stream_error is not None:
             raise RuntimeError(f"Ollama stream error: {_stream_error!r}")
 
-        # Normal path: wait up to CALL_MAX_WAIT_S for a token to arrive
-        wait_start = _now()
-        while _now() - wait_start < CALL_MAX_WAIT_S:
-            with _buffer_lock:
-                if _token_buffer:
-                    tok = _token_buffer.pop(0)
-                    _touch_progress()
-                    return tok
-            # No token yet; if we've been idle too long overall, end with EOS
-            if _now() - _last_progress_ts > NO_TOKEN_TIMEOUT_S:
-                return EOS_TOKEN
-            time.sleep(POLL_INTERVAL_S)
-
-        # Still no token in this call slice. Do NOT send EOS unless we've timed out.
-        if _now() - _last_progress_ts > NO_TOKEN_TIMEOUT_S:
-            return EOS_TOKEN
-
-        # Tell caller to call us again; block minimally by returning *nothing new*.
-        # We must return an int; safest is to wait a tiny bit longer for a token.
-        # If still none, keep returning only after short waits. Avoid EOS here.
-        # One more short wait to reduce hot-looping:
-        time.sleep(POLL_INTERVAL_S)
         with _buffer_lock:
             if _token_buffer:
                 tok = _token_buffer.pop(0)
                 _touch_progress()
                 return tok
 
-        # As a last resort for this call slice, return EOS only on true inactivity timeout.
-        if _now() - _last_progress_ts > NO_TOKEN_TIMEOUT_S:
+        if _stream_done.is_set():
             return EOS_TOKEN
 
-        # If we reach here, we still haven't got a token—ask the caller to call again soon.
-        # Return a harmless token that the server will replace/ignore if your interface supports it.
-        # If your interface does NOT allow a sentinel, keep the short-blocking behavior above.
-        return (
-            EOS_TOKEN if False else 0
-        )  # replace `0` with a PAD/NOOP token your server ignores
+        now = _now()
+        if not _stream_has_output.is_set():
+            if now - _stream_started_ts > FIRST_BYTE_TIMEOUT_S:
+                return EOS_TOKEN
+        elif now - _last_progress_ts > NO_TOKEN_TIMEOUT_S:
+            return EOS_TOKEN
+
+        return None
 
     return infer_next_token
