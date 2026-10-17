@@ -14,6 +14,10 @@ OPENAI_SYSTEM_MESSAGE_CHATGPT = (
 )
 
 
+class _EmptyResponseError(Exception):
+    pass
+
+
 class ChatCompletionsSampler(SamplerBase):
     """Sample from a Chat Completions compatible API."""
 
@@ -69,7 +73,7 @@ class ChatCompletionsSampler(SamplerBase):
                     message_list.append(self._pack_message("assistant", choice.message.reasoning))
 
                 if not content:
-                    raise ValueError("OpenAI API returned empty response; retrying")
+                    raise _EmptyResponseError("OpenAI API returned empty response; retrying")
                 return SamplerResponse(
                     response_text=content,
                     response_metadata={"usage": response.usage},
@@ -82,12 +86,29 @@ class ChatCompletionsSampler(SamplerBase):
                     response_metadata={"usage": None},
                     actual_queried_message_list=message_list,
                 )
-            except Exception as e:
+            except openai.APIStatusError as e:
+                if e.status_code not in {408, 409, 429} and e.status_code < 500:
+                    raise
                 exception_backoff = 2 ** trial  # exponential back off
                 print(
-                    f"Rate limit exception so wait and retry {trial} after {exception_backoff} sec",
+                    f"Retryable API exception so wait and retry {trial} after {exception_backoff} sec",
                     e,
                 )
                 time.sleep(exception_backoff)
                 trial += 1
-            # unknown error shall throw exception
+            except openai.APIConnectionError as e:
+                exception_backoff = 2 ** trial  # exponential back off
+                print(
+                    f"Connection exception so wait and retry {trial} after {exception_backoff} sec",
+                    e,
+                )
+                time.sleep(exception_backoff)
+                trial += 1
+            except _EmptyResponseError as e:
+                exception_backoff = 2 ** trial  # exponential back off
+                print(
+                    f"Empty response so wait and retry {trial} after {exception_backoff} sec",
+                    e,
+                )
+                time.sleep(exception_backoff)
+                trial += 1

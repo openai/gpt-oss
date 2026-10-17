@@ -74,12 +74,21 @@ class ResponsesSampler(SamplerBase):
                     response_metadata={"usage": None},
                     actual_queried_message_list=message_list,
                 )
-            except Exception as e:
-                exception_backoff = 2**trial  # expontial back off
+            except openai.APIStatusError as e:
+                if e.status_code not in {408, 409, 429} and e.status_code < 500:
+                    raise
+                exception_backoff = 2**trial  # exponential back off
                 print(
-                    f"Rate limit exception so wait and retry {trial} after {exception_backoff} sec",
+                    f"Retryable API exception so wait and retry {trial} after {exception_backoff} sec",
                     e,
                 )
                 time.sleep(exception_backoff)
                 trial += 1
-            # unknown error shall throw exception
+            except openai.APIConnectionError as e:
+                exception_backoff = 2**trial  # exponential back off
+                print(
+                    f"Connection exception so wait and retry {trial} after {exception_backoff} sec",
+                    e,
+                )
+                time.sleep(exception_backoff)
+                trial += 1
