@@ -72,6 +72,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
 - AWS
   - Deploy via Tensorfuse: [Deploy gpt-oss for both 20b and 120b models on AWS EKS](https://tensorfuse.io/docs/guides/modality/text/openai_oss)
   - [AWS launch blog post](https://aws.amazon.com/blogs/aws/openai-open-weight-models-now-available-on-aws/)
+- OrcaRouter
+  - [Run gpt-oss-120b on OrcaRouter](https://www.orcarouter.ai)
 - Google Colab
   - [gpt-oss-20b inference notebook](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/GPT_OSS_MXFP4_(20B)-Inference.ipynb)
 
