@@ -297,12 +297,6 @@ int main(int argc, char *argv[]) {
             atomic_fetch_add(&globals.generation_microseconds, mach_timestamp_diff_to_microseconds(inference_start_timestamp, inference_end_timestamp));
         }
         printf("%.*s", (int) token_size, (const char*) token_ptr);
-
-        status = gptoss_context_append_tokens(context, 1, &predicted_token);
-        if (status != gptoss_status_success) {
-            fprintf(stderr, "Error: failed to append predicted token %" PRIu32 " to context\n", predicted_token);
-            goto error;
-        }
     }
 
     print_profile();

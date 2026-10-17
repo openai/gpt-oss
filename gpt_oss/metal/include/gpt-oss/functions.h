@@ -279,7 +279,9 @@ enum gptoss_status GPTOSS_ABI gptoss_context_process(
     gptoss_context_t context);
 
 /*
- * Generate a token probability distribution over the next token conditioned on the Context.
+ * Sample up to max_tokens autoregressive tokens conditioned on the Context.
+ *
+ * The sampled tokens are appended to the Context and copied to tokens_out.
  *
  * @param context Context object created by gptoss_context_create.
  * @param temperature Sampling temperature. Must be non-negative.
