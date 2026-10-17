@@ -58,6 +58,18 @@ async def test_youcom_backend_search(mock_session_get):
         assert result.urls == {"0": "https://www.example.com/web1", "1": "https://www.example.com/web2", "2": "https://www.example.com/news1", "3": "https://www.example.com/news2"}
 
 @pytest.mark.asyncio
+@mock.patch("aiohttp.ClientSession.get")
+async def test_youcom_backend_search_missing_results_key(mock_session_get):
+    backend = YouComBackend(source="web")
+    api_response = {"error": "rate limited"}
+    with mock.patch("os.environ.get", wraps=mock_os_environ_get):
+        mock_session_get.return_value = MockAiohttpResponse(api_response, 200)
+        async with ClientSession() as session:
+            result = await backend.search(query="test", topn=10, session=session)
+        assert result.title == "test"
+        assert result.urls == {}
+
+@pytest.mark.asyncio
 @mock.patch("aiohttp.ClientSession.post")
 async def test_youcom_backend_fetch(mock_session_get):
     backend = YouComBackend(source="web")
