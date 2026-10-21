@@ -12,7 +12,10 @@ from pathlib import Path
 try:
     import gnureadline as readline
 except ImportError:
-    import readline
+    try:
+        import readline
+    except ImportError:
+        import pyreadline3 as readline
 
 import torch
 import termcolor
@@ -69,7 +72,7 @@ def main(args):
             from gpt_oss.torch.model import TokenGenerator as TorchGenerator
             from gpt_oss.torch.utils import init_distributed
             device = init_distributed()
-            generator = TorchGenerator(args.checkpoint, device)
+            generator = TorchGenerator(args.checkpoint, device, mlp_safetensors=r"./gpt-oss-20b/optimized")
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
             generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=2)
@@ -249,7 +252,9 @@ def main(args):
         field_created = False
         current_output_text = ""
         output_text_delta_buffer = ""
-        for predicted_token in generator.generate(tokens, encoding.stop_tokens_for_assistant_actions()):
+        for predicted_token in generator.generate(tokens, encoding.stop_tokens_for_assistant_actions(),
+                                                  #temperature=0, max_tokens=10
+                                                  ):
             parser.process(predicted_token)
             if args.raw:
                 print(encoding.decode([predicted_token]), end="", flush=True)
