@@ -23,6 +23,9 @@ def main(args):
         case "vllm":
             from gpt_oss.vllm.token_generator import TokenGenerator as VLLMGenerator
             generator = VLLMGenerator(args.checkpoint, tensor_parallel_size=args.tensor_parallel_size)
+        case "jax":
+            from gpt_oss.jax.token_generator import TokenGenerator as JAXGenerator
+            generator = JAXGenerator(args.checkpoint, max_context_length=args.context_length)
         case _:
             raise ValueError(f"Invalid backend: {args.backend}")
 
@@ -43,7 +46,7 @@ if __name__ == "__main__":
         "checkpoint",
         metavar="FILE",
         type=str,
-        help="Path to the SafeTensors checkpoint",
+        help="Path to the checkpoint (SafeTensors for torch/triton/vllm, SafeTensors or Orbax for jax)",
     )
     parser.add_argument(
         "-p",
@@ -75,7 +78,7 @@ if __name__ == "__main__":
         metavar="BACKEND",
         type=str,
         default="torch",
-        choices=["triton", "torch", "vllm"],
+        choices=["triton", "torch", "vllm", "jax"],
         help="Inference backend",
     )
     parser.add_argument(
