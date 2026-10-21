@@ -21,8 +21,11 @@ class ResponsesSampler(SamplerBase):
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
         base_url: str = "http://localhost:8000/v1",
+        top_p: float | None = None,
+        top_k: int | None = None,
+        timeout: int = 1800,
     ):
-        self.client = OpenAI(base_url=base_url, timeout=24*60*60)
+        self.client = OpenAI(base_url=base_url, timeout=timeout)
         self.model = model
         self.developer_message = developer_message
         self.temperature = temperature
@@ -30,6 +33,8 @@ class ResponsesSampler(SamplerBase):
         self.image_format = "url"
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
+        self.top_p = top_p
+        self.top_k = top_k
 
     def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
         return {"role": role, "content": content}
@@ -48,6 +53,10 @@ class ResponsesSampler(SamplerBase):
                     "temperature": self.temperature,
                     "max_output_tokens": self.max_tokens,
                 }
+                if self.top_p is not None:
+                    request_kwargs["top_p"] = self.top_p
+                if self.top_k is not None:
+                    request_kwargs["extra_body"] = {"top_k": self.top_k}
                 if self.reasoning_model:
                     request_kwargs["reasoning"] = (
                         {"effort": self.reasoning_effort} if self.reasoning_effort else None
