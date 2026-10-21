@@ -460,11 +460,12 @@ def create_api_server(
 
             if recipient.startswith("functions."):
                 potential = recipient[len("functions.") :]
+                browser_recipient = f"browser.{potential}"
                 if (
-                    potential in self.BROWSER_RESERVED_FUNCTIONS
+                    browser_recipient in self.BROWSER_RESERVED_FUNCTIONS
                     and potential not in self.user_defined_function_names
                 ):
-                    return (potential, True)
+                    return (browser_recipient, True)
 
             return (None, False)
 
