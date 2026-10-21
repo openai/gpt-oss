@@ -28,9 +28,9 @@ May be immediately followed by *** Move to: <new path> if you want to rename the
 Then one or more “hunks”, each introduced by @@ (optionally followed by a hunk header).
 Within a hunk each line starts with:
 
-- for inserted text,
++ for inserted text,
 
-* for removed text, or
+- for removed text, or
   space ( ) for context.
   At the end of a truncated hunk you can emit *** End of File.
 
