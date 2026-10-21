@@ -17,6 +17,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Set,
     Tuple,
     Union,
 )
@@ -84,6 +85,12 @@ class Parser:
     index: int = 0
     patch: Patch = field(default_factory=Patch)
     fuzz: int = 0
+    _destinations: Set[str] = field(default_factory=set)
+
+    def _check_destination(self, target: str) -> None:
+        if target in self._destinations:
+            raise DiffError(f"Duplicate destination path: {target}")
+        self._destinations.add(target)
 
     # ------------- low-level helpers -------------------------------------- #
     def _cur_line(self) -> str:
@@ -141,6 +148,8 @@ class Parser:
                 move_to = self.read_str("*** Move to: ")
                 if path not in self.current_files:
                     raise DiffError(f"Update File Error - missing file: {path}")
+                target = move_to or path
+                self._check_destination(target)
                 text = self.current_files[path]
                 action = self._parse_update_file(text)
                 action.move_path = move_to or None
@@ -164,6 +173,7 @@ class Parser:
                     raise DiffError(f"Duplicate add for file: {path}")
                 if path in self.current_files:
                     raise DiffError(f"Add File Error - file already exists: {path}")
+                self._check_destination(path)
                 self.patch.actions[path] = self._parse_add_file()
                 continue
 
@@ -461,10 +471,18 @@ def apply_commit(
     write_fn: Callable[[str, str], None],
     remove_fn: Callable[[str], None],
 ) -> None:
+    destinations = {
+        change.move_path or path
+        for path, change in commit.changes.items()
+        if change.type in (ActionType.ADD, ActionType.UPDATE)
+    }
+
     for path, change in commit.changes.items():
         if change.type is ActionType.DELETE:
             remove_fn(path)
-        elif change.type is ActionType.ADD:
+
+    for path, change in commit.changes.items():
+        if change.type is ActionType.ADD:
             if change.new_content is None:
                 raise DiffError(f"ADD change for {path} has no content")
             write_fn(path, change.new_content)
@@ -473,7 +491,7 @@ def apply_commit(
                 raise DiffError(f"UPDATE change for {path} has no new content")
             target = change.move_path or path
             write_fn(target, change.new_content)
-            if change.move_path:
+            if change.move_path and change.move_path != path and path not in destinations:
                 remove_fn(path)
 
 
