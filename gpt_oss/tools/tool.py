@@ -6,6 +6,7 @@ from openai_harmony import (
     Author,
     Role,
     Message,
+    SystemContent,
     TextContent,
 )
 
@@ -94,7 +95,7 @@ class Tool(ABC):
         return Message(
             id=id if id else uuid4(),
             author=Author(role=Role.TOOL, name=self.name),
-            content=TextContent(text=error_message), # TODO: Use SystemError instead
+            content=SystemContent(text=error_message),
             channel=channel,
         ).with_recipient("assistant")
 
