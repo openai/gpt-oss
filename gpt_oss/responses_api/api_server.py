@@ -769,7 +769,7 @@ def create_api_server(
                                     output_index=current_output_index,
                                     content_index=current_content_index,
                                     item_id=message_id,
-                                    annotation_index=len(current_annotations),
+                                    annotation_index=len(current_annotations) - 1,
                                     annotation=citation,
                                 )
                             )
