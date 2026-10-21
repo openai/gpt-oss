@@ -434,7 +434,7 @@ class Transformer(torch.nn.Module):
                 ]
             try:
                 param.data.copy_(loaded_tensor)
-            except:
+            except Exception:
                 print(f"{name=} {param.data.shape=} {loaded_tensor.shape=}")
                 raise
 
