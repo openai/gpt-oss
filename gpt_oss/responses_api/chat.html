@@ -48,7 +48,17 @@ function appendScroll(role, text) {
   parts.forEach((part, index) => {
     if (index % 3 === 0) { const p = document.createElement('div'); p.className='prose'; p.textContent=part; entry.append(p); }
     if (index % 3 === 1) { const label=document.createElement('div'); label.className='code-label'; label.textContent=part || '程式'; entry.append(label); }
-    if (index % 3 === 2) { const pre=document.createElement('pre'); const code=document.createElement('code'); code.textContent=part; pre.append(code); entry.append(pre); }
+    if (index % 3 === 2) {
+      const pre=document.createElement('pre'), code=document.createElement('code'); code.textContent=part;pre.append(code);entry.append(pre);
+      const copy=document.createElement('button');copy.type='button';copy.textContent='抄錄程式';copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(part);copy.textContent='已抄錄';}catch{copy.textContent='請選取程式文字複製';}});entry.append(copy);
+      const download=document.createElement('button');download.type='button';download.textContent='存為檔案';
+      const language=parts[index-1].trim().toLowerCase();
+      download.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([part],{type:'text/plain;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='shuzhai.'+({html:'html',python:'py',py:'py',javascript:'js',js:'js',typescript:'ts',cpp:'cpp',css:'css'}[language]||'txt');link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});entry.append(download);
+      if(language==='html'){
+        const preview=document.createElement('button');preview.type='button';preview.textContent='試玩此頁';
+        preview.addEventListener('click',()=>{if(preview.nextElementSibling?.tagName==='IFRAME')return;const frame=document.createElement('iframe');frame.title='程式試玩';frame.setAttribute('sandbox','allow-scripts');frame.style.cssText='width:100%;height:520px;border:1px solid #bbc4b9;background:white;margin-top:12px';frame.srcdoc='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; connect-src \'none\'; form-action \'none\'">'+part;preview.after(frame);});entry.append(preview);
+      }
+    }
   });
   byId('messages').append(entry); descend(); return entry;
 }
@@ -58,8 +68,8 @@ async function presentQuestion(text) {
   const entry=appendScroll('user', offered); question.value=''; setBusy(true);
   byId('status').textContent='學者正在推敲，請稍候…';
   try {
-    const response=await fetch('/v1/responses', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:[...wanglai,{type:'message',role:'user',content:offered}],stream:false,store:false,max_output_tokens:2048})});
-    if (!response.ok) throw new Error('書齋暫未能作答（'+response.status+'）。請稍後重試。');
+    const response=await fetch('/v1/responses', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:[...wanglai,{type:'message',role:'user',content:offered}],stream:false,store:false,max_output_tokens:12000})});
+    if (!response.ok) { const failure=await response.json().catch(()=>({})); throw new Error(typeof failure.detail==='string'?failure.detail:'書齋暫未能作答（'+response.status+'），請稍後重試。'); }
     const result=await response.json();
     if (result.error || result.status === 'failed') throw new Error('學者此次未能完成答覆。請稍後重試。');
     const answer=(result.output || []).filter(item=>item.type==='message' && item.role==='assistant').flatMap(item=>typeof item.content==='string'?[item.content]:(item.content || []).filter(part=>part.type==='output_text' || part.type==='text').map(part=>part.text)).join('\n').trim();
@@ -83,7 +93,7 @@ fetch('/api/chat-config').then(response=>{if(!response.ok)throw new Error();retu
   ready=config.model_ready !== false;byId('era').textContent='學問年界：西元 '+config.cutoff_year+' 年 · 對話僅留本頁';
   byId('libraryState').textContent=config.has_library?'藏書札記已備，可據書問學。':'藏書札記尚未載入。';
   byId('status').textContent=ready?'書齋已就緒':'介面預覽 · 學者尚未入席';
-  if(!ready){byId('error').textContent='聊天介面已開啟。目前尚未載入模型；啟動模型服務後，即可與學者問答。';byId('error').hidden=false;}
+  if(!ready){byId('error').textContent='聊天介面已開啟。目前尚未設定後臺金鑰；完成 Secret 設定並重新發布後，重新整理即可問答。';byId('error').hidden=false;}
   setBusy(false);
 }).catch(()=>{byId('status').textContent='尚未連上書齋';byId('error').textContent='請透過運行中的書齋服務開啟此頁，並重新整理。';byId('error').hidden=false;});
 </script>

@@ -1,12 +1,14 @@
 """開一書齋，以便問學。"""
 
 from pathlib import Path
+from typing import Callable
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 
-def open_shuzhai(app: FastAPI, cutoff_year: int, has_library: bool, model_ready: bool = True) -> None:
+def open_shuzhai(app: FastAPI, cutoff_year: int, has_library: bool,
+                model_ready: bool | Callable[[], bool] = True) -> None:
     """設問學之頁，明年界與藏書。"""
     @app.get("/", include_in_schema=False)
     async def shuzhai_page():
@@ -15,7 +17,7 @@ def open_shuzhai(app: FastAPI, cutoff_year: int, has_library: bool, model_ready:
     @app.get("/api/chat-config", include_in_schema=False)
     async def shuzhai_catalogue():
         return {"cutoff_year": cutoff_year, "has_library": has_library,
-                "model_ready": model_ready}
+                "model_ready": model_ready() if callable(model_ready) else model_ready}
 
 
 if __name__ == "__main__":
