@@ -15,5 +15,5 @@ def test_chat_page_and_configuration():
         assert "格物書齋" in page.text
         assert "/v1/responses" in page.text
         assert client.get("/api/chat-config").json() == {
-            "cutoff_year": 1799, "has_library": False,
+            "cutoff_year": 1799, "has_library": False, "model_ready": True,
         }

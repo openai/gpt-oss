@@ -80,9 +80,11 @@ function renew() { if(busy)return;wanglai=[];byId('messages').replaceChildren();
 byId('newChat').addEventListener('click',renew);byId('mobileNew').addEventListener('click',renew);
 setBusy(false);
 fetch('/api/chat-config').then(response=>{if(!response.ok)throw new Error();return response.json();}).then(config=>{
-  ready=true;byId('era').textContent='學問年界：西元 '+config.cutoff_year+' 年 · 對話僅留本頁';
+  ready=config.model_ready !== false;byId('era').textContent='學問年界：西元 '+config.cutoff_year+' 年 · 對話僅留本頁';
   byId('libraryState').textContent=config.has_library?'藏書札記已備，可據書問學。':'藏書札記尚未載入。';
-  byId('status').textContent='書齋已就緒';setBusy(false);
+  byId('status').textContent=ready?'書齋已就緒':'介面預覽 · 學者尚未入席';
+  if(!ready){byId('error').textContent='聊天介面已開啟。目前尚未載入模型；啟動模型服務後，即可與學者問答。';byId('error').hidden=false;}
+  setBusy(false);
 }).catch(()=>{byId('status').textContent='尚未連上書齋';byId('error').textContent='請透過運行中的書齋服務開啟此頁，並重新整理。';byId('error').hidden=false;});
 </script>
 </body></html>
