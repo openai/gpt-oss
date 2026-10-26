@@ -18,6 +18,8 @@ import torch
 import termcolor
 
 from gpt_oss.tools import apply_patch
+from gpt_oss.classical import ClassicalCanon
+from gpt_oss.classical_library import ClassicalLibrary
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import ExaBackend, YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
@@ -59,6 +61,8 @@ def get_user_input():
 
 
 def main(args):
+    canon = ClassicalCanon(args.knowledge_cutoff_year)
+    library = ClassicalLibrary(args.classical_library) if args.classical_library else None
     match args.backend:
         case "triton":
             from gpt_oss.triton.model import TokenGenerator as TritonGenerator
@@ -80,6 +84,8 @@ def main(args):
 
     system_message_content = (
         SystemContent.new()
+        .with_model_identity(canon.instructions)
+        .with_knowledge_cutoff(f"{canon.cutoff_year}-12")
         .with_reasoning_effort(REASONING_EFFORT[args.reasoning_effort])
         .with_conversation_start_date(datetime.datetime.now().strftime("%Y-%m-%d"))
     )
@@ -166,6 +172,10 @@ def main(args):
                 user_message = get_user_input()
             user_message = Message.from_role_and_content(Role.USER, user_message)
             messages.append(user_message)
+            if library is not None:
+                book_evidence = library.consult(user_message.content[0].text, canon.cutoff_year)
+                if book_evidence:
+                    messages.append(Message.from_role_and_content(Role.USER, book_evidence))
         else:
             # Tool or function call
             if last_message.recipient.startswith("browser."):
@@ -358,6 +368,9 @@ if __name__ == "__main__":
         choices=["triton", "torch", "vllm"],
         help="Inference backend",
     )
+    parser.add_argument("--knowledge-cutoff-year", type=int, choices=range(1, 1900), default=1899,
+                        metavar="YEAR", help="古典學問之年界")
+    parser.add_argument("--classical-library", help="已校書證之索引路徑")
     args = parser.parse_args()
 
     if int(os.environ.get("WORLD_SIZE", 1)) == 1:

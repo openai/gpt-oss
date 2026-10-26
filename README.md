@@ -20,6 +20,13 @@ We're releasing two flavors of these open models:
 
 Both models were trained using our [harmony response format][harmony] and should only be used with this format; otherwise, they will not work correctly.
 
+## 古典學者模式
+
+本分支的對話與 Responses API 預設採古典角色，暫以 1899 年為學問年界，
+另許現代程式技藝。所附文獻先整理為有出處的文言札記，再供檢索。
+這是推論設定，尚未修改模型權重；完整用法與文獻處理限制見
+[古典模型設定](docs/classical_model.md)。
+
 ## Table of Contents
 - [Highlights](#highlights)
 - [Inference examples](#inference-examples)

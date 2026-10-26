@@ -22,6 +22,8 @@ from openai_harmony import (
 )
 
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
+from gpt_oss.classical import ClassicalCanon
+from gpt_oss.classical_library import ClassicalLibrary
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
 
@@ -98,8 +100,11 @@ def is_not_builtin_tool(
 
 
 def create_api_server(
-    infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
+    infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding,
+    canon: ClassicalCanon | None = None,
+    library: ClassicalLibrary | None = None,
 ) -> FastAPI:
+    canon = canon if canon is not None else ClassicalCanon()
     app = FastAPI()
 
     @app.exception_handler(RequestValidationError)
@@ -1198,6 +1203,9 @@ def create_api_server(
         system_message_content = SystemContent.new().with_conversation_start_date(
             datetime.datetime.now().strftime("%Y-%m-%d")
         )
+        system_message_content = system_message_content.with_model_identity(
+            canon.instructions
+        ).with_knowledge_cutoff(f"{canon.cutoff_year}-12")
 
         if body.reasoning is not None:
             try:
@@ -1316,6 +1324,22 @@ def create_api_server(
                         .with_recipient("assistant")
                         .with_channel("commentary")
                     )
+
+        if library is not None:
+            if isinstance(body.input, str):
+                question = body.input
+            else:
+                question = ""
+                for item in reversed(body.input):
+                    if item.type == "message" and item.role == Role.USER:
+                        question = item.content if isinstance(item.content, str) else "\n".join(
+                            part.text for part in item.content
+                            if isinstance(part, TextContentItem)
+                        )
+                        break
+            book_evidence = library.consult(question, canon.cutoff_year)
+            if book_evidence:
+                messages.append(Message.from_role_and_content(Role.USER, book_evidence))
 
         conversation = Conversation.from_messages(messages)
 
