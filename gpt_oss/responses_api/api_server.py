@@ -50,6 +50,7 @@ from .events import (
     ResponseWebSearchCallInProgress,
     ResponseWebSearchCallSearching,
 )
+from .chat_page import open_shuzhai
 from .types import (
     CodeInterpreterCallItem,
     CodeInterpreterOutputImage,
@@ -106,6 +107,7 @@ def create_api_server(
 ) -> FastAPI:
     canon = canon if canon is not None else ClassicalCanon()
     app = FastAPI()
+    open_shuzhai(app, canon.cutoff_year, library is not None)
 
     @app.exception_handler(RequestValidationError)
     async def log_validation_error(request: Request, exc: RequestValidationError):
