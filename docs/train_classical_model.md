@@ -40,3 +40,7 @@ python -m gpt_oss.responses_api.serve \
 使用 `python -m gpt_oss.evals.classical_game_eval --repair` 產生九宮移數遊戲，另以未見過的題目檢查文言是否自然、知識是否有據、遊戲能否開局、移動、判勝與重開。必須記錄模型原始回答並實際試玩。沒有完成這些驗證前，不應宣稱模型能可靠編程或只知道 1899 年前的事。
 
 權重與訓練資料位於被 Git 忽略的 `data/classical/`，不會自動推送至 GitHub；若日後要將大型權重放到儲存庫，須另外選定支援大型檔案的儲存方式。
+
+## Colab 免費 GPU 試訓
+
+開啟 [Colab 筆記本](https://colab.research.google.com/github/andrewlai1209-byte/BooleLOT/blob/work/training/colab_classical.ipynb)，選擇 GPU 執行階段並依序執行。筆記本會下載 `work` 分支與底座、試訓 10 步，完成後下載 LoRA 附加權重。免費 GPU 資源可能不足或中斷，且尚未實測此流程；訓練不會自動部署到聊天網站。現有六筆資料只供流程試驗。
