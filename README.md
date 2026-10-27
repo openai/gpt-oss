@@ -27,6 +27,7 @@ Both models were trained using our [harmony response format][harmony] and should
 這是推論設定，尚未修改模型權重；完整用法與文獻處理限制見
 [古典模型設定](docs/classical_model.md)。
 自行運行 gpt-oss 的方式與硬體需求見[自行運行古典學者](docs/self_hosted_model.md)。
+古典學者權重的訓練管線及目前限制見[訓練與驗收](docs/train_classical_model.md)。
 
 ## Table of Contents
 - [Highlights](#highlights)
