@@ -60,11 +60,23 @@ def create_openai_chat(canon: ClassicalCanon | None = None,
                                         headers={"Authorization": f"Bearer {key}"}) as response:
                     if response.status != 200:
                         status = response.status
+                        try:
+                            failure = await response.json()
+                        except (aiohttp.ContentTypeError, ValueError):
+                            failure = {}
+                        issue = failure.get("error", {}) if isinstance(failure, dict) else {}
+                        signal = " ".join(str(issue.get(k, "")) for k in ("code", "type", "message")).lower()
                         detail = {401: "金鑰未通過驗證，請於 Secret 設定更正。",
                                   403: "此金鑰無權使用指定模型。",
                                   404: "指定模型不可用，請檢查 OPENAI_MODEL。",
-                                  429: "額度不足或請求過密，請檢查 API 額度，稍後再試。"}.get(
-                                      status, "遠端服務暫未能作答，請稍後再試。")
+                                  }.get(status, "遠端服務暫未能作答，請稍後再試。")
+                        if status == 429:
+                            if any(term in signal for term in ("insufficient_quota", "billing quota", "current quota", "run out of credits", "no balance", "exhausted")):
+                                detail = "API 額度或儲值不足。請至 https://platform.openai.com/settings/organization/billing 檢查 API 帳務；ChatGPT 訂閱不含 API 額度。"
+                            elif any(term in signal for term in ("rate_limit_exceeded", "requests per min", "tokens per min", "too many requests")):
+                                detail = "API 請求速率受限。請稍候再試，並降低連續提問頻率。"
+                            else:
+                                detail = "OpenAI 回報 429，但未提供可辨認原因；可能是 API 額度／支出上限，亦可能是速率限制。請先查帳務與 API 用量限制，再重試。"
                         raise HTTPException(status if status in (401, 403, 429) else 502, detail)
                     result = await response.json()
         except (aiohttp.ClientError, TimeoutError, ValueError):

@@ -29,7 +29,20 @@ export default {
         method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${env.OPENAI_API_KEY}`},
         body:JSON.stringify({model:env.OPENAI_MODEL||'gpt-4.1',instructions:shuzhai.instructions,
           input:messages,max_output_tokens:tokens,store:false}),signal:AbortSignal.timeout(180000)});
-      if(!upstream.ok) return reply({detail:({401:'金鑰未通過驗證，請於 Secret 設定更正。',403:'此金鑰無權使用指定模型。',404:'指定模型不可用，請檢查 OPENAI_MODEL。',429:'額度不足或請求過密，請檢查 API 額度，稍後再試。'})[upstream.status]||'遠端服務暫未能作答，請稍後再試。'},[401,403,429].includes(upstream.status)?upstream.status:502);
+      if(!upstream.ok){
+        const failure=await upstream.json().catch(()=>({}));
+        const issue=failure.error||{};const signal=`${issue.code||''} ${issue.type||''} ${issue.message||''}`.toLowerCase();
+        let detail='遠端服務暫未能作答，請稍後再試。';
+        if(upstream.status===401)detail='金鑰未通過驗證，請於 Secret 設定更正。';
+        else if(upstream.status===403)detail='此金鑰無權使用指定模型；請核對金鑰所屬專案與模型權限。';
+        else if(upstream.status===404)detail='指定模型不可用，請檢查 OPENAI_MODEL。';
+        else if(upstream.status===429){
+          if(/insufficient_quota|billing quota|current quota|run out of credits|no balance|exhausted/.test(signal))detail='API 額度或儲值不足。請至 https://platform.openai.com/settings/organization/billing 檢查 API 帳務；ChatGPT 訂閱不含 API 額度。';
+          else if(/rate_limit_exceeded|requests per min|tokens per min|too many requests/.test(signal))detail='API 請求速率受限。請稍候再試，並降低連續提問頻率。';
+          else detail='OpenAI 回報 429，但未提供可辨認原因；可能是 API 額度／支出上限，亦可能是速率限制。請先查帳務與 API 用量限制，再重試。';
+        }
+        return reply({detail},[401,403,429].includes(upstream.status)?upstream.status:502);
+      }
       const result=await upstream.json();
       return reply({id:result.id,status:result.status,output:(result.output||[]).filter(i=>i.type==='message'),
         usage:result.usage,error:result.error?{message:'此次未得有效答覆。'}:null});

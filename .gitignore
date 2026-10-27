@@ -6,3 +6,6 @@ __pycache__
 node_modules/
 *.log
 data/classical/
+.env
+.env.local
+.env.*.local
