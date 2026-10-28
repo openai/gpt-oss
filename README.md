@@ -1,6 +1,31 @@
 # BoolieLOT
 
-![佛羅倫斯金色晨曦：BoolieLOT](docs/images/boolielot.png)
+![BoolieLOT: Florence in golden morning light](docs/images/boolielot.png)
+
+## English
+
+BoolieLOT is an experimental project that explores historical ideas and programming through the perspective of a classical scholar and engineer. It aims to discuss knowledge from 1899 and earlier in elegant Traditional Chinese, while using modern programming techniques to implement classical concepts, simulate machinery, and create games.
+
+### Project status
+
+- Reviewed notes record sources and knowledge dates, covering works such as *Tiangong Kaiwu*, Leonardo da Vinci’s notebooks, and Boole’s logic. A later edition’s publication date is distinct from the date of its original content.
+- The chat interface supports conversation and code display; a model backend must be started and connected separately.
+- The training pipeline builds training and evaluation sets from reviewed notes and experiments with classical expression using LoRA. The current dataset is small and needs expansion and verification.
+- A 10-step experimental run on Colab produced adapter weights. They are not included in this repository and require a compatible base model.
+
+The project uses a modern pretrained base model. Fine-tuning and date restrictions cannot guarantee removal of knowledge from after 1899; programming also requires modern techniques. Historical reliability, classical style, and programming ability still need independent evaluation.
+
+### Getting started
+
+- [Experiment with GPU training on Colab](https://colab.research.google.com/github/andrewlai1209-byte/BooleLOT/blob/work/training/colab_classical.ipynb)
+- [Training, loading, and evaluation guide](docs/train_classical_model.md) (Chinese)
+- [Reviewed notes and sources](docs/classical_sources.json) (Chinese)
+
+Free GPU availability and memory are not guaranteed to be sufficient. Experimental training does not automatically deploy the chat service; the base model and adapter must be prepared separately.
+
+---
+
+## 中文
 
 BoolieLOT 是一個以古代學者與工程家的視角探索歷史思想和程式設計的實驗專案。它嘗試用典雅的繁體中文討論 1899 年以前的學問，並運用現代程式技術實作古典概念、模擬機械和製作遊戲。
 
