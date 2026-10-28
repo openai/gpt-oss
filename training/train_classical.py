@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import tempfile
 from pathlib import Path
 
 
@@ -29,6 +30,14 @@ def main():
     parser.add_argument("--allow-small-dataset", action="store_true", help="僅供小樣本流程試驗")
     parser.add_argument("--dry-run", action="store_true", help="只校語料，不載模型")
     args = parser.parse_args()
+    # 習卷必須與現行已校札記逐條相符，防止夾入未審材料。
+    from training.prepare_corpus import build_corpus
+    with tempfile.TemporaryDirectory() as temp:
+        verified = Path(temp)
+        build_corpus(Path("docs/classical_sources.json"), verified)
+        for name in ("train.jsonl", "eval.jsonl"):
+            if (args.data / name).read_bytes() != (verified / name).read_bytes():
+                parser.error(f"{name} 與已校札記不符；請重新編卷，不可加入未審材料。")
     train = read_rows(args.data / "train.jsonl")
     evaluation = read_rows(args.data / "eval.jsonl")
     if not train or not evaluation:

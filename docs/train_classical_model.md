@@ -44,3 +44,7 @@ python -m gpt_oss.responses_api.serve \
 ## Colab 免費 GPU 試訓
 
 開啟 [Colab 筆記本](https://colab.research.google.com/github/andrewlai1209-byte/BooleLOT/blob/work/training/colab_classical.ipynb)，選擇 GPU 執行階段並依序執行。筆記本會下載 `work` 分支與底座、試訓 10 步，完成後下載 LoRA 附加權重。免費 GPU 資源可能不足或中斷，且尚未實測此流程；訓練不會自動部署到聊天網站。現有六筆資料只供流程試驗。
+
+## 年代限制與審核
+
+訓練程式會依目前的 `docs/classical_sources.json` 重建習卷和考卷，並逐位元比對輸入；不符即停止，避免直接混入未經此流程審核的資料。札記的 `knowledge_year` 必須是 1 至 1899 的整數，且應代表所引用內容的年代，而非數位版本出版年代。修改札記後須重新編卷。年代欄位是人工判定，不是自動考證；訓練前仍須校對每則內容和出處。系統指示包含現代程式能力的例外，因此這並非所有訓練文字都出自 1899 年前。現代底座的預訓練知識亦不會因此被清除；先前訓練的附加權重也不會因程式變更而自動更新。

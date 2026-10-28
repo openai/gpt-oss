@@ -19,7 +19,7 @@ def build_corpus(source: Path, output: Path) -> dict:
         if entry["status"] != "reviewed_notes":
             continue
         for note in entry["notes"]:
-            if not isinstance(note.get("knowledge_year"), int) or note["knowledge_year"] > 1899:
+            if type(note.get("knowledge_year")) is not int or not 1 <= note["knowledge_year"] <= 1899:
                 raise ValueError("札記年代不合。")
             title, location = entry["title"], note["location"]
             text = note["text"].strip()
