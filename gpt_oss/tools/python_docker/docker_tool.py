@@ -8,6 +8,7 @@ import queue
 import subprocess
 import tarfile
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -24,6 +25,7 @@ from openai_harmony import (
 from ..tool import Tool
 
 _docker_client = None
+_docker_client_lock = threading.Lock()
 
 VALID_EXECUTION_BACKENDS = {
     "docker",
@@ -43,13 +45,15 @@ def call_python_script(script: str) -> str:
     Call a python script by writing it to a file in the container and executing it.
     """
     global _docker_client
-    if _docker_client is None:
-        _docker_client = docker.from_env()
-        # pull image `python:3.11` if not present
-        try:
-            _docker_client.images.get("python:3.11")
-        except docker.errors.ImageNotFound:
-            _docker_client.images.pull("python:3.11")
+    with _docker_client_lock:
+        if _docker_client is None:
+            client = docker.from_env()
+            # pull image `python:3.11` if not present
+            try:
+                client.images.get("python:3.11")
+            except docker.errors.ImageNotFound:
+                client.images.pull("python:3.11")
+            _docker_client = client
 
     # 1. Create a temporary tar archive containing the script
     script_name = "script.py"
@@ -338,22 +342,29 @@ IMPORTANT: Your python environment is not shared between calls. You will have to
         script = message.content[0].text
         channel = message.channel
 
+        # Every backend below blocks (docker exec / subprocess / kernel round-trip),
+        # so it has to run on a worker thread: blocking here would freeze the event
+        # loop and with it every other request served by the same process.
         if self._execution_backend == "docker":
-            output = call_python_script(script)
+            output = await asyncio.to_thread(call_python_script, script)
         elif self._execution_backend == "dangerously_use_uv":
-            output = call_python_script_with_uv(script)
+            output = await asyncio.to_thread(call_python_script_with_uv, script)
         elif self._execution_backend == "dangerously_use_local_jupyter":
             assert self._jupyter_session is not None
             lock = self._execution_lock
             if lock is not None:
                 async with lock:
                     try:
-                        output = self._jupyter_session.execute(script)
+                        output = await asyncio.to_thread(
+                            self._jupyter_session.execute, script
+                        )
                     except TimeoutError as exc:
                         output = f"[ERROR] {exc}"
             else:
                 try:
-                    output = self._jupyter_session.execute(script)
+                    output = await asyncio.to_thread(
+                        self._jupyter_session.execute, script
+                    )
                 except TimeoutError as exc:
                     output = f"[ERROR] {exc}"
         else:
