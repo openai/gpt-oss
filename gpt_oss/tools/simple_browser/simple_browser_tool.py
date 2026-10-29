@@ -275,9 +275,9 @@ def handle_errors(
 
 
 class SimpleBrowserState(pydantic.BaseModel):
-    # maps page url to page contents
+    # maps page key to page contents
     pages: dict[str, PageContents] = pydantic.Field(default_factory=dict)
-    # a sequential list of page urls
+    # a sequential list of page keys
     page_stack: list[str] = pydantic.Field(default_factory=list)
 
     @property
@@ -285,8 +285,12 @@ class SimpleBrowserState(pydantic.BaseModel):
         return len(self.page_stack) - 1
 
     def add_page(self, page: PageContents) -> None:
-        self.pages[page.url] = page
-        self.page_stack.append(page.url)
+        # Search result pages have no url, so key them by their cursor instead.
+        # Otherwise a new search overwrites the previous one and every cursor
+        # pointing at an earlier search resolves to the most recent search.
+        key = page.url or f"search:{len(self.page_stack)}"
+        self.pages[key] = page
+        self.page_stack.append(key)
 
     def get_page(self, cursor: int = -1) -> PageContents:
         if self.current_cursor < 0:
@@ -294,7 +298,7 @@ class SimpleBrowserState(pydantic.BaseModel):
         if cursor == -1 or cursor == self.current_cursor:
             return self.pages[self.page_stack[-1]]
         try:
-            page_url = self.page_stack[cursor]
+            page_key = self.page_stack[cursor]
         except TypeError as e:
             raise ToolUsageError(
                 f"`cursor` should be an integer, not `{type(cursor).__name__}`"
@@ -304,7 +308,7 @@ class SimpleBrowserState(pydantic.BaseModel):
                 f"Cursor `{cursor}` is out of range. "
                 f"Available cursor indices: [0 - {self.current_cursor}]."
             ) from e
-        return self.pages[page_url]
+        return self.pages[page_key]
 
     def get_page_by_url(self, url: str) -> PageContents | None:
         if url in self.pages:
@@ -644,8 +648,8 @@ sources=""" + self.backend.source
 
         # Build a mapping from cursor to url
         cursor_to_url = {}
-        for idx, url in enumerate(self.tool_state.page_stack):
-            cursor_to_url[str(idx)] = url
+        for idx, key in enumerate(self.tool_state.page_stack):
+            cursor_to_url[str(idx)] = self.tool_state.pages[key].url
 
         def extract_domain(url):
             try:
