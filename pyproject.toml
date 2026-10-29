@@ -26,6 +26,7 @@ version = "0.0.9"
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
+adapter = ["peft>=0.17", "transformers>=4.56.2", "accelerate", "safetensors", "torch>=2.8"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
 eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile"]
@@ -37,6 +38,9 @@ backend-path = ["_build"]
 
 [tool.setuptools.packages.find]
 include = ["gpt_oss*"]
+
+[tool.setuptools.package-data]
+"gpt_oss.responses_api" = ["chat.html"]
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt

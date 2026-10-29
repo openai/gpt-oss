@@ -9,6 +9,8 @@ from openai_harmony import (
 )
 
 from .api_server import create_api_server
+from gpt_oss.classical import ClassicalCanon
+from gpt_oss.classical_library import ClassicalLibrary
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Responses API server")
@@ -35,7 +37,15 @@ if __name__ == "__main__":
         # default to metal on macOS, triton on other platforms
         default="metal" if __import__("platform").system() == "Darwin" else "triton",
     )
+    parser.add_argument("--knowledge-cutoff-year", type=int, choices=range(1, 1900), default=1899,
+                        metavar="YEAR", help="古典學問之年界")
+    parser.add_argument("--classical-library", help="已校書證之索引路徑")
+    parser.add_argument("--adapter", help="古典學者 LoRA 權重路徑（限 transformers 後端）")
     args = parser.parse_args()
+    if args.adapter and args.inference_backend != "transformers":
+        parser.error("--adapter 僅支援 transformers；不可靜默忽略附加權重。")
+    canon = ClassicalCanon(args.knowledge_cutoff_year)
+    library = ClassicalLibrary(args.classical_library) if args.classical_library else None
 
     if args.inference_backend == "triton":
         from .inference.triton import setup_model
@@ -54,5 +64,6 @@ if __name__ == "__main__":
 
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-    infer_next_token = setup_model(args.checkpoint)
-    uvicorn.run(create_api_server(infer_next_token, encoding), port=args.port)
+    infer_next_token = (setup_model(args.checkpoint, adapter=args.adapter)
+                        if args.inference_backend == "transformers" else setup_model(args.checkpoint))
+    uvicorn.run(create_api_server(infer_next_token, encoding, canon, library), port=args.port)

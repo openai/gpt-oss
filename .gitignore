@@ -5,3 +5,7 @@ __pycache__
 *.egg*
 node_modules/
 *.log
+data/classical/
+.env
+.env.local
+.env.*.local

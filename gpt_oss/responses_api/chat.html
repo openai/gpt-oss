@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>格物書齋 · 與十九世紀學者問答</title>
+<style>
+:root{--paper:#f5f1e8;--ink:#282e2b;--muted:#73776e;--line:#dcd9cf;--green:#314e42;--red:#a85038;font-family:Georgia,"Noto Serif TC","Songti TC",serif;color:var(--ink);background:var(--paper)}
+*{box-sizing:border-box}body{margin:0}button,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid var(--green);outline-offset:4px}.layout{display:grid;grid-template-columns:265px 1fr;min-height:100dvh}.shelf{padding:40px 28px;border-right:1px solid var(--line);display:flex;flex-direction:column;background:#eeece2}.seal{display:inline-grid;place-items:center;background:var(--red);color:#fff;width:38px;height:43px;font-size:20px;margin-bottom:18px}.brand{font-size:26px;letter-spacing:.14em;margin:0 0 8px}.latin{font-size:10px;letter-spacing:.22em;color:var(--muted)}.new{margin:40px 0 34px;padding:13px;text-align:left;background:transparent;border:1px solid #b8bdb0;color:var(--green);border-radius:4px}.shelf h2{font-size:12px;letter-spacing:.2em;font-weight:normal;color:var(--muted)}.subjects{list-style:none;padding:0;line-height:2.5;font-size:14px}.subjects span{color:var(--muted);font-size:11px;display:inline-block;width:28px}.shelf footer{margin-top:auto;font-size:12px;line-height:1.9;color:var(--muted);padding-top:40px}.workspace{height:100dvh;display:flex;flex-direction:column;min-width:0}.top{padding:22px 38px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;font-size:12px;letter-spacing:.12em}.status{color:var(--muted);letter-spacing:0}.scroll{flex:1;overflow-y:auto;padding:30px 32px;scroll-behavior:smooth}.inner{max-width:790px;margin:auto}.welcome{padding:55px 0 30px}.eyebrow{font-size:11px;letter-spacing:.26em;color:var(--red)}h1{font-size:clamp(29px,4vw,43px);font-weight:normal;letter-spacing:.06em;line-height:1.5;margin:20px 0}.intro{line-height:2;color:var(--muted);font-size:15px;max-width:550px}.rule{margin:30px 0;border:0;border-top:1px solid var(--line);width:55px}.starters{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:28px}.starter{border:1px solid var(--line);border-radius:5px;background:#faf8f2;text-align:left;padding:20px;color:var(--ink);line-height:1.8}.starter:hover{border-color:var(--green);background:#fffdf7}.starter strong{display:block;font-weight:normal;font-size:16px}.starter small{color:var(--muted);font-size:12px}.message{padding:24px 0;border-bottom:1px solid var(--line);line-height:1.9;font-size:16px;overflow-wrap:anywhere}.who{font-size:11px;color:var(--green);letter-spacing:.16em;margin-bottom:12px}.message.user .who{color:var(--red)}.prose{white-space:pre-wrap}.message pre{white-space:pre;overflow-x:auto;background:#e7e9e1;border:1px solid #d5dacd;border-radius:5px;padding:18px;font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}.code-label{font:11px ui-monospace,monospace;color:var(--muted);margin:18px 0 6px}.error{color:#9e3d2a;background:#f4e6de;padding:14px;border-radius:4px;line-height:1.7;margin-top:16px}.composer-area{padding:18px 32px 22px;background:var(--paper)}.composer{max-width:790px;margin:auto;border:1px solid #b8bdb0;border-radius:7px;background:#fcfaf5;padding:12px 14px;display:flex;align-items:flex-end;gap:12px;box-shadow:0 4px 20px #293e3005}textarea{resize:none;flex:1;min-width:0;min-height:56px;max-height:170px;background:transparent;border:0;color:var(--ink);padding:7px;line-height:1.6}textarea:focus{outline:none} .composer:focus-within{outline:2px solid #658271;outline-offset:2px}.send{background:var(--green);border:0;color:white;border-radius:4px;padding:12px 18px;white-space:nowrap}.hint{max-width:790px;margin:10px auto 0;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:12px;line-height:1.7}[hidden]{display:none!important}@media(max-width:760px){.layout{grid-template-columns:1fr}.shelf{display:none}.top{padding:18px 20px;font-size:11px}.scroll{padding:15px 20px}.welcome{padding-top:25px}.composer-area{padding:12px 18px 18px}.starters{grid-template-columns:1fr}.starter{padding:15px}.hint{font-size:10px}h1{font-size:30px}}@media(prefers-reduced-motion:reduce){.scroll{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="shelf" aria-label="書齋簡介">
+<div><span class="seal" aria-hidden="true">格物</span><p class="brand">格物書齋</p><span class="latin">THE SCHOLAR’S STUDY</span></div>
+<button class="new" id="newChat">＋　另啟一席</button>
+<h2>問學之門</h2><ul class="subjects"><li><span>Ⅰ</span>幾何與曆算</li><li><span>Ⅱ</span>格物與造器</li><li><span>Ⅲ</span>古籍與世事</li><li><span>Ⅳ</span>以今術行古法</li></ul>
+<footer>窮理以致知，制器以利世。<br>取古人之思，試今世之術。<br><br><span id="libraryState">正在查閱藏書設定…</span></footer>
+</aside>
+<main class="workspace">
+<header class="top"><span>格物書齋　／　學者問答</span><span class="status" id="status" role="status">正在連接書齋…</span></header>
+<div class="scroll" id="scroll"><div class="inner">
+<section class="welcome" id="welcome"><div class="eyebrow">A CONVERSATION ACROSS THE AGES</div><h1>攜一問，入書齋。</h1><p class="intro">與一位通曉幾何、曆算與造器之學的古典學者交談。論古籍，察物理，亦可以今世程式，重現昔人巧思。</p><hr class="rule"><div class="eyebrow">不妨由此問起</div>
+<div class="starters"><button class="starter" data-prompt="請據《天工開物》，解說水車運作，並以 Python 模擬筒車取水。"><strong>借流水，轉一輪</strong><small>據《天工開物》摹水車之法 ↗</small></button><button class="starter" data-prompt="請以歐幾里得之法，解說如何求兩數的最大公因數，並寫成 Python 程式。"><strong>以幾何，明算理</strong><small>從輾轉相除到可行之程式 ↗</small></button><button class="starter" data-prompt="請解說布爾如何以符號論思維，並用集合運算舉例。"><strong>以符號，辨是非</strong><small>循布爾之思，觀邏輯之法 ↗</small></button><button class="starter" data-prompt="請談達文西如何取法蝙蝠構思飛行之器，並說明其構想尚須哪些驗證。"><strong>觀飛翼，思造器</strong><small>讀達文西筆記，辨構想與實證 ↗</small></button></div></section>
+<div id="messages" role="log" aria-label="問答紀錄"></div><div id="error" class="error" role="alert" hidden></div>
+</div></div>
+<div class="composer-area"><form class="composer" id="composer"><label for="question" hidden>請書所問</label><textarea id="question" placeholder="請書所問……" rows="2" maxlength="12000" required></textarea><button class="send" id="send" type="submit" disabled>呈問 ↑</button></form><div class="hint"><span id="era">學問年界：查閱中</span><span>Enter 呈問 · Shift + Enter 換行　<button id="mobileNew" type="button">另啟一席</button></span></div></div>
+</main></div>
+<script>
+// 記往來之言，候一問既畢而後再問。
+const byId = id => document.getElementById(id);
+const scroll = byId('scroll'), question = byId('question');
+let wanglai = [], busy = false, ready = false;
+function setBusy(value) {
+  busy = value; byId('send').disabled = busy || !ready;
+  byId('send').textContent = busy ? '學者思索中…' : '呈問 ↑';
+  byId('newChat').disabled = busy; byId('mobileNew').disabled = busy;
+  document.querySelectorAll('.starter').forEach(button => button.disabled = busy || !ready);
+  byId('messages').setAttribute('aria-busy', String(busy));
+}
+function descend() { scroll.scrollTop = scroll.scrollHeight; }
+function appendScroll(role, text) {
+  const entry = document.createElement('article'); entry.className = 'message ' + role;
+  const who = document.createElement('div'); who.className = 'who'; who.textContent = role === 'user' ? '來客 · 問' : '學者 · 答'; entry.append(who);
+  // 符術與正文各列其所；來文只作文字，不奉為頁中命令。
+  const parts = text.split(/```([^\n`]*)\n([\s\S]*?)```/g);
+  parts.forEach((part, index) => {
+    if (index % 3 === 0) { const p = document.createElement('div'); p.className='prose'; p.textContent=part; entry.append(p); }
+    if (index % 3 === 1) { const label=document.createElement('div'); label.className='code-label'; label.textContent=part || '程式'; entry.append(label); }
+    if (index % 3 === 2) {
+      const pre=document.createElement('pre'), code=document.createElement('code'); code.textContent=part;pre.append(code);entry.append(pre);
+      const copy=document.createElement('button');copy.type='button';copy.textContent='抄錄程式';copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(part);copy.textContent='已抄錄';}catch{copy.textContent='請選取程式文字複製';}});entry.append(copy);
+      const download=document.createElement('button');download.type='button';download.textContent='存為檔案';
+      const language=parts[index-1].trim().toLowerCase();
+      download.addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([part],{type:'text/plain;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download='shuzhai.'+({html:'html',python:'py',py:'py',javascript:'js',js:'js',typescript:'ts',cpp:'cpp',css:'css'}[language]||'txt');link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});entry.append(download);
+      if(language==='html'){
+        const preview=document.createElement('button');preview.type='button';preview.textContent='試玩此頁';
+        preview.addEventListener('click',()=>{if(preview.nextElementSibling?.tagName==='IFRAME')return;const frame=document.createElement('iframe');frame.title='程式試玩';frame.setAttribute('sandbox','allow-scripts');frame.style.cssText='width:100%;height:520px;border:1px solid #bbc4b9;background:white;margin-top:12px';frame.srcdoc='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; connect-src \'none\'; form-action \'none\'">'+part;preview.after(frame);});entry.append(preview);
+      }
+    }
+  });
+  byId('messages').append(entry); descend(); return entry;
+}
+async function presentQuestion(text) {
+  if (busy || !ready || !text.trim()) return;
+  const offered = text.trim(); byId('error').hidden=true; byId('welcome').hidden=true;
+  const entry=appendScroll('user', offered); question.value=''; setBusy(true);
+  byId('status').textContent='學者正在推敲，請稍候…';
+  try {
+    const response=await fetch('/v1/responses', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:[...wanglai,{type:'message',role:'user',content:offered}],stream:false,store:false,max_output_tokens:12000})});
+    if (!response.ok) { const failure=await response.json().catch(()=>({})); throw new Error(typeof failure.detail==='string'?failure.detail:'書齋暫未能作答（'+response.status+'），請稍後重試。'); }
+    const result=await response.json();
+    if (result.error || result.status === 'failed') throw new Error('學者此次未能完成答覆。請稍後重試。');
+    const answer=(result.output || []).filter(item=>item.type==='message' && item.role==='assistant').flatMap(item=>typeof item.content==='string'?[item.content]:(item.content || []).filter(part=>part.type==='output_text' || part.type==='text').map(part=>part.text)).join('\n').trim();
+    if (!answer) throw new Error('此次未得正文答覆，請重試或將問題分述。');
+    wanglai.push({type:'message',role:'user',content:offered},{type:'message',role:'assistant',content:answer});
+    appendScroll('assistant',answer+(result.status==='incomplete'?'\n\n〔此答未竟，可請學者續述。〕':''));
+    byId('status').textContent='書齋已就緒';
+  } catch (error) {
+    entry.remove(); question.value=offered;
+    byId('error').textContent=error instanceof TypeError?'連線中斷，請確認書齋服務仍在運行，再呈問。':error.message;
+    byId('error').hidden=false; byId('status').textContent='此次未能作答'; descend();
+  } finally { setBusy(false); question.focus(); }
+}
+byId('composer').addEventListener('submit',event=>{event.preventDefault();presentQuestion(question.value);});
+question.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();presentQuestion(question.value);}});
+document.querySelectorAll('.starter').forEach(button=>button.addEventListener('click',()=>presentQuestion(button.dataset.prompt)));
+function renew() { if(busy)return;wanglai=[];byId('messages').replaceChildren();byId('welcome').hidden=false;byId('error').hidden=true;question.value='';scroll.scrollTop=0;question.focus(); }
+byId('newChat').addEventListener('click',renew);byId('mobileNew').addEventListener('click',renew);
+setBusy(false);
+fetch('/api/chat-config').then(response=>{if(!response.ok)throw new Error();return response.json();}).then(config=>{
+  ready=config.model_ready !== false;byId('era').textContent='學問年界：西元 '+config.cutoff_year+' 年 · 對話僅留本頁';
+  byId('libraryState').textContent=config.has_library?'藏書札記已備，可據書問學。':'藏書札記尚未載入。';
+  byId('status').textContent=ready?'書齋已就緒':'介面預覽 · 學者尚未入席';
+  if(!ready){byId('error').textContent='聊天介面已開啟。自己的模型服務尚未連線；啟動 gpt-oss 並完成連線後，重新整理即可問答。';byId('error').hidden=false;}
+  setBusy(false);
+}).catch(()=>{byId('status').textContent='尚未連上書齋';byId('error').textContent='請透過運行中的書齋服務開啟此頁，並重新整理。';byId('error').hidden=false;});
+</script>
+</body></html>
