@@ -38,6 +38,8 @@ This is a list of guides and resources to help you get started with the gpt-oss 
   - [Running gpt-oss with Unsloth GGUFs](https://docs.unsloth.ai/new/gpt-oss-how-to-run-and-fine-tune#run-gpt-oss-20b)
 - TVM
   - [Compile & Run gpt-oss with TVM](https://github.com/brekkylab/gpt-oss-tvm)
+- troncons
+  - [Serving gpt-oss-120b on a 16 GB laptop with an 8 GB RTX 4060, with a lossless 1.80 GB saving in the MXFP4 experts](https://github.com/stoneariel491-sudo/troncons)
 
 ### Server
 
