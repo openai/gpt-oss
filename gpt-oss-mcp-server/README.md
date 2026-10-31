@@ -16,7 +16,7 @@ uv pip install -r requirements.txt
 
 ```bash
 # Assume we have harmony and gpt-oss installed
-uv pip install mcp[cli]
+uv pip install "mcp[cli]<2"
 # start the servers
 mcp run -t sse browser_server.py:mcp
 mcp run -t sse python_server.py:mcp
