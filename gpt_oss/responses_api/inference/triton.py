@@ -96,7 +96,13 @@ def get_infer_next_token(model, device):
     return infer_next_token
 
 
-def setup_model(checkpoint: str) -> Callable[[list[int], float], int]:
+def setup_model(checkpoint: str) -> Callable[[list[int], float, bool], int]:
+    """
+    Set up the Triton model for inference.
+    
+    Returns:
+        A function that takes (tokens, temperature, new_request) and returns next token.
+    """
     model, device = load_model(checkpoint)
     infer_next_token = get_infer_next_token(model, device)
     return infer_next_token
