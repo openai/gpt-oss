@@ -4,11 +4,19 @@
 # torchrun --nproc-per-node=4 -m gpt_oss.generate -p "why did the chicken cross the road?" model/
 
 import argparse
+import os
+from pathlib import Path
 
 from gpt_oss.tokenizer import get_tokenizer
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
+    # Validate checkpoint path exists for backends that need local files
+    if args.backend in ["torch", "triton"]:
+        checkpoint_path = Path(args.checkpoint)
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"Checkpoint path does not exist: {args.checkpoint}")
+    
     match args.backend:
         case "torch":
             from gpt_oss.torch.utils import init_distributed
