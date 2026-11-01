@@ -123,13 +123,11 @@ fake_tokens = [
 #     198,
 # ]
 
-token_queue = fake_tokens.copy()
-
-
 def stub_infer_next_token(tokens: list[int], temperature: float = 0.0) -> int:
-    global token_queue
-    next_tok = token_queue.pop(0)
-    if len(token_queue) == 0:
-        token_queue = fake_tokens.copy()
+    # Create local token queue to avoid global state issues
+    local_token_queue = fake_tokens.copy()
+    next_tok = local_token_queue.pop(0)
+    if len(local_token_queue) == 0:
+        local_token_queue = fake_tokens.copy()
     time.sleep(0.1)
     return next_tok
