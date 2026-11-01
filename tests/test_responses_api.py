@@ -46,3 +46,34 @@ def test_health_check(test_client):
     )
     print(response.json())
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"type": "function_call", "name": "get_weather", "arguments": "{}"},
+        {"type": "function_call_output", "output": "21C sunny"},
+    ],
+)
+def test_function_call_ids_are_required(test_client, item):
+    response = test_client.post(
+        "/v1/responses",
+        json={"model": "gpt-oss-120b", "input": [item]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_function_call_and_output_with_matching_id_are_accepted(test_client):
+    response = test_client.post(
+        "/v1/responses",
+        json={
+            "model": "gpt-oss-120b",
+            "input": [
+                {"type": "function_call", "name": "get_weather", "arguments": "{}", "call_id": "call_weather"},
+                {"type": "function_call_output", "call_id": "call_weather", "output": "21C sunny"},
+            ],
+        },
+    )
+
+    assert response.status_code == 200

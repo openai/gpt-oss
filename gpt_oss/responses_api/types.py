@@ -56,12 +56,12 @@ class FunctionCallItem(BaseModel):
     arguments: str
     status: Literal["in_progress", "completed", "incomplete"] = "completed"
     id: str = "fc_1234"
-    call_id: str = "call_1234"
+    call_id: str
 
 
 class FunctionCallOutputItem(BaseModel):
     type: Literal["function_call_output"]
-    call_id: str = "call_1234"
+    call_id: str
     output: str
 
 
