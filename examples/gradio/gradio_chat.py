@@ -15,33 +15,25 @@ DEFAULT_FUNCTION_PROPERTIES = """
 }
 """.strip()
 
-def chat_with_model(message, history, model_choice, instructions, effort, use_functions, 
+def chat_with_model(message, history, api_messages, model_choice, instructions, effort, use_functions, 
                    function_name, function_description, function_parameters,
                    use_browser_search, temperature, max_output_tokens, debug_mode):
     
     if not message.strip():
-        return history, ""
+        return history, api_messages, ""
     
-    # Append user message and empty assistant placeholder (idiomatic Gradio pattern)
+    # Append user message and empty assistant placeholder for the UI
     history = history + [[message, ""]]
     
-    # Build messages list from history (excluding the empty assistant placeholder)
-    messages = []
+    # Add current user message directly to our pristine API state
+    api_messages.append({
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": message}]
+    })
     
-    # Convert history to messages format (excluding the last empty assistant message)
-    for user_msg, assistant_msg in history[:-1]:
-        if user_msg:
-            messages.append({
-                "type": "message",
-                "role": "user", 
-                "content": [{"type": "input_text", "text": user_msg}]
-            })
-        if assistant_msg:
-            messages.append({
-                "type": "message",
-                "role": "assistant",
-                "content": [{"type": "output_text", "text": assistant_msg}]
-            })
+    # Pass the pristine state to the API instead of parsing the UI history
+    messages = api_messages.copy()
     
     # Add current user message
     messages.append({
@@ -157,23 +149,26 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
                     
             elif event_type == "response.completed":
                 response_data = data.get("response", {})
+                
+                # UPDATE: Save the clean API output back to our state
+                api_messages.extend(response_data.get("output", []))
+                
                 if debug_mode:
                     debug_info = response_data.get("metadata", {}).get("__debug", "")
                     if debug_info:
                         full_content += f"\n\n**Debug**\n```\n{debug_info}\n```"
                         
-                        # Update last assistant message (idiomatic Gradio pattern)
                         history[-1][1] = full_content
-                        yield history, ""
+                        yield history, api_messages, ""
                 break
         
-        # Return final history and empty string to clear textbox
-        return history, ""
+        # Return final history, updated api state, and empty string to clear textbox
+        return history, api_messages, ""
         
     except Exception as e:
         error_message = f"❌ Error: {str(e)}"
         history[-1][1] = error_message
-        return history, ""
+        return history, api_messages, ""
 
 
 # Create the Gradio interface
@@ -226,6 +221,7 @@ with gr.Blocks(title="💬 Chatbot") as demo:
             max_output_tokens = gr.Slider(1000, 20000, value=1024, step=100, label="Max output tokens")
             
             debug_mode = gr.Checkbox(label="Debug mode", value=False)
+            api_messages = gr.State([])
     
     # Event handlers
     def toggle_function_group(use_funcs):
@@ -233,15 +229,17 @@ with gr.Blocks(title="💬 Chatbot") as demo:
     
     use_functions.change(toggle_function_group, use_functions, function_group)
     
-    # Chat functionality
-    inputs = [msg, chatbot, model_choice, instructions, effort, use_functions, 
+    # UPDATE: Add api_messages to the inputs
+    inputs = [msg, chatbot, api_messages, model_choice, instructions, effort, use_functions, 
               function_name, function_description, function_parameters,
               use_browser_search, temperature, max_output_tokens, debug_mode]
     
-    msg.submit(chat_with_model, inputs, [chatbot, msg])
-    send_btn.click(chat_with_model, inputs, [chatbot, msg])
-    clear_btn.click(lambda: [], outputs=chatbot)
-
+    # UPDATE: Add api_messages to the outputs
+    msg.submit(chat_with_model, inputs, [chatbot, api_messages, msg])
+    send_btn.click(chat_with_model, inputs, [chatbot, api_messages, msg])
+    
+    # UPDATE: Clear the state when clearing chat
+    clear_btn.click(lambda: ([], []), outputs=[chatbot, api_messages])
 
 if __name__ == "__main__":
     demo.launch()
