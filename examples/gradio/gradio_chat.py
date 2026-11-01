@@ -88,8 +88,6 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
         )
         
         full_content = ""
-        text_delta = ""
-        current_output_index = 0
         in_reasoning = False
         
         for line in response.iter_lines(decode_unicode=True):
@@ -105,12 +103,9 @@ def chat_with_model(message, history, model_choice, instructions, effort, use_fu
                 continue
             
             event_type = data.get("type", "")
-            output_index = data.get("output_index", 0)
-            
+
             if event_type == "response.output_item.added":
-                current_output_index = output_index
                 output_type = data.get("item", {}).get("type", "message")
-                text_delta = ""
                 
                 if output_type == "reasoning":
                     if not in_reasoning:
