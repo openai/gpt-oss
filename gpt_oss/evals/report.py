@@ -94,7 +94,7 @@ def map_with_progress(
         return list(map(f, pbar_fn(xs, total=len(xs))))
     else:
         with ThreadPool(min(num_threads, len(xs))) as pool:
-            return list(pbar_fn(pool.imap_unordered(f, xs), total=len(xs)))
+            return list(pbar_fn(pool.imap(f, xs), total=len(xs)))
 
 
 jinja_env = jinja2.Environment(
