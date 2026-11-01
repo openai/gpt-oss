@@ -89,6 +89,21 @@ uv pip install --pre vllm==0.10.1+gptoss \
 vllm serve openai/gpt-oss-20b
 ```
 
+In case if the above installation did not work, these will work for Online Inference
+```
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
+sudo apt install python3.12 python3.12-venv python3.12-dev -y
+python3.12 --version
+python3.12 -m venv .oss
+source .oss/bin/activate
+pip install -U uv
+uv pip install vllm==0.10.2 --torch-backend=auto
+# uv pip install openai-harmony # This is optional for Online Serve but required for offline serve 
+# main copmmand to start the Online Inference Server
+vllm serve openai/gpt-oss-20b --async-scheduling 
+```
+
 [Learn more about how to use gpt-oss with vLLM.](https://cookbook.openai.com/articles/gpt-oss/run-vllm)
 
 Offline Serve Code:
@@ -150,7 +165,7 @@ sampling = SamplingParams(
 )
  
 outputs = llm.generate(
-    prompt_token_ids=[prefill_ids],   # batch of size 1
+    [TokensPrompt(prompt_token_ids=prefill_ids)],
     sampling_params=sampling,
 )
  
