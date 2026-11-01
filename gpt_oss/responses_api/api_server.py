@@ -3,7 +3,7 @@ import datetime
 import uuid
 from typing import Callable, Literal, Optional, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
@@ -1204,7 +1204,6 @@ def create_api_server(
 
                 reasoning_effort = get_reasoning_effort(body.reasoning.effort)
             except ValueError as e:
-                from fastapi import HTTPException
                 print(e)
 
                 raise HTTPException(status_code=422, detail=str(e))
@@ -1297,6 +1296,11 @@ def create_api_server(
                                 ).with_channel("analysis")
                             )
                 elif item.type == "function_call":
+                    if item.call_id in function_call_map:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Duplicate function call id {item.call_id}",
+                        )
                     function_call_map[item.call_id] = item
                     messages.append(
                         Message.from_role_and_content(Role.ASSISTANT, item.arguments)
@@ -1306,7 +1310,10 @@ def create_api_server(
                 elif item.type == "function_call_output":
                     function_call = function_call_map.get(item.call_id, None)
                     if not function_call:
-                        raise ValueError(f"Function call {item.call_id} not found")
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Function call {item.call_id} not found",
+                        )
 
                     messages.append(
                         Message.from_author_and_content(
