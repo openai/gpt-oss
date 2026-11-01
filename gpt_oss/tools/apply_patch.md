@@ -53,8 +53,8 @@ A full patch can combine several operations:
 *** Update File: src/app.py
 *** Move to: src/main.py
 @@ def greet():
--print("Hi")
-+print("Hello, world!")
+-    print("Hi")
++    print("Hello, world!")
 *** Delete File: obsolete.txt
 *** End Patch
 
@@ -62,3 +62,4 @@ It is important to remember:
 
 - You must include a header with your intended action (Add/Delete/Update)
 - You must prefix new lines with `+` even when creating a new file
+- You must reproduce the file's existing indentation on ` `, `-` and `+` lines
