@@ -49,6 +49,8 @@ if __name__ == "__main__":
         from .inference.vllm import setup_model
     elif args.inference_backend == "transformers":
         from .inference.transformers import setup_model
+    elif args.inference_backend == "llamacpp_server":
+        from .inference.llamacpp_server import setup_model
     else:
         raise ValueError(f"Invalid inference backend: {args.inference_backend}")
 
