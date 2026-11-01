@@ -36,5 +36,5 @@ def init_distributed() -> torch.device:
         dist.all_reduce(x)
         torch.cuda.synchronize(device)
 
-    suppress_output(rank)
+    # suppress_output(rank)
     return device

@@ -10,6 +10,94 @@
 </p>
 
 <br>
+<h1>GPT-OSS-20B optimized to run on 8GB VRAM</h1>
+<ul> 
+<li>Used lazy loading for mlp layears with 2 layers caching VRAM + pinned RAM</li>
+<li>Added kv_cache to speed up inference (torch)</li>
+<li>Optimized forward pass and attention</li>
+</ul>
+
+## 🎥 Demo Video
+
+Watch GPT-OSS 20B running on just 8GB of VRAM:
+
+[![GPT-OSS 20B Demo](https://englyk.com/gpt-oss-20b-8gb-vram.jpg)](https://englyk.com/gpt_oss_20b_8gb_vram.mp4)
+
+*Click the image to watch the full demonstration* or -
+[Watch on YouTube](https://youtu.be/0g7MBALZM8c)
+
+<h2>UPDATE: Feb 13 2026 increased speed from 3sec per token to 2.5 t/sec on laptop 3070ti 8GB VRAM</h2>
+
+- New LazyMLPBlock
+- configure ram vram usage (gpu_expert_cache_size, ram_expert_cache_size)
+```python
+   config = ModelConfig(**json_config,
+                weights_path = mlp_safetensors,
+                gpu_expert_cache_size = 6, # 1 = ~0.5Gb
+                ram_expert_cache_size = 18 # 1 = ~0.5Gb
+            )
+``` 
+- need 20Gb additional space for converted mlp safetensors
+
+<h2>How to install</h2>
+Install all required libs:
+```python
+pip install gpt-oss[torch]
+```
+
+Download model:
+```python
+hf download openai/gpt-oss-20b --include "original/*" --local-dir gpt-oss-20b/
+``` 
+
+Create converter safetensors:
+```python
+python convert_safetensors.py
+``` 
+
+Run test (cache warmup ~ 10 tokens):
+```python
+gpt_oss.generate --backend torch gpt-oss-20b/original/ -p "Tesla is " -l 30
+
+Generated token: '1', logprob: -2.0625, time: 8.4175846 sec
+Generated token: '.', logprob: -1.59375, time: 1.8802718 sec
+Generated token: '5', logprob: -2.0, time: 1.1608646 sec
+Generated token: ' times', logprob: -1.671875, time: 0.8998765 sec
+Generated token: ' more', logprob: -1.921875, time: 1.5701116 sec
+Generated token: ' efficient', logprob: -1.7109375, time: 1.0198996 sec
+Generated token: ' than', logprob: -0.765625, time: 1.3200975 sec
+Generated token: ' the', logprob: -1.4765625, time: 1.060101 sec
+Generated token: ' other', logprob: -2.59375, time: 0.5798728 sec
+Generated token: ' two', logprob: -2.03125, time: 0.4399994 sec
+Generated token: ' companies', logprob: -1.9765625, time: 0.2999975 sec
+Generated token: ' combined', logprob: -1.671875, time: 0.6502088 sec
+Generated token: '."', logprob: -1.5078125, time: 0.4898943 sec
+Generated token: ' This', logprob: -1.6796875, time: 1.5502226 sec
+Generated token: ' is', logprob: -1.6484375, time: 0.6299984 sec
+Generated token: ' a', logprob: -1.1953125, time: 0.4099992 sec
+Generated token: ' statement', logprob: -2.015625, time: 0.459981 sec
+Generated token: ' that', logprob: -1.1640625, time: 0.6500423 sec
+Generated token: ' can', logprob: -2.046875, time: 0.4499971 sec
+Generated token: ' be', logprob: -0.0303955078125, time: 0.3399964 sec
+Generated token: ' verified', logprob: -1.4609375, time: 0.5899996 sec
+Generated token: ' by', logprob: -1.2265625, time: 0.4999969 sec
+Generated token: ' comparing', logprob: -1.2578125, time: 0.3599265 sec
+Generated token: ' the', logprob: -0.298828125, time: 0.3999849 sec
+Generated token: ' efficiency', logprob: -1.2421875, time: 0.329906 sec
+Generated token: ' of', logprob: -0.59765625, time: 0.4300448 sec
+Generated token: ' Tesla', logprob: -0.26953125, time: 0.3600758 sec
+Generated token: ' with', logprob: -0.68359375, time: 0.4799738 sec
+Generated token: ' the', logprob: -0.150390625, time: 0.5599933 sec
+Generated token: ' combined', logprob: -0.66796875, time: 0.2400193 sec
+``` 
+
+Start chat:
+```python
+python gpt_oss.chat --backend torch gpt-oss-20b/original/
+```
+
+
+__________________________________________
 
 Welcome to the gpt-oss series, [OpenAI's open-weight models](https://openai.com/open-models/) designed for powerful reasoning, agentic tasks, and versatile developer use cases.
 
@@ -274,6 +362,17 @@ And then run:
 # On 4xH100:
 torchrun --nproc-per-node=4 -m gpt_oss.generate gpt-oss-120b/original/
 ```
+
+# Windows run example
+```shell
+python -m gpt_oss.generate --backend torch gpt-oss-20b/original/ -p "Hi" -l 10
+
+```
+#with profiler
+```shell
+kernprof -l -v -m gpt_oss.generate --backend torch gpt-oss-20b/original/ -p "Hi" -l 10
+```
+
 
 ## Reference Triton implementation (single GPU)
 
