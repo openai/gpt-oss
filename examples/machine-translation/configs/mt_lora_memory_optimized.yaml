@@ -1,0 +1,70 @@
+# Memory-optimized LoRA configuration for GPUs with limited memory (RTX 4090, etc.)
+# Model
+model_name_or_path: openai/gpt-oss-20b
+attn_implementation: eager
+torch_dtype: bfloat16
+
+# Translation-specific settings
+source_lang: en
+target_lang: es
+use_domain_adaptation: false
+domain: general
+max_source_length: 256  # Reduced from 512
+max_target_length: 256  # Reduced from 512
+
+# Dataset - Common translation datasets
+dataset_name: csv
+dataset_train_split: train
+dataset_test_split: validation
+
+# Memory-optimized hyperparameters for LoRA translation training
+learning_rate: 1.0e-4
+gradient_checkpointing: true  # Essential for memory saving
+num_train_epochs: 3.0  # Reduced for faster testing
+logging_steps: 5
+eval_steps: 50
+eval_strategy: steps
+per_device_train_batch_size: 1  # Minimum batch size
+per_device_eval_batch_size: 1   # Minimum eval batch size
+gradient_accumulation_steps: 16  # Increased to maintain effective batch size
+max_length: 512  # Reduced from 1024
+dataloader_num_workers: 0  # Reduce memory usage from data loading
+
+# LoRA configuration optimized for memory efficiency
+use_peft: true
+lora_r: 8   # Reduced from 16 for memory efficiency
+lora_alpha: 16  # Reduced proportionally
+lora_dropout: 0.1
+lora_target_modules: all-linear
+lora_bias: none
+
+# Memory optimization settings
+fp16: false  # Use bfloat16 instead
+bf16: true
+remove_unused_columns: true
+dataloader_pin_memory: false  # Disable to save memory
+
+# Optimization
+warmup_ratio: 0.03
+lr_scheduler_type: cosine_with_min_lr
+lr_scheduler_kwargs:
+  min_lr_rate: 0.1
+
+# Training settings optimized for stability
+prediction_loss_only: true  # Reduce memory usage
+load_best_model_at_end: false  # Disable to save memory
+save_strategy: epoch
+save_total_limit: 1  # Keep only latest checkpoint
+eval_strategy: no  # Disable evaluation to save memory during training
+
+# Output
+output_dir: gpt-oss-20b-translator-lora-memory-opt
+run_name: mt-lora-memory-optimized
+report_to: []  # Disable reporting to save memory
+seed: 42
+
+# Logging - minimal to save memory
+logging_dir: ./logs
+logging_strategy: steps
+logging_first_step: false
+log_level: warning  # Reduce logging verbosity 
