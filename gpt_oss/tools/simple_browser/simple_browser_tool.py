@@ -28,7 +28,6 @@ from .backend import (
     VIEW_SOURCE_PREFIX,
     Backend,
     BackendError,
-    maybe_truncate,
 )
 from .page_contents import Extract, PageContents
 
@@ -173,6 +172,11 @@ def wrap_lines(text: str, width: int = 80) -> list[str]:
         for line in lines
     )
     return list(wrapped)
+
+
+def maybe_truncate(text: str, num_chars: int = 1024) -> str:
+    """Truncate ``text`` to at most ``num_chars`` characters."""
+    return text if len(text) <= num_chars else text[: num_chars - 3] + "..."
 
 
 def strip_links(text: str) -> str:
