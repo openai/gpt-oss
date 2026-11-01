@@ -25,15 +25,16 @@ _PATTERNS = [
         \s*:?\s*                  # optional colon with optional spaces
         (?:\*{1,2}|_{1,2})?       # optional markdown wrapper before letter
         ([ABCD])                 # capture the letter
+        (?![A-Z0-9])            # do not accept a letter prefix in prose
         (?:\*{1,2}|_{1,2})?       # optional markdown wrapper after letter
-        \s*                     # optional trailing whitespace, end of line
+        \s*[.!?]?\s*$           # allow terminal punctuation, but no trailing prose
     ''', re.MULTILINE),
 
     # 1) Answer: (C)   or   Answers: (B)
     re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*\(\s*([ABCD])\s*\)'),
 
     # 2) Answer: C    or   Answers – D
-    re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*([ABCD])\b'),
+    re.compile(r'(?ix)\bAnswer[s]?\b\s*[:\-–]?\s*([ABCD])\b\s*[.!?]?\s*$'),
 
     # 3) Option B   or   Choice: C
     re.compile(r'(?ix)\b(?:Option|Choice)\b\s*[:\-–]?\s*([ABCD])\b'),
@@ -67,13 +68,14 @@ _PATTERNS = [
         (?![A-Za-z0-9])             # not followed by word‐char
     '''),
 
-    # 9) final fallback: a line that's exactly "A", "B.", "C)", "**D**", etc.
+    # 9) final answer line: "A", "B.", "C)", "**D**", etc.
     re.compile(r'''(?x)^\s*
         (?:\*{1,2}|_{1,2})?     # optional markdown wrapper
         ([ABCD])                # capture group for letter
+        (?![A-Z0-9])            # do not accept a letter prefix in prose
         (?:\*{1,2}|_{1,2})?     # optional closing markdown
-        \s*[\.\)\-–:]?          # optional separator after the letter
-        \s*.*$                  # allow any following text
+        \s*[\.\)\-–:!?]?       # optional terminal punctuation after the letter
+        \s*$                    # no unstructured prose after the answer
     ''', re.MULTILINE),
 ]
 
@@ -98,7 +100,7 @@ def extract_abcd(text: str) -> str | None:
     ))
     for _, match, letter in matches:
         return letter
-    return text.removeprefix('**')[:1]
+    return None
 
 
 def main():
@@ -118,4 +120,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
