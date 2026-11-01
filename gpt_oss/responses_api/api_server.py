@@ -97,6 +97,42 @@ def is_not_builtin_tool(
     )
 
 
+# Bare function names, matched against the part of a `functions.*` recipient
+# that follows the prefix.
+BROWSER_RESERVED_FUNCTIONS = frozenset({"search", "open", "find"})
+
+
+def resolve_browser_recipient(
+    recipient: Optional[str],
+    use_browser_tool: bool,
+    user_defined_function_names: frozenset[str] | set[str] = frozenset(),
+) -> tuple[Optional[str], bool]:
+    """Map a message recipient onto a fully qualified `browser.*` recipient.
+
+    Models sometimes emit `functions.search` instead of `browser.search`. We
+    honor that as a browser call unless the caller defined a function by that
+    name, in which case their function wins.
+
+    Returns `(browser_recipient, is_fallback)`, where `browser_recipient` is
+    None when the message is not destined for the browser tool.
+    """
+    if not use_browser_tool or not recipient:
+        return (None, False)
+
+    if recipient.startswith("browser."):
+        return (recipient, False)
+
+    if recipient.startswith("functions."):
+        potential = recipient[len("functions.") :]
+        if (
+            potential in BROWSER_RESERVED_FUNCTIONS
+            and potential not in user_defined_function_names
+        ):
+            return (f"browser.{potential}", True)
+
+    return (None, False)
+
+
 def create_api_server(
     infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
 ) -> FastAPI:
@@ -133,6 +169,7 @@ def create_api_server(
         reasoning_ids: Optional[list[str]] = None,
         message_ids: Optional[list[str]] = None,
         treat_functions_python_as_builtin: bool = False,
+        user_defined_function_names: Optional[set[str]] = None,
     ) -> ResponseObject:
         output = []
         error = None
@@ -163,8 +200,19 @@ def create_api_server(
             for entry in entries:
                 entry_dict = entry.to_dict()
                 recipient = entry_dict.get("recipient", "")
-                if len(recipient) > 0 and is_not_builtin_tool(
-                    recipient, treat_functions_python_as_builtin
+                # A `functions.search`-style recipient may have been executed as a
+                # browser call; it has to be reported as one too.
+                browser_recipient, _is_browser_fallback = resolve_browser_recipient(
+                    recipient,
+                    use_browser_tool=browser_tool is not None,
+                    user_defined_function_names=user_defined_function_names or set(),
+                )
+                if (
+                    len(recipient) > 0
+                    and browser_recipient is None
+                    and is_not_builtin_tool(
+                        recipient, treat_functions_python_as_builtin
+                    )
                 ):
                     call = entry_dict["content"][0]
                     arguments = call["text"]
@@ -189,13 +237,9 @@ def create_api_server(
                             call_id=call_id,
                         )
                     )
-                elif (
-                    len(recipient) > 0
-                    and recipient.startswith("browser.")
-                    and browser_tool is not None
-                ):
+                elif browser_recipient is not None and browser_tool is not None:
                     # Mirror event-based creation of WebSearchCallItems when the browser tool is invoked
-                    name = recipient
+                    name = browser_recipient
                     call = entry_dict["content"][0]
                     arguments = call["text"]
                     function_name = name[len("browser.") :]
@@ -383,7 +427,6 @@ def create_api_server(
         )
 
     class StreamResponsesEvents:
-        BROWSER_RESERVED_FUNCTIONS = {"browser.search", "browser.open", "browser.find"}
         initial_tokens: list[int]
         tokens: list[int]
         output_tokens: list[int]
@@ -452,21 +495,11 @@ def create_api_server(
         def _resolve_browser_recipient(
             self, recipient: Optional[str]
         ) -> tuple[Optional[str], bool]:
-            if not self.use_browser_tool or not recipient:
-                return (None, False)
-
-            if recipient.startswith("browser."):
-                return (recipient, False)
-
-            if recipient.startswith("functions."):
-                potential = recipient[len("functions.") :]
-                if (
-                    potential in self.BROWSER_RESERVED_FUNCTIONS
-                    and potential not in self.user_defined_function_names
-                ):
-                    return (potential, True)
-
-            return (None, False)
+            return resolve_browser_recipient(
+                recipient,
+                use_browser_tool=self.use_browser_tool,
+                user_defined_function_names=self.user_defined_function_names,
+            )
 
         def _ensure_message_item_id(self) -> str:
             if self.current_message_item_id is None:
@@ -508,6 +541,7 @@ def create_api_server(
                 reasoning_ids=self.reasoning_item_ids,
                 message_ids=self.message_item_ids,
                 treat_functions_python_as_builtin=self.functions_python_as_builtin,
+                user_defined_function_names=self.user_defined_function_names,
             )
             initial_response.status = "in_progress"
             yield self._send_event(
@@ -760,6 +794,7 @@ def create_api_server(
                             if a["start_index"] not in existing_start_indices
                         ]
                         for a in new_annotations:
+                            annotation_index = len(current_annotations)
                             current_annotations.append(a)
                             citation = UrlCitation(**a)
                             message_id = self._ensure_message_item_id()
@@ -769,7 +804,7 @@ def create_api_server(
                                     output_index=current_output_index,
                                     content_index=current_content_index,
                                     item_id=message_id,
-                                    annotation_index=len(current_annotations),
+                                    annotation_index=annotation_index,
                                     annotation=citation,
                                 )
                             )
@@ -1122,6 +1157,7 @@ def create_api_server(
                     reasoning_ids=self.reasoning_item_ids,
                     message_ids=self.message_item_ids,
                     treat_functions_python_as_builtin=self.functions_python_as_builtin,
+                    user_defined_function_names=self.user_defined_function_names,
                 )
                 if self.store_callback and self.request_body.store:
                     self.store_callback(self.response_id, self.request_body, response)
