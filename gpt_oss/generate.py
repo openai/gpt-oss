@@ -28,8 +28,8 @@ def main(args):
 
     tokenizer = get_tokenizer()
     tokens = tokenizer.encode(args.prompt)
-    max_tokens = None if args.limit == 0 else args.limit
-    for token, logprob in generator.generate(tokens, stop_tokens=[tokenizer.eot_token], temperature=args.temperature, max_tokens=max_tokens, return_logprobs=True):
+    # Every backend takes `0` to mean "no limit", matching `--limit`'s own default.
+    for token, logprob in generator.generate(tokens, stop_tokens=[tokenizer.eot_token], temperature=args.temperature, max_tokens=args.limit, return_logprobs=True):
         tokens.append(token)
         token_text = tokenizer.decode([token])
         print(

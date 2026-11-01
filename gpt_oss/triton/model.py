@@ -486,9 +486,10 @@ class TokenGenerator:
                  prompt_tokens: list[int],
                  stop_tokens: list[int] | None = None,
                  temperature: float = 1.0,
-                 max_tokens: int = 0,
+                 max_tokens: int | None = 0,
                  return_logprobs: bool = False):
         stop_tokens = stop_tokens or []
+        max_tokens = max_tokens or 0  # `None` and `0` both mean "no limit"
         for cache in self.caches:
             cache.reset()
         prompt_tokens = torch.as_tensor(prompt_tokens, dtype=torch.int32, device=self.device)

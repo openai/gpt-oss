@@ -452,9 +452,10 @@ class TokenGenerator:
                  prompt_tokens: list[int],
                  stop_tokens: list[int],
                  temperature: float = 1.0,
-                 max_tokens: int = 0,
+                 max_tokens: int | None = 0,
                  return_logprobs: bool = False):
         tokens = list(prompt_tokens)
+        max_tokens = max_tokens or 0  # `None` and `0` both mean "no limit"
         num_generated_tokens = 0
         while max_tokens == 0 or num_generated_tokens < max_tokens:
             logits = self.model(torch.as_tensor(tokens, dtype=torch.int32, device=self.device))[-1]
