@@ -7,11 +7,13 @@ from .basic_eval import BasicEval
 from .gpqa_eval import GPQAEval
 from .aime_eval import AIME25Eval
 from .healthbench_eval import HealthBenchEval
+from .livecodebench_eval import LiveCodeBenchEval
 from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
 )
 from .responses_sampler import ResponsesSampler
+from .harmony_sampler import HarmonySampler
 
 
 def main():
@@ -34,9 +36,9 @@ def main():
     parser.add_argument(
         "--sampler",
         type=str,
-        choices=["responses", "chat_completions"],
+        choices=["responses", "chat_completions", "harmony"],
         default="responses",
-        help="Sampler backend to use for models.",
+        help="Sampler backend to use for models. 'harmony' uses openai_harmony tokenization with SGLang /generate endpoint.",
     )
     parser.add_argument(
         "--base-url",
@@ -48,13 +50,31 @@ def main():
         "--eval",
         type=str,
         default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25",
-        help="Select an eval by name. Accepts a comma-separated list.",
+        help="Select an eval by name. Accepts a comma-separated list. Options: basic, gpqa, healthbench, healthbench_hard, healthbench_consensus, aime25, livecodebench",
     )
     parser.add_argument(
         "--temperature",
         type=float,
         default=1.0,
         help="Sampling temperature",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=None,
+        help="Top-p (nucleus) sampling parameter",
+    )
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=None,
+        help="Top-k sampling parameter (sglang/vLLM specific)",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=32768,
+        help="Maximum number of output tokens",
     )
     parser.add_argument(
         "--n-threads",
@@ -68,22 +88,65 @@ def main():
     parser.add_argument(
         "--examples", type=int, help="Number of examples to use (overrides default)"
     )
+    parser.add_argument(
+        "--n-repeats",
+        type=int,
+        default=None,
+        help="Number of repeats per example (default: 1 in debug mode, 8 otherwise)",
+    )
+    parser.add_argument(
+        "--dump-inputs",
+        type=str,
+        default=None,
+        help="Path to JSONL file to dump input tokens (harmony sampler only)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=1800,
+        help="Request timeout in seconds (default: 1800)",
+    )
+    parser.add_argument(
+        "--lcb-workers",
+        type=int,
+        default=64,
+        help="Number of parallel workers for LiveCodeBench code evaluation (default: 64)",
+    )
+    parser.add_argument(
+        "--lcb-version",
+        type=str,
+        default="release_v6",
+        help="LiveCodeBench version tag (default: release_v6). Options: release_v5, release_v6",
+    )
 
     args = parser.parse_args()
 
-    sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
+    if args.sampler == "responses":
+        sampler_cls = ResponsesSampler
+    elif args.sampler == "chat_completions":
+        sampler_cls = ChatCompletionsSampler
+    else:  # harmony
+        sampler_cls = HarmonySampler
 
     models = {}
     for model_name in args.model.split(","):
         for reasoning_effort in args.reasoning_effort.split(","):
-            models[f"{model_name}-{reasoning_effort}"] = sampler_cls(
+            sampler_kwargs = dict(
                 model=model_name,
                 reasoning_model=True,
                 reasoning_effort=reasoning_effort,
                 temperature=args.temperature,
+                top_p=args.top_p,
+                top_k=args.top_k,
                 base_url=args.base_url,
-                max_tokens=131_072,
+                max_tokens=args.max_tokens,
+                timeout=args.timeout,
             )
+            # Add harmony sampler specific options
+            if args.sampler == "harmony":
+                if args.dump_inputs:
+                    sampler_kwargs["dump_inputs_dir"] = args.dump_inputs
+            models[f"{model_name}-{reasoning_effort}"] = sampler_cls(**sampler_kwargs)
 
     print(f"Running with args {args}")
 
@@ -98,13 +161,18 @@ def main():
         num_examples = (
             args.examples if args.examples is not None else (5 if debug_mode else None)
         )
+        # Determine n_repeats: use --n-repeats if provided, else 1 for debug, else 8
+        if args.n_repeats is not None:
+            n_repeats = args.n_repeats
+        else:
+            n_repeats = 1 if debug_mode else 8
         # Set num_examples = None to reproduce full evals
         match eval_name:
             case "basic":
                 return BasicEval()
             case "gpqa":
                 return GPQAEval(
-                    n_repeats=1 if args.debug else 8,
+                    n_repeats=n_repeats,
                     num_examples=num_examples,
                     debug=debug_mode,
                     n_threads=args.n_threads or 1,
@@ -113,7 +181,7 @@ def main():
                 return HealthBenchEval(
                     grader_model=grading_sampler,
                     num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
+                    n_repeats=n_repeats,
                     n_threads=args.n_threads or 1,
                     subset_name=None,
                 )
@@ -121,7 +189,7 @@ def main():
                 return HealthBenchEval(
                     grader_model=grading_sampler,
                     num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
+                    n_repeats=n_repeats,
                     n_threads=args.n_threads or 1,
                     subset_name="hard",
                 )
@@ -129,15 +197,23 @@ def main():
                 return HealthBenchEval(
                     grader_model=grading_sampler,
                     num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
+                    n_repeats=n_repeats,
                     n_threads=args.n_threads or 1,
                     subset_name="consensus",
                 )
             case "aime25":
                 return AIME25Eval(
-                    n_repeats=1 if args.debug else 8,
+                    n_repeats=n_repeats,
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
+                )
+            case "livecodebench":
+                return LiveCodeBenchEval(
+                    n_repeats=n_repeats,
+                    num_examples=num_examples,
+                    n_threads=args.n_threads or 1,
+                    lcb_workers=args.lcb_workers,
+                    lcb_version=args.lcb_version,
                 )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
