@@ -3,7 +3,7 @@ import datetime
 import uuid
 from typing import Callable, Literal, Optional, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
@@ -1137,6 +1137,15 @@ def create_api_server(
         print("request received")
         print(body.reasoning)
 
+        previous_response = None
+        if body.previous_response_id is not None:
+            previous_response = responses_store.get(body.previous_response_id)
+            if previous_response is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Previous response {body.previous_response_id} not found",
+                )
+
         use_browser_tool = any(
             getattr(tool, "type", None) in ("browser_search", "web_search")
             for tool in (body.tools or [])
@@ -1172,28 +1181,26 @@ def create_api_server(
             python_function_name_conflict
         )
 
-        if body.previous_response_id:
-            prev = responses_store.get(body.previous_response_id)
-            if prev:
-                prev_req, prev_resp = prev
+        if previous_response is not None:
+            prev_req, prev_resp = previous_response
 
-                def _ensure_list(inp):
-                    if isinstance(inp, str):
-                        return [
-                            Item(
-                                type="message",
-                                role="user",
-                                content=[TextContentItem(type="input_text", text=inp)],
-                            )
-                        ]
-                    return list(inp)
+            def _ensure_list(inp):
+                if isinstance(inp, str):
+                    return [
+                        Item(
+                            type="message",
+                            role="user",
+                            content=[TextContentItem(type="input_text", text=inp)],
+                        )
+                    ]
+                return list(inp)
 
-                merged_input = _ensure_list(prev_req.input) + list(prev_resp.output)
-                merged_input.extend(_ensure_list(body.input))
+            merged_input = _ensure_list(prev_req.input) + list(prev_resp.output)
+            merged_input.extend(_ensure_list(body.input))
 
-                if body.instructions is None:
-                    body.instructions = prev_req.instructions
-                body.input = merged_input
+            if body.instructions is None:
+                body.instructions = prev_req.instructions
+            body.input = merged_input
 
         system_message_content = SystemContent.new().with_conversation_start_date(
             datetime.datetime.now().strftime("%Y-%m-%d")
@@ -1204,7 +1211,6 @@ def create_api_server(
 
                 reasoning_effort = get_reasoning_effort(body.reasoning.effort)
             except ValueError as e:
-                from fastapi import HTTPException
                 print(e)
 
                 raise HTTPException(status_code=422, detail=str(e))
