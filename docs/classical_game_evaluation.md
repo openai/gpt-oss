@@ -38,3 +38,8 @@ python -m gpt_oss.evals.classical_game_eval \
 先記下實際失敗，再修改提示、札記或實作。修補後以相同題目再驗，保留兩版輸出。
 若只有題材知識不足，補入有來源的古典札記；若為程式錯誤，補具體失敗步驟；
 若為文風問題，提供相同意思的文言改寫範例。未實際驗證的項目保持未驗。
+
+遊戲實作只是程式能力之一。另執行
+`python -m gpt_oss.evals.coding_scope_eval --endpoint http://127.0.0.1:8000/v1/responses`
+查多種現代語言、年代拒答與年界內題目；該工具亦須保留原始回答並人工審核，
+不能以自動標記代替試玩或史事考證。詳見 [coding_model.md](coding_model.md)。

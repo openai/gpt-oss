@@ -1,12 +1,22 @@
-"""以已校習卷微調，另存附加權重。"""
+"""以已校史札與符術課微調，另存附加權重。
+
+習卷必須與現行兩份校訂目錄逐位元相符，防止夾入未審材料或後世史事。
+"""
+
+from __future__ import annotations
 
 import argparse
 import json
 import tempfile
 from pathlib import Path
 
+from gpt_oss.chronology import ALLOWED_LANGUAGES, ChronologyGuard, post_cutoff_years
+from training.prepare_corpus import (CLASSICAL_CATALOGUE, CODING_CATALOGUE,
+                                     ROOT, build_corpus, sha256)
+
 
 def read_rows(path: Path) -> list[dict]:
+    guard = ChronologyGuard()
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     for row in rows:
         messages = row.get("messages", [])
@@ -16,8 +26,24 @@ def read_rows(path: Path) -> list[dict]:
             raise ValueError(f"{path} 中問答為空。")
         if not row.get("source_id") or not row.get("location"):
             raise ValueError(f"{path} 中缺少出處。")
-        if type(row.get("knowledge_year")) is not int or not 1 <= row["knowledge_year"] <= 1899:
-            raise ValueError(f"{path} 中年代不合。")
+        domain = row.get("knowledge_domain")
+        if domain == "historical":
+            year = row.get("knowledge_year")
+            if type(year) is not int or not 1 <= year <= 1899 or row.get("cutoff_exception") is not False:
+                raise ValueError(f"{path} 中史札年代不合。")
+        elif domain == "programming":
+            if row.get("cutoff_exception") is not True or row.get("knowledge_year") is not None:
+                raise ValueError(f"{path} 中程式特例標記不合。")
+            if set(row.get("languages", [])) - ALLOWED_LANGUAGES:
+                raise ValueError(f"{path} 中有未許之程式語。")
+            code_file = ROOT / row.get("code_file", "")
+            if not code_file.is_file() or sha256(code_file) != row.get("code_sha256"):
+                raise ValueError(f"{path} 中程式例與校訂本不符。")
+            prose = "\n".join(item["content"] for item in messages)
+            if guard.reasons(prose, programming=True) or post_cutoff_years(prose):
+                raise ValueError(f"{path} 中疑有年界後世事。")
+        else:
+            raise ValueError(f"{path} 中知識域未明。")
     return rows
 
 
@@ -25,26 +51,32 @@ def main():
     parser = argparse.ArgumentParser(description="訓練古典學者之 LoRA 附加權重。")
     parser.add_argument("--data", type=Path, default=Path("data/classical/training"))
     parser.add_argument("--output", type=Path, default=Path("data/classical/model-adapter"))
+    parser.add_argument("--classical-catalogue", type=Path, default=CLASSICAL_CATALOGUE)
+    parser.add_argument("--coding-catalogue", type=Path, default=CODING_CATALOGUE)
     parser.add_argument("--base-model", default="unsloth/gpt-oss-20b")
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--allow-small-dataset", action="store_true", help="僅供小樣本流程試驗")
     parser.add_argument("--dry-run", action="store_true", help="只校語料，不載模型")
     args = parser.parse_args()
-    # 習卷必須與現行已校札記逐條相符，防止夾入未審材料。
-    from training.prepare_corpus import build_corpus
     with tempfile.TemporaryDirectory() as temp:
         verified = Path(temp)
-        build_corpus(Path("docs/classical_sources.json"), verified)
-        for name in ("train.jsonl", "eval.jsonl"):
+        build_corpus(args.classical_catalogue, args.coding_catalogue, verified)
+        for name in ("train.jsonl", "eval.jsonl", "manifest.json"):
             if (args.data / name).read_bytes() != (verified / name).read_bytes():
-                parser.error(f"{name} 與已校札記不符；請重新編卷，不可加入未審材料。")
+                parser.error(f"{name} 與已校目錄不符；請重新編卷，不可加入未審材料。")
     train = read_rows(args.data / "train.jsonl")
     evaluation = read_rows(args.data / "eval.jsonl")
     if not train or not evaluation:
         parser.error("習卷及考卷不可為空。")
     if {r["source_id"] for r in train} & {r["source_id"] for r in evaluation}:
-        parser.error("習卷與考卷不可含同一書源。")
-    print(f"習卷 {len(train)} 則；考卷 {len(evaluation)} 則。")
+        parser.error("習卷與考卷不可含同一書源或題源。")
+    for name, rows in (("習卷", train), ("考卷", evaluation)):
+        if not any(r["knowledge_domain"] == "programming" for r in rows):
+            parser.error(f"{name} 須含未見之程式題。")
+    print(f"習卷 {len(train)} 則（史事 {sum(r['knowledge_domain'] == 'historical' for r in train)}、"
+          f"程式 {sum(r['knowledge_domain'] == 'programming' for r in train)}）；"
+          f"考卷 {len(evaluation)} 則（史事 {sum(r['knowledge_domain'] == 'historical' for r in evaluation)}、"
+          f"程式 {sum(r['knowledge_domain'] == 'programming' for r in evaluation)}）。")
     if args.dry_run:
         return
     if len(train) < 32 and not args.allow_small_dataset:
@@ -66,15 +98,20 @@ def main():
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.base_model, max_seq_length=2048, load_in_4bit=True, offload_embedding=True)
     model = FastLanguageModel.get_peft_model(
-        model, r=8, lora_alpha=16, target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        model, r=8, lora_alpha=16,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         use_gradient_checkpointing="unsloth", random_state=3407)
+
     def dataset(rows):
-        texts = [tokenizer.apply_chat_template(r["messages"], tokenize=False, add_generation_prompt=False) for r in rows]
-        if not all("<|start|>user<|message|>" in t and "<|start|>assistant<|channel|>final<|message|>" in t for t in texts):
+        texts = [tokenizer.apply_chat_template(r["messages"], tokenize=False,
+                                               add_generation_prompt=False) for r in rows]
+        if not all("<|start|>user<|message|>" in t
+                   and "<|start|>assistant<|channel|>final<|message|>" in t for t in texts):
             raise ValueError("模型的對話格式與預期不符；不可靜默套用錯誤的回覆遮罩。")
         if any(len(tokenizer(t, add_special_tokens=False)["input_ids"]) > 2048 for t in texts):
             raise ValueError("習題超過上下文長度；請先縮短題目，勿靜默截斷答案。")
         return Dataset.from_dict({"text": texts})
+
     trainer = SFTTrainer(model=model, processing_class=tokenizer,
         train_dataset=dataset(train), eval_dataset=dataset(evaluation),
         args=SFTConfig(output_dir=str(args.output / "checkpoints"), dataset_text_field="text",
@@ -89,11 +126,17 @@ def main():
     model.save_pretrained(str(args.output))
     tokenizer.save_pretrained(str(args.output))
     (args.output / "training_manifest.json").write_text(json.dumps({
-        "base_model": args.base_model, "train_sources": sorted({r['source_id'] for r in train}),
-        "eval_sources": sorted({r['source_id'] for r in evaluation}), "train_count": len(train),
-        "eval_count": len(evaluation), "max_steps": args.max_steps, "metrics": metrics,
-        "status": "adapter_only; not evaluated for historical exclusion or programming"}, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"附加權重已存 {args.output}；仍須進行獨立驗收。")
+        "base_model": args.base_model,
+        "historical_cutoff_year": 1899,
+        "train_sources": sorted({r["source_id"] for r in train}),
+        "eval_sources": sorted({r["source_id"] for r in evaluation}),
+        "train_count": len(train), "eval_count": len(evaluation),
+        "programming_train_count": sum(r["knowledge_domain"] == "programming" for r in train),
+        "programming_eval_count": sum(r["knowledge_domain"] == "programming" for r in evaluation),
+        "max_steps": args.max_steps, "metrics": metrics,
+        "status": "adapter_only; prompt and output boundary do not erase base-model knowledge",
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"附加權重已存 {args.output}；仍須以未見題目與年代防火牆獨立驗收。")
 
 
 if __name__ == "__main__":
