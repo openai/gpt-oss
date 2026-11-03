@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>水車算筒</title>
+<style>
+  :root { color-scheme: light; --ink: #332a1e; --paper: #f4ecd8; --line: #8b6f47; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         background: var(--paper); color: var(--ink); font-family: serif; }
+  main { width: min(32rem, 92vw); padding: 1.5rem; border: 1px solid var(--line); }
+  label { display: block; margin: 0.7rem 0; }
+  input, select, button { font: inherit; padding: 0.4rem; }
+  output { display: block; margin-top: 1rem; font-size: 1.2rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>水車算筒</h1>
+  <p>設輪轉之數與筒數，按鈕而計挽水之數。</p>
+  <label>轉數 <input id="turns" type="number" min="0" step="1" value="3"></label>
+  <label>筒數 <input id="buckets" type="number" min="0" step="1" value="4"></label>
+  <label>動力
+    <select id="power"><option value="river">堰流</option><option value="ox">牛力</option><option value="wind">風帆</option></select>
+  </label>
+  <button id="calculate" type="button">計之</button>
+  <output id="result" aria-live="polite">未有算報。</output>
+</main>
+<script>
+  // 今世 JavaScript 語法；介面之名仍從原式。
+  const turns = document.querySelector("#turns");
+  const buckets = document.querySelector("#buckets");
+  const power = document.querySelector("#power");
+  const result = document.querySelector("#result");
+  document.querySelector("#calculate").addEventListener("click", () => {
+    const a = Number(turns.value);
+    const b = Number(buckets.value);
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) {
+      result.textContent = "所記非整數或為負，請更正。";
+      return;
+    }
+    result.textContent = `以${power.selectedOptions[0].textContent}運輪，計挽水 ${a * b} 筒。`;
+  });
+</script>
+</body>
+</html>

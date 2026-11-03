@@ -4,9 +4,10 @@
 1899 年末（包含十九世紀）。可改為 1799 年以排除十九世紀。
 角色出生於 1800 年前，與可採知識的截止年份分開設定。
 
-這是推論時的行為設定與文獻檢索，**尚未訓練或修改模型權重，也不能保證模型忘記後世知識**。
+這是推論時的行為設定、文獻檢索與輸出邊界，**尚未產生或修改模型權重，也不能保證模型忘記後世知識**。
 `with_knowledge_cutoff` 是對話標記，不會改變模型的訓練資料。
-目前沒有以真實模型檢驗文風及年代遵循率；自動測試只驗證設定與書證確實送入推論。
+現已加入分工明確的現代程式教材、準繩檢索與年代防火牆；自動測試驗證資料、提示及串流輸出之攔截，
+但尚未以真實權重檢驗文風及年代遵循率。
 
 ## 文獻處理
 
@@ -57,8 +58,11 @@ cd /workspace/BooleLOT
 /workspace/.venv/bin/python -m gpt_oss.responses_api.serve \
   --checkpoint /path/to/model --inference-backend transformers \
   --knowledge-cutoff-year 1899 \
-  --classical-library /workspace/BooleLOT/data/classical/siku.sqlite
+  --classical-library /workspace/BooleLOT/data/classical/siku.sqlite \
+  --coding-library /workspace/BooleLOT/gpt_oss/data/coding_sources.json
 ```
+
+`--coding-library` 可省略；服務與交談程式預設載入隨套件提供的已校程式準繩。
 
 互動對話同樣支援這兩個選項：
 
@@ -70,8 +74,24 @@ cd /workspace/BooleLOT
 
 程式語法、標準函式庫、測試與執行方法是明示特例；說明、註釋、自訂命名依古典觀念。
 外部介面、保留字、路徑保持正確。現代城市暫限使用者當次提供且附時日的資料。
-瀏覽及其他工具仍可依原有選項開啟；其結果須遵守年代規則，但尚無逐段年代驗證器。
+瀏覽及其他工具仍可依原有選項開啟；其回覆正文會過年代防火牆，但送入提示的工具結果尚無逐段語義驗證。
 若要求嚴格資料隔離，勿啟用未經整理的外部資料工具。
+
+## 現代程式與年代防火牆
+
+本年度升級把「學問」分為兩域：史事、人物、世事與自然學說仍以 1899 年十二月三十一日為界；
+Python、C++、TypeScript、JavaScript、HTML/CSS、SQL、Rust、JSON、正則式與命令列之語法、
+標準函式庫、型別、演算法、測試、除錯及執行方法，則屬明示的程式特例。
+此特例不得旁及語言創製年代、人物、機構、版本沿革、戰事政事或今世城邑現況。
+詳見 [程式與年代升級說明](coding_model.md)。
+
+`gpt_oss/data/coding_sources.json` 收十二則校訂準繩與四十則問答課；
+推論時僅按關鍵詞附上相關準繩，並明標為技術參考而非書證或命令。
+`ChronologyGuard` 對明顯越界之請求直接回覆不知，且在非串流與串流路徑皆先緩衝正文、
+再查驗完整正文；程式碼區塊中的年份數值不當作史事。每次答覆附 `metadata.chronology_guard`
+與 `metadata.chronology_scope`，便於稽核。防火牆以可審詞表與日期式為本，
+不是語義理解，也不是機器遺忘：未列之後世事件、工具回傳內容、`--raw` 診斷模式及底座原有知識
+仍可能越界；若要求嚴格資料隔離，勿啟用未經整理的外部工具，且須另以受限語料從頭訓練。
 
 ## 後續驗收
 
@@ -85,3 +105,5 @@ cd /workspace/BooleLOT
 引文是否確有出處。1799 模式須不引用 1854 年布爾著作。
 若後續微調，應使用另行校訂的古典材料與程式範例製作訓練集，保留來源及評測集；
 微調本身仍不等於已可靠刪除模型原有的後世知識。
+另可以 `python -m gpt_oss.evals.coding_scope_eval` 對已啟動之模型服務查程式能力與年代拒答，
+並以 `python -m training.verify_coding_examples` 驗校訂教材本身；兩者皆須保留原始回答供人工審核。

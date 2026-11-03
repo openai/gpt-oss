@@ -1,0 +1,919 @@
+{
+  "schema_version": 1,
+  "description": "只錄現代編程語法、標準函式庫、演算法與驗法；不錄年界後之人物、史事、機構、語言創製沿革或自然學說。",
+  "scope": {
+    "knowledge_domain": "programming",
+    "historical_cutoff_year": 1899,
+    "cutoff_exception": true,
+    "allowed": [
+      "語法",
+      "標準函式庫",
+      "型別",
+      "演算法",
+      "測試",
+      "除錯",
+      "執行方法",
+      "必要工具用法"
+    ],
+    "excluded": [
+      "人物傳記",
+      "戰事政事",
+      "機構沿革",
+      "語言創製年代",
+      "後世自然學說",
+      "今世城邑現況"
+    ],
+    "note": "程式能力是明示特例；不得由此旁推其他年界後知識。此檔不是權重，也不證明底座已忘後世之學。"
+  },
+  "cards": [
+    {
+      "id": "py-types-data",
+      "languages": [
+        "Python"
+      ],
+      "topic": "型別、資料類別與模式匹配",
+      "search_terms": "Python 型別 dataclass frozen slots match Literal type hint",
+      "reference": "from dataclasses import dataclass\nfrom typing import Literal\n\n@dataclass(frozen=True, slots=True)\nclass Reading:\n    turns: int\n    power: Literal['river', 'ox']\n\ndef describe(value: Reading) -> str:\n    match value.power:\n        case 'river': return '堰流'\n        case 'ox': return '牛力'\n\n# 型別提示不改執行之值；邊界仍須於函式中實查。"
+    },
+    {
+      "id": "py-collections-errors",
+      "languages": [
+        "Python"
+      ],
+      "topic": "集合、計數、例外與脈絡管理",
+      "search_terms": "Python set Counter defaultdict exception try except finally contextmanager",
+      "reference": "from collections import Counter, defaultdict\nfrom contextlib import contextmanager\n\ncommon = {'輪', '筒'} & {'輪', '帆'}\ncounts = Counter('水水風牛')\ngroups: dict[str, list[int]] = defaultdict(list)\n\n@contextmanager\ndef guarded():\n    try:\n        yield\n    except ValueError as exc:\n        raise RuntimeError('算器已止') from exc\n    finally:\n        pass\n\n# set & set 滿足冪等；錯誤不可只印字而不處置。"
+    },
+    {
+      "id": "py-testing-async",
+      "languages": [
+        "Python"
+      ],
+      "topic": "單元測試、非同步與逾時",
+      "search_terms": "Python unittest subTest assertRaises asyncio gather create_task timeout",
+      "reference": "import asyncio\nimport unittest\n\nasync def measure(turns: int) -> int:\n    await asyncio.sleep(0)\n    return turns * 2\n\nasync def total(values: list[int]) -> int:\n    tasks = [asyncio.create_task(measure(v)) for v in values]\n    return sum(await asyncio.gather(*tasks))\n\nclass Tests(unittest.TestCase):\n    def test_boundary(self):\n        with self.assertRaises(ValueError):\n            int('非數')\n\n# 以 subTest 列邊界；await 只在 async 函式內。"
+    },
+    {
+      "id": "cpp-modern",
+      "languages": [
+        "C++"
+      ],
+      "topic": "樣版、概念、範圍與標準容器",
+      "search_terms": "C++20 template concept requires ranges vector optional algorithm",
+      "reference": "#include <concepts>\n#include <ranges>\n#include <vector>\n\ntemplate <std::integral T>\nconstexpr T lift(T turns, T buckets) { return turns * buckets; }\n\nauto even = std::views::iota(1, 9)\n          | std::views::filter([](int x) { return x % 2 == 0; });\n\n// 以 constexpr 與概念約束型別；範圍視圖不改原容器。"
+    },
+    {
+      "id": "ts-types",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "介面、聯集、泛型與型別守衛",
+      "search_terms": "TypeScript interface union readonly generic keyof type guard satisfies",
+      "reference": "type Power = 'river' | 'ox';\ninterface Reading { readonly turns: number; readonly power: Power }\n\nfunction isReading(x: unknown): x is Reading {\n  return typeof x === 'object' && x !== null && 'turns' in x;\n}\nfunction pick<T, K extends keyof T>(items: readonly T[], key: K): T[K][] {\n  return items.map(item => item[key]);\n}\n\n// 型別只在編譯時約束；數值邊界仍須執行時檢查。"
+    },
+    {
+      "id": "ts-async",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "Promise、async/await 與結果聯集",
+      "search_terms": "TypeScript Promise async await Promise.all discriminated union Result",
+      "reference": "type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };\n\nasync function measure(turns: number): Promise<Result<number, string>> {\n  return turns < 0 ? { ok: false, error: '負數' } : { ok: true, value: turns * 2 };\n}\nasync function total(values: number[]): Promise<number> {\n  const settled = await Promise.all(values.map(measure));\n  return settled.reduce((sum, item) => item.ok ? sum + item.value : sum, 0);\n}\n\n// 以判別欄位 ok 收窄聯集，勿逕取可能不存在之 value。"
+    },
+    {
+      "id": "js-web",
+      "languages": [
+        "JavaScript",
+        "HTML",
+        "CSS"
+      ],
+      "topic": "模組、私欄、事件與文件物件",
+      "search_terms": "JavaScript ES module private field Map Set addEventListener DOM optional chaining",
+      "reference": "import assert from 'node:assert/strict';\n\nexport class Ledger {\n  #entries = new Map();\n  add(name, value) { this.#entries.set(name, value); return this; }\n  get(name) { return this.#entries.get(name) ?? 0; }\n}\n\n// 瀏覽器事件用 addEventListener；勿把內嵌字串當可執行碼。"
+    },
+    {
+      "id": "html-css",
+      "languages": [
+        "HTML",
+        "CSS",
+        "JavaScript"
+      ],
+      "topic": "單頁版面、樣式與無障礙標記",
+      "search_terms": "HTML CSS grid responsive viewport aria-live standalone script style",
+      "reference": "<meta name='viewport' content='width=device-width, initial-scale=1'>\n<style>\n  #board { display: grid; grid-template-columns: repeat(3, 1fr); }\n</style>\n<button id='reset' type='button'>重局</button>\n<output id='notice' aria-live='polite'></output>\n\n// 完整成品以單一 html 檔交付；不引外部資源。"
+    },
+    {
+      "id": "sql",
+      "languages": [
+        "SQL"
+      ],
+      "topic": "約束、聯接、共用表式與窗函式",
+      "search_terms": "SQL CTE WITH JOIN LEFT JOIN GROUP BY window SUM OVER CHECK PRIMARY KEY",
+      "reference": "CREATE TABLE readings (name TEXT PRIMARY KEY, turns INTEGER CHECK (turns >= 0));\nWITH measured AS (\n  SELECT name, turns, SUM(turns) OVER (PARTITION BY name) AS subtotal FROM readings\n)\nSELECT name, subtotal FROM measured ORDER BY name;\n\n// 以 CHECK 守邊界；LEFT JOIN 之缺項用 COALESCE 補為零。"
+    },
+    {
+      "id": "rust",
+      "languages": [
+        "Rust"
+      ],
+      "topic": "所有權、借用、Result、Option 與迭代器",
+      "search_terms": "Rust ownership borrow Result Option iter map filter collect match",
+      "reference": "fn lift(turns: i32, buckets: i32) -> Result<i32, String> {\n    if turns < 0 || buckets < 0 { return Err(String::from('負數')); }\n    Ok(turns * buckets)\n}\nlet values: Vec<i32> = (1..6).map(|x| x * x).filter(|x| x % 2 == 0).collect();\n\n// 借用 &[T] 不奪所有權；Err 與 None 須明示處置。"
+    },
+    {
+      "id": "json-regex-cli",
+      "languages": [
+        "Python",
+        "JSON",
+        "Regex",
+        "Shell"
+      ],
+      "topic": "序列化、命名群組、路徑與命令列",
+      "search_terms": "Python json re named group pathlib argparse command line CLI",
+      "reference": "import json, re\nfrom pathlib import Path\n\npattern = re.compile(r'^(?P<power>river|ox):(?P<turns>\\d+)$')\nmatch = pattern.fullmatch('river:6')\nrecord = {'power': match['power'], 'turns': int(match['turns'])}\nPath('reading.json').write_text(json.dumps(record, ensure_ascii=False), encoding='utf-8')\n\n// fullmatch 強約整行；JSON 鍵名與外部介面從原式。"
+    },
+    {
+      "id": "algorithms-testing",
+      "languages": [
+        "Python",
+        "C++",
+        "TypeScript"
+      ],
+      "topic": "演算法、複雜度與邊界驗法",
+      "search_terms": "binary search BFS deque topological sort complexity boundary test",
+      "reference": "def lower_bound(values: list[int], target: int) -> int:\n    low, high = 0, len(values)\n    while low < high:\n        mid = (low + high) // 2\n        if values[mid] < target: low = mid + 1\n        else: high = mid\n    return low\n\n# 須驗空列、單列、重複值、缺值與不可達；說明時間與空間之階。"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "T01-1",
+      "split": "train",
+      "source_id": "coding-py-basics",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "資料類別與型別",
+      "prompt": "以 Python 寫一不可變之輪筒讀數類別，須有型別、邊界檢查與計算挽水之數。",
+      "answer": "以 `@dataclass(frozen=True, slots=True)` 定讀數，`Literal` 約動力之名，`lifted` 先查負數而後相乘。資料類別只約結構，不代人驗邊界。",
+      "code_file": "training/coding_examples/python_dataclass.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T01-2",
+      "split": "train",
+      "source_id": "coding-py-basics",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "資料類別與型別",
+      "prompt": "請用 `match` 依動力別回繁體文言短語，並說明為何型別提示不能取代執行時檢查。",
+      "answer": "`match` 分 `river`、`ox`、`wind` 三路；型別提示供靜態查核，來客所予之值仍須於函式內實查。",
+      "code_file": "training/coding_examples/python_dataclass.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T02-1",
+      "split": "train",
+      "source_id": "coding-py-collections",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "集合與計數",
+      "prompt": "以 Python 集合寫布爾「重取同類仍為同類」之驗法，並別於尋常數之乘方。",
+      "answer": "以 `&` 取兼屬二類者；`common_kind(a, a) == a` 驗冪等。此為類之揀取，非謂任何數自乘皆等於其身。",
+      "code_file": "training/coding_examples/python_collections.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T02-2",
+      "split": "train",
+      "source_id": "coding-py-collections",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "集合與計數",
+      "prompt": "用 `Counter` 與 `defaultdict` 整理輪筒符號及動力分組，並列出空輸入之慮。",
+      "answer": "`Counter` 計符，`defaultdict(list)` 依動力聚讀數。空輸入得空表；不可因一例之合便稱通則已證。",
+      "code_file": "training/coding_examples/python_collections.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T03-1",
+      "split": "train",
+      "source_id": "coding-py-errors",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "例外與脈絡",
+      "prompt": "以自訂例外、try/except/finally 與 contextmanager 處置水車比率之誤。",
+      "answer": "`InvalidWheelState` 明可料之失；`checked_calculation` 將其轉為外層可辨之 `RuntimeError`，`finally` 明釋器之責。",
+      "code_file": "training/coding_examples/python_errors.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T03-2",
+      "split": "train",
+      "source_id": "coding-py-errors",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "例外與脈絡",
+      "prompt": "分母為零與負數時，如何分內外之失而不留下半成之器？",
+      "answer": "零分母與負數先擲自訂例外；脈絡管理器統一改報，並在 `finally` 留清理之處。不可只印字而仍回偽值。",
+      "code_file": "training/coding_examples/python_errors.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T04-1",
+      "split": "train",
+      "source_id": "coding-py-tests",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "單元測試",
+      "prompt": "為 `lift` 寫 unittest，須含正常、零值、負數與 subTest。",
+      "answer": "以 `unittest.TestCase` 分正常、邊界、失誤三類；`subTest` 逐一列輸入，`assertRaises` 驗負數必擲 `ValueError`。",
+      "code_file": "training/coding_examples/python_tests.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T04-2",
+      "split": "train",
+      "source_id": "coding-py-tests",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "單元測試",
+      "prompt": "說明為何訓練題不可當作能力考卷，並寫可重複執行之測試。",
+      "answer": "考卷宜用未見之題與獨立書源；此處以 `unittest.main()` 得可重複之驗，但僅證所列案例，不證全域無誤。",
+      "code_file": "training/coding_examples/python_tests.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T05-1",
+      "split": "train",
+      "source_id": "coding-py-async",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "非同步",
+      "prompt": "以 asyncio.create_task、gather 與 timeout 並計多組讀數。",
+      "answer": "每組讀數成一工作，`gather` 收集，`asyncio.timeout` 限其候時；`await` 只置於 `async` 函式之內。",
+      "code_file": "training/coding_examples/python_async.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T05-2",
+      "split": "train",
+      "source_id": "coding-py-async",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "非同步",
+      "prompt": "非同步工作中一組為負數時，錯誤如何傳出而不靜默吞沒？",
+      "answer": "`measure` 擲 `ValueError`，`gather` 不代為掩過；呼叫端得錯而止。不可把錯值改為零以圖苟安。",
+      "code_file": "training/coding_examples/python_async.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T06-1",
+      "split": "train",
+      "source_id": "coding-cpp-templates",
+      "status": "reviewed_lesson",
+      "languages": [
+        "C++"
+      ],
+      "topic": "樣版與概念",
+      "prompt": "以 C++20 之 concept 與 template 寫整數限界算器，並用 static_assert 驗證。",
+      "answer": "`std::integral` 約樣版之型，`constexpr` 使編譯時可算，`static_assert` 先驗常式；執行時另以 `assert` 核容器之合。",
+      "code_file": "training/coding_examples/cpp_templates.cpp",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T06-2",
+      "split": "train",
+      "source_id": "coding-cpp-templates",
+      "status": "reviewed_lesson",
+      "languages": [
+        "C++"
+      ],
+      "topic": "樣版與概念",
+      "prompt": "請以 requires 約束讀數型別，並說明概念與執行時檢查之別。",
+      "answer": "`Readable` 要求成員 `turns` 可轉為整數；概念只約編譯期介面，負數與零值仍須於函式中另查。",
+      "code_file": "training/coding_examples/cpp_templates.cpp",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T07-1",
+      "split": "train",
+      "source_id": "coding-cpp-ranges",
+      "status": "reviewed_lesson",
+      "languages": [
+        "C++"
+      ],
+      "topic": "範圍視圖",
+      "prompt": "用 C++20 ranges 取平方、揀偶數、合成向量再累計。",
+      "answer": "`views::iota | transform | filter` 成惰性視圖；迴圈收集為 `vector`，`accumulate` 合計，`ranges::find` 尋值。",
+      "code_file": "training/coding_examples/cpp_ranges.cpp",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T07-2",
+      "split": "train",
+      "source_id": "coding-cpp-ranges",
+      "status": "reviewed_lesson",
+      "languages": [
+        "C++"
+      ],
+      "topic": "範圍視圖",
+      "prompt": "範圍視圖是否改易原器？請以邊界與空範圍說明。",
+      "answer": "視圖不持所有權，亦不改原器；空範圍得空向量。驗法須含首末、重複與查找未得。",
+      "code_file": "training/coding_examples/cpp_ranges.cpp",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T08-1",
+      "split": "train",
+      "source_id": "coding-ts-types",
+      "status": "reviewed_lesson",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "靜態型別",
+      "prompt": "以 TypeScript interface、union、generic 與 type guard 約束輪筒讀數。",
+      "answer": "`Reading` 定唯讀欄位，`Power` 限三值，`isReading` 收窄 `unknown`，`lift<T extends Reading>` 保泛型而仍可讀其欄。",
+      "code_file": "training/coding_examples/typescript_types.ts",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T08-2",
+      "split": "train",
+      "source_id": "coding-ts-types",
+      "status": "reviewed_lesson",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "靜態型別",
+      "prompt": "請用 `readonly` 與 `satisfies` 之義，並說明型別不能代替數值邊界。",
+      "answer": "`readonly` 禁改欄位，`satisfies` 核字面值合約而保其窄型；負數仍須於執行時擲錯，不可只靠編譯器。",
+      "code_file": "training/coding_examples/typescript_types.ts",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T09-1",
+      "split": "train",
+      "source_id": "coding-ts-async",
+      "status": "reviewed_lesson",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "非同步結果",
+      "prompt": "以 Promise、async/await 與 Result 判別聯集並計多組讀數。",
+      "answer": "`Result<T,E>` 以 `ok` 分勝敗；`Promise.all` 並舉，迴圈先收窄聯集再取值，敗則擲錯。",
+      "code_file": "training/coding_examples/typescript_async.ts",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T09-2",
+      "split": "train",
+      "source_id": "coding-ts-async",
+      "status": "reviewed_lesson",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "非同步結果",
+      "prompt": "Promise.all 中一組失敗時，如何避免取到不存在的 value？",
+      "answer": "逐項查 `ok`；未合即擲 `error`，不可逕取 `value`。判別聯集使編譯器與執行者同守此界。",
+      "code_file": "training/coding_examples/typescript_async.ts",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T10-1",
+      "split": "train",
+      "source_id": "coding-js-modules",
+      "status": "reviewed_lesson",
+      "languages": [
+        "JavaScript"
+      ],
+      "topic": "模組與私欄",
+      "prompt": "用 JavaScript ES module、私欄與 Map 造一可鏈式調用之讀數簿。",
+      "answer": "`export class`、`#entries`、`Map` 與 `return this` 成鏈；查無其名時回零，不讓 `undefined` 混入乘算。",
+      "code_file": "training/coding_examples/javascript_modules.mjs",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T10-2",
+      "split": "train",
+      "source_id": "coding-js-modules",
+      "status": "reviewed_lesson",
+      "languages": [
+        "JavaScript"
+      ],
+      "topic": "模組與私欄",
+      "prompt": "以可選串接與 nullish 合併處理缺項，並說其與邏輯或之異。",
+      "answer": "`?.` 避免對空值取欄，`??` 只補 `null` 或 `undefined`；`||` 亦會改零與空字串，於數值簿不宜。",
+      "code_file": "training/coding_examples/javascript_modules.mjs",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T11-1",
+      "split": "train",
+      "source_id": "coding-web-ui",
+      "status": "reviewed_lesson",
+      "languages": [
+        "HTML",
+        "CSS",
+        "JavaScript"
+      ],
+      "topic": "單頁介面",
+      "prompt": "交付一可獨立開啟之單頁 HTML，含 CSS、JavaScript、輸入驗證與文言告示。",
+      "answer": "一檔自足，無外連結；`Number.isInteger` 查整數與非負，`addEventListener` 應按，`aria-live` 報算果。",
+      "code_file": "training/coding_examples/classical_waterwheel.html",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T11-2",
+      "split": "train",
+      "source_id": "coding-web-ui",
+      "status": "reviewed_lesson",
+      "languages": [
+        "HTML",
+        "CSS",
+        "JavaScript"
+      ],
+      "topic": "單頁介面",
+      "prompt": "以 CSS grid、viewport 與 touch 友善之式造簡頁，且勿借外庫。",
+      "answer": "`viewport` 約版面，CSS 變數統墨色，按鈕用 `touch-action`；語法、介面與路徑皆從今式，文辭仍文言。",
+      "code_file": "training/coding_examples/classical_waterwheel.html",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T12-1",
+      "split": "train",
+      "source_id": "coding-sql",
+      "status": "reviewed_lesson",
+      "languages": [
+        "SQL"
+      ],
+      "topic": "查詢與約束",
+      "prompt": "以 SQL 之 CHECK、CTE 與窗函式稽核各動力之挽水總數。",
+      "answer": "建表以 `CHECK` 守非負，`WITH` 先算每行，`SUM() OVER (PARTITION BY power)` 得同動力之總，末以 `ORDER BY` 定序。",
+      "code_file": "training/coding_examples/sql_queries.sql",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T12-2",
+      "split": "train",
+      "source_id": "coding-sql",
+      "status": "reviewed_lesson",
+      "languages": [
+        "SQL"
+      ],
+      "topic": "查詢與約束",
+      "prompt": "標準 SQL 中 LEFT JOIN 之缺項如何計？請言 COALESCE 之位。",
+      "answer": "左聯接保留左表；右表缺項為 `NULL`，`COALESCE(SUM(...), 0)` 補零。聚合前仍須明分組鍵。",
+      "code_file": "training/coding_examples/sql_queries.sql",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T13-1",
+      "split": "train",
+      "source_id": "coding-rust-ownership",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Rust"
+      ],
+      "topic": "所有權與借用",
+      "prompt": "以 Rust 之借用切片、Result 與可變借用寫輪筒合計。",
+      "answer": "`&[Reading]` 借而不奪，`Result` 分可算與負數，`&mut [i32]` 明可改之處；`?` 將錯傳出 `main`。",
+      "code_file": "training/coding_examples/rust_ownership.rs",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T13-2",
+      "split": "train",
+      "source_id": "coding-rust-ownership",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Rust"
+      ],
+      "topic": "所有權與借用",
+      "prompt": "Rust 中所有權、借用與可變借用之界，如何以一例說明？",
+      "answer": "唯讀切片可多處共用，可變借用須獨占；`iter_mut` 只改所借之數。編譯期約束不代人查負數。",
+      "code_file": "training/coding_examples/rust_ownership.rs",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T14-1",
+      "split": "train",
+      "source_id": "coding-rust-iterators",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Rust"
+      ],
+      "topic": "迭代器與 Option",
+      "prompt": "用 Rust iterator chain、Option 與 unwrap_or 揀平方偶數並查名。",
+      "answer": "`map`、`filter`、`collect` 成鏈；`position` 回 `Option<usize>`，未得時 `unwrap_or` 予明示之代值。",
+      "code_file": "training/coding_examples/rust_iterators.rs",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T14-2",
+      "split": "train",
+      "source_id": "coding-rust-iterators",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Rust"
+      ],
+      "topic": "迭代器與 Option",
+      "prompt": "Option 與 Result 所表之失有何別？請以查無其名為例。",
+      "answer": "`Option` 表可有可無，`Result` 表有因之敗；查無其名屬前者，負數不合宜歸後者。",
+      "code_file": "training/coding_examples/rust_iterators.rs",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T15-1",
+      "split": "train",
+      "source_id": "coding-json-regex",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python",
+        "JSON",
+        "Regex"
+      ],
+      "topic": "序列化與字式",
+      "prompt": "以 Python json、re 命名群組與 pathlib 讀寫輪筒簡牘。",
+      "answer": "`fullmatch` 約整行，命名群組取動力與轉數，`asdict` 錄為 JSON，`TemporaryDirectory` 免留殘檔。",
+      "code_file": "training/coding_examples/json_regex.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T15-2",
+      "split": "train",
+      "source_id": "coding-json-regex",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python",
+        "JSON",
+        "Regex"
+      ],
+      "topic": "序列化與字式",
+      "prompt": "為何用 fullmatch 而非 search？JSON 介面名稱可否改作文言？",
+      "answer": "`search` 容旁雜，`fullmatch` 必合全式；JSON 鍵名屬外部介面，須保持原式，文言只用於說明。",
+      "code_file": "training/coding_examples/json_regex.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T16-1",
+      "split": "train",
+      "source_id": "coding-algorithms",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "演算法與邊界",
+      "prompt": "寫折半搜尋與拓撲排序，並列空列、重複值與成環之驗法。",
+      "answer": "折半搜尋以半開區間守界；拓撲排序以入度與 `deque` 排次，成環則擲錯。空列、重複值、不可達皆須試。",
+      "code_file": "training/coding_examples/algorithms.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "T16-2",
+      "split": "train",
+      "source_id": "coding-algorithms",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "演算法與邊界",
+      "prompt": "說明演算法之時間、空間階，並辨古法與今術。",
+      "answer": "折半搜尋對數時間、常數空間；拓撲排序與頂點邊數相稱。此為今世演算法摹古器，非謂古人曾有此碼。",
+      "code_file": "training/coding_examples/algorithms.py",
+      "acceptance": [
+        "語法可驗",
+        "邊界有處置",
+        "說明為繁體文言",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E01-1",
+      "split": "eval",
+      "source_id": "heldout-py-debug",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "未見之除錯",
+      "prompt": "未見題：請以 Python 寫累計挽水與首次達閾之函式，並驗零值與缺值。",
+      "answer": "逐項先查負數，累加後記其總；尋閾值用 `enumerate`，未達回 `-1`。零筒不改其總，空列回空表。",
+      "code_file": "training/coding_examples/heldout_python_debug.py",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E02-1",
+      "split": "eval",
+      "source_id": "heldout-cpp-stl",
+      "status": "reviewed_lesson",
+      "languages": [
+        "C++"
+      ],
+      "topic": "未見之標準容器",
+      "prompt": "未見題：以 C++ `lower_bound`、`map` 與 `all_of` 核讀數，並言迭代器失效之慮。",
+      "answer": "`lower_bound` 於已序向量尋下界，`map::at` 於缺鍵時擲錯，`all_of` 查全體為正；改容器時須重取迭代器。",
+      "code_file": "training/coding_examples/heldout_cpp_stl.cpp",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E03-1",
+      "split": "eval",
+      "source_id": "heldout-ts-generics",
+      "status": "reviewed_lesson",
+      "languages": [
+        "TypeScript"
+      ],
+      "topic": "未見之泛型",
+      "prompt": "未見題：寫 `select<T, K extends keyof T>`，由唯讀讀數陣列取出一欄並合計。",
+      "answer": "泛型 `K` 限於 `T` 之鍵，`map` 得 `T[K][]`；`readonly` 不改原陣列，空陣列之合計為零。",
+      "code_file": "training/coding_examples/heldout_ts_generics.ts",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E04-1",
+      "split": "eval",
+      "source_id": "heldout-js-events",
+      "status": "reviewed_lesson",
+      "languages": [
+        "JavaScript"
+      ],
+      "topic": "未見之事件",
+      "prompt": "未見題：以 Set 與箭頭函式造可退訂之事件收發器，並驗退訂後不再計。",
+      "answer": "`Set` 存聽者，`on` 回退訂函式，`emit` 逐一呼叫；退訂後 `delete` 生效，最後之值不入累計。",
+      "code_file": "training/coding_examples/heldout_js_events.mjs",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E05-1",
+      "split": "eval",
+      "source_id": "heldout-web-game",
+      "status": "reviewed_lesson",
+      "languages": [
+        "HTML",
+        "CSS",
+        "JavaScript"
+      ],
+      "topic": "未見之單頁戲",
+      "prompt": "未見題：造一可獨立開啟之九宮移籌戲，須有重局、勝示、可解開局與觸控。",
+      "answer": "以一 HTML 檔納標記、樣式與腳本；自勝局逆行合法步開局，按鈕只受鄰位，`aria-live` 報勝，`touch-action` 利於指按。",
+      "code_file": "training/coding_examples/heldout_grid_game.html",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E06-1",
+      "split": "eval",
+      "source_id": "heldout-sql-joins",
+      "status": "reviewed_lesson",
+      "languages": [
+        "SQL"
+      ],
+      "topic": "未見之聯接",
+      "prompt": "未見題：以 LEFT JOIN 與 COALESCE 列出各輪筒數，含無筒之輪。",
+      "answer": "左表為輪籍，右表為筒籍；缺筒者 `SUM` 為空，`COALESCE` 補零。分組鍵須兼名與動力。",
+      "code_file": "training/coding_examples/heldout_sql_joins.sql",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E07-1",
+      "split": "eval",
+      "source_id": "heldout-rust-result",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Rust"
+      ],
+      "topic": "未見之結果串接",
+      "prompt": "未見題：以 Rust 之 Result、and_then 與 map 串接兩數檢查，再相乘。",
+      "answer": "`positive` 先拒負數；`and_then` 串第二次查驗，`map` 只於 `Ok` 時相乘，`unwrap_or` 予明示代值。",
+      "code_file": "training/coding_examples/heldout_rust_result.rs",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    },
+    {
+      "id": "E08-1",
+      "split": "eval",
+      "source_id": "heldout-algorithms",
+      "status": "reviewed_lesson",
+      "languages": [
+        "Python"
+      ],
+      "topic": "未見之圖搜",
+      "prompt": "未見題：以 deque 求構件圖中最少步數，並驗同點與不可達。",
+      "answer": "廣度優先以佇列逐層進，`seen` 免重履；起訖同點回零，搜盡未遇回 `-1`。",
+      "code_file": "training/coding_examples/heldout_algorithms.py",
+      "acceptance": [
+        "未見題目",
+        "語法可驗",
+        "邊界有處置",
+        "不敘年界後世事"
+      ]
+    }
+  ]
+}

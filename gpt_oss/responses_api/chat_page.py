@@ -26,7 +26,7 @@ if __name__ == "__main__":
     from fastapi import HTTPException
 
     parser = argparse.ArgumentParser(description="先開書齋之頁，候學者入席。")
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     app = FastAPI()

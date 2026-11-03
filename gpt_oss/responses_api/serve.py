@@ -1,6 +1,7 @@
 # torchrun --nproc-per-node=4 serve.py
 
 import argparse
+from pathlib import Path
 
 import uvicorn
 from openai_harmony import (
@@ -11,6 +12,7 @@ from openai_harmony import (
 from .api_server import create_api_server
 from gpt_oss.classical import ClassicalCanon
 from gpt_oss.classical_library import ClassicalLibrary
+from gpt_oss.coding_library import DEFAULT_CATALOGUE, CodingLibrary
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Responses API server")
@@ -40,12 +42,15 @@ if __name__ == "__main__":
     parser.add_argument("--knowledge-cutoff-year", type=int, choices=range(1, 1900), default=1899,
                         metavar="YEAR", help="古典學問之年界")
     parser.add_argument("--classical-library", help="已校書證之索引路徑")
+    parser.add_argument("--coding-library", type=Path, default=DEFAULT_CATALOGUE,
+                        help="已校現代程式準繩；預設隨套件提供")
     parser.add_argument("--adapter", help="古典學者 LoRA 權重路徑（限 transformers 後端）")
     args = parser.parse_args()
     if args.adapter and args.inference_backend != "transformers":
         parser.error("--adapter 僅支援 transformers；不可靜默忽略附加權重。")
     canon = ClassicalCanon(args.knowledge_cutoff_year)
     library = ClassicalLibrary(args.classical_library) if args.classical_library else None
+    coding_library = CodingLibrary(args.coding_library)
 
     if args.inference_backend == "triton":
         from .inference.triton import setup_model
@@ -66,4 +71,6 @@ if __name__ == "__main__":
 
     infer_next_token = (setup_model(args.checkpoint, adapter=args.adapter)
                         if args.inference_backend == "transformers" else setup_model(args.checkpoint))
-    uvicorn.run(create_api_server(infer_next_token, encoding, canon, library), port=args.port)
+    uvicorn.run(create_api_server(infer_next_token, encoding, canon, library,
+                                  coding_library=coding_library),
+                host="0.0.0.0", port=args.port)

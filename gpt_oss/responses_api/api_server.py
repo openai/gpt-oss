@@ -24,6 +24,8 @@ from openai_harmony import (
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
 from gpt_oss.classical import ClassicalCanon
 from gpt_oss.classical_library import ClassicalLibrary
+from gpt_oss.coding_library import CodingLibrary
+from gpt_oss.chronology import ChronologyGuard, ScopeVerdict
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import YouComBackend, ExaBackend
 
@@ -72,6 +74,35 @@ from .types import (
 )
 
 DEFAULT_TEMPERATURE = 0.0
+_DEFAULT = object()
+
+
+def last_user_text(body: "ResponsesRequest") -> str:
+    """Take the freshest user text for scope classification and retrieval."""
+    if isinstance(body.input, str):
+        return body.input
+    for item in reversed(body.input or []):
+        if getattr(item, "type", None) != "message" or item.role != Role.USER:
+            continue
+        if isinstance(item.content, str):
+            return item.content
+        return "\n".join(getattr(part, "text", "") for part in item.content)
+    return ""
+
+
+def static_refusal_inference(encoding: HarmonyEncoding, text: str):
+    """A deterministic final-channel response that never calls the base model."""
+    tokens = list(encoding.encode(
+        "<|channel|>final<|message|>" + text + "<|return|>", allowed_special="all"))
+    queue: list[int] = []
+
+    def infer(*_args, **kwargs) -> int:
+        nonlocal queue
+        if kwargs.get("new_request", False) or not queue:
+            queue = tokens.copy()
+        return queue.pop(0) if queue else tokens[-1]
+
+    return infer
 
 
 def get_reasoning_effort(
@@ -104,8 +135,15 @@ def create_api_server(
     infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding,
     canon: ClassicalCanon | None = None,
     library: ClassicalLibrary | None = None,
+    coding_library: CodingLibrary | None | object = _DEFAULT,
+    guard: ChronologyGuard | None | object = _DEFAULT,
 ) -> FastAPI:
     canon = canon if canon is not None else ClassicalCanon()
+    # Defaults are safe; passing None explicitly is reserved for diagnostics.
+    if coding_library is _DEFAULT:
+        coding_library = CodingLibrary.load_default()
+    if guard is _DEFAULT:
+        guard = ChronologyGuard(canon.cutoff_year)
     app = FastAPI()
     open_shuzhai(app, canon.cutoff_year, library is not None)
 
@@ -127,6 +165,8 @@ def create_api_server(
         output_tokens: list[int],
         request_body: ResponsesRequest,
         debug_mode: bool = False,
+        programming_context: bool = False,
+        scope: ScopeVerdict | None = None,
         function_call_ids: Optional[list[tuple[str, str]]] = None,
         response_id: Optional[str] = None,
         previous_response_id: Optional[str] = None,
@@ -143,6 +183,7 @@ def create_api_server(
     ) -> ResponseObject:
         output = []
         error = None
+        guard_events: list[str] = []
         if len(output_tokens) > 0:
             if debug_mode:
                 try:
@@ -296,6 +337,12 @@ def create_api_server(
                         else:
                             text_content = content_entry["text"]
                             annotations = []
+                        if guard is not None:
+                            verdict = guard.sanitize(text_content, programming=programming_context)
+                            guard_events.extend(verdict.reasons)
+                            text_content = verdict.text
+                            if verdict.blocked:
+                                annotations = []
 
                         content.append(
                             TextContentItem(
@@ -322,13 +369,15 @@ def create_api_server(
                     if author_dict.get("role") and author_dict.get("role") != "assistant":
                         continue
                     summary = []
-                    content = [
-                        ReasoningTextContentItem(
-                            type="reasoning_text",
-                            text=entry["text"],
-                        )
-                        for entry in entry_dict["content"]
-                    ]
+                    content = []
+                    for reasoning_entry in entry_dict["content"]:
+                        reasoning_text = reasoning_entry["text"]
+                        if guard is not None:
+                            verdict = guard.sanitize(reasoning_text, programming=programming_context)
+                            guard_events.extend(verdict.reasons)
+                            reasoning_text = verdict.text
+                        content.append(ReasoningTextContentItem(
+                            type="reasoning_text", text=reasoning_text))
                     reasoning_id = next(reasoning_ids_iter, None)
                     if reasoning_id is None:
                         reasoning_id = f"rs_{uuid.uuid4().hex}"
@@ -375,6 +424,16 @@ def create_api_server(
             if debug_mode
             else {}
         )
+        if guard is not None:
+            metadata["chronology_guard"] = {
+                "enabled": True,
+                "programming": programming_context,
+                "blocked": bool(guard_events) or bool(scope and scope.blocked),
+                "request_refused": bool(scope and scope.blocked),
+                "reasons": sorted(set(guard_events)),
+            }
+        if scope is not None:
+            metadata["chronology_scope"] = scope.as_dict()
 
         return ResponseObject(
             created_at=int(datetime.datetime.now().timestamp()),
@@ -412,7 +471,14 @@ def create_api_server(
             browser_tool: Optional[SimpleBrowserTool] = None,
             python_tool: Optional[PythonTool] = None,
             functions_python_as_builtin: bool = False,
+            programming_context: bool = False,
+            scope: ScopeVerdict | None = None,
+            inference_fn: Callable | None = None,
         ):
+            self.programming_context = programming_context
+            self.scope = scope
+            self.guard_enabled = guard is not None
+            self.inference_fn = inference_fn or infer_next_token
             self.initial_tokens = initial_tokens
             self.tokens = initial_tokens.copy()
             self.output_tokens = []
@@ -504,6 +570,8 @@ def create_api_server(
                 self.initial_tokens,
                 self.output_tokens,
                 self.request_body,
+                programming_context=self.programming_context,
+                scope=self.scope,
                 function_call_ids=self.function_call_ids,
                 response_id=self.response_id,
                 previous_response_id=self.request_body.previous_response_id,
@@ -535,6 +603,7 @@ def create_api_server(
             )
             current_output_index = -1
             sent_output_item_added = False
+            sent_reasoning_item_added = False
 
             # we use this if the model outputs a citation to buffer until completed
             output_delta_buffer = ""
@@ -547,7 +616,7 @@ def create_api_server(
                 if self.request is not None and await self.request.is_disconnected():
                     print("Client disconnected, stopping token generation.")
                     break
-                next_tok = infer_next_token(
+                next_tok = self.inference_fn(
                     self.tokens,
                     temperature=self.temperature,
                     new_request=self.new_request,
@@ -562,6 +631,7 @@ def create_api_server(
                 if self.parser.state == StreamState.EXPECT_START:
                     current_output_index += 1
                     sent_output_item_added = False
+                    sent_reasoning_item_added = False
 
                     if len(self.parser.messages) > 0:
                         previous_item = self.parser.messages[-1]
@@ -608,12 +678,54 @@ def create_api_server(
                             previous_item.channel == "analysis"
                             and previous_item.recipient is None
                         ):
+                            if self.guard_enabled and not sent_reasoning_item_added:
+                                sent_reasoning_item_added = True
+                                reasoning_id = self._ensure_reasoning_item_id()
+                                yield self._send_event(
+                                    ResponseOutputItemAdded(
+                                        type="response.output_item.added",
+                                        output_index=current_output_index,
+                                        item=ReasoningItem(
+                                            id=reasoning_id,
+                                            type="reasoning",
+                                            summary=[],
+                                            content=[],
+                                        ),
+                                    )
+                                )
+                                yield self._send_event(
+                                    ResponseContentPartAdded(
+                                        type="response.content_part.added",
+                                        output_index=current_output_index,
+                                        content_index=current_content_index,
+                                        item_id=reasoning_id,
+                                        part=ReasoningTextContentItem(
+                                            type="reasoning_text", text=""
+                                        ),
+                                    )
+                                )
                             reasoning_id = (
                                 self.current_reasoning_item_id
                                 if self.current_reasoning_item_id is not None
                                 else self._ensure_reasoning_item_id()
                             )
                             reasoning_text = previous_item.content[0].text
+                            if self.guard_enabled:
+                                verdict = guard.sanitize(
+                                    reasoning_text,
+                                    programming=self.programming_context,
+                                )
+                                reasoning_text = verdict.text
+                                if reasoning_text:
+                                    yield self._send_event(
+                                        ResponseReasoningTextDelta(
+                                            type="response.reasoning_text.delta",
+                                            output_index=current_output_index,
+                                            content_index=current_content_index,
+                                            item_id=reasoning_id,
+                                            delta=reasoning_text,
+                                        )
+                                    )
                             yield self._send_event(
                                 ResponseReasoningTextDone(
                                     type="response.reasoning_text.done",
@@ -654,20 +766,63 @@ def create_api_server(
                             )
                             self.current_reasoning_item_id = None
                         if previous_item.channel == "final":
-                            annotations = [
-                                UrlCitation(**a) for a in current_annotations
-                            ]
                             if browser_tool:
                                 (
                                     normalized_text,
-                                    _annotations,
+                                    normalized_annotations,
                                     _has_partial_citations,
                                 ) = browser_tool.normalize_citations(
                                     previous_item.content[0].text
                                 )
+                                annotations = [UrlCitation(**a) for a in normalized_annotations]
                             else:
                                 normalized_text = previous_item.content[0].text
-                                annotations = []
+                                annotations = [UrlCitation(**a) for a in current_annotations]
+                            if self.guard_enabled and not sent_output_item_added:
+                                sent_output_item_added = True
+                                message_id = self._ensure_message_item_id()
+                                yield self._send_event(
+                                    ResponseOutputItemAdded(
+                                        type="response.output_item.added",
+                                        output_index=current_output_index,
+                                        item=Item(
+                                            id=message_id,
+                                            type="message",
+                                            role="assistant",
+                                            content=[],
+                                        ),
+                                    )
+                                )
+                                yield self._send_event(
+                                    ResponseContentPartAdded(
+                                        type="response.content_part.added",
+                                        output_index=current_output_index,
+                                        content_index=current_content_index,
+                                        item_id=message_id,
+                                        part=TextContentItem(type="output_text", text=""),
+                                    )
+                                )
+                            if self.guard_enabled:
+                                verdict = guard.sanitize(
+                                    normalized_text,
+                                    programming=self.programming_context,
+                                )
+                                normalized_text = verdict.text
+                                if verdict.blocked:
+                                    annotations = []
+                                # Final text was buffered; emit its screened form once.
+                                message_id = self._ensure_message_item_id()
+                                if normalized_text:
+                                    yield self._send_event(
+                                        ResponseOutputTextDelta(
+                                            type="response.output_text.delta",
+                                            output_index=current_output_index,
+                                            content_index=current_content_index,
+                                            item_id=message_id,
+                                            delta=normalized_text,
+                                        )
+                                    )
+                                current_output_text_content = normalized_text
                             text_content = TextContentItem(
                                 type="output_text",
                                 text=normalized_text,
@@ -742,9 +897,14 @@ def create_api_server(
                             )
                         )
 
-                    output_delta_buffer += self.parser.last_content_delta
-                    should_send_output_text_delta = True
-                    if browser_tool:
+                    if self.guard_enabled:
+                        # Guard mode buffers final prose until the whole message
+                        # can be screened; no partial post-cutoff claim escapes.
+                        should_send_output_text_delta = False
+                    else:
+                        output_delta_buffer += self.parser.last_content_delta
+                        should_send_output_text_delta = True
+                    if browser_tool and not self.guard_enabled:
                         # we normalize on the full current text to get the right indices in citations
                         updated_output_text, annotations, has_partial_citations = (
                             browser_tool.normalize_citations(
@@ -803,8 +963,8 @@ def create_api_server(
                     and self.parser.current_channel == "analysis"
                     and self.parser.current_recipient is None
                 ):
-                    if not sent_output_item_added:
-                        sent_output_item_added = True
+                    if not sent_reasoning_item_added:
+                        sent_reasoning_item_added = True
                         reasoning_id = self._ensure_reasoning_item_id()
                         yield self._send_event(
                             ResponseOutputItemAdded(
@@ -830,15 +990,16 @@ def create_api_server(
                             )
                         )
                     reasoning_id = self._ensure_reasoning_item_id()
-                    yield self._send_event(
-                        ResponseReasoningTextDelta(
-                            type="response.reasoning_text.delta",
-                            output_index=current_output_index,
-                            content_index=current_content_index,
-                            item_id=reasoning_id,
-                            delta=self.parser.last_content_delta,
+                    if not self.guard_enabled:
+                        yield self._send_event(
+                            ResponseReasoningTextDelta(
+                                type="response.reasoning_text.delta",
+                                output_index=current_output_index,
+                                content_index=current_content_index,
+                                item_id=reasoning_id,
+                                delta=self.parser.last_content_delta,
+                            )
                         )
-                    )
 
                 try:
                     # purely for debugging purposes
@@ -1118,6 +1279,8 @@ def create_api_server(
                     self.output_tokens,
                     self.request_body,
                     debug_mode=self.debug_mode,
+                    programming_context=self.programming_context,
+                    scope=self.scope,
                     function_call_ids=self.function_call_ids,
                     response_id=self.response_id,
                     previous_response_id=self.request_body.previous_response_id,
@@ -1143,6 +1306,32 @@ def create_api_server(
     async def generate(body: ResponsesRequest, request: Request):
         print("request received")
         print(body.reasoning)
+
+        question = last_user_text(body)
+        programming_context = bool(
+            coding_library is not None and coding_library.is_coding_query(question)
+        )
+        if guard is not None and not programming_context:
+            programming_context = guard.is_programming(question)
+        scope = guard.classify_request(question) if guard is not None else None
+        effective_infer = infer_next_token
+        if scope is not None and scope.blocked and guard is not None:
+            # Deterministic refusal: do not let the base model answer a plainly
+            # post-cutoff historical request, and do not activate live tools.
+            body.tools = []
+            if encoding is None:
+                return ResponseObject(
+                    created_at=int(datetime.datetime.now().timestamp()),
+                    status="completed",
+                    output=[Item(type="message", role="assistant",
+                                 content=[TextContentItem(type="output_text", text=guard.refusal)],
+                                 status="completed")],
+                    metadata={"chronology_scope": scope.as_dict(),
+                              "chronology_guard": {"enabled": True, "blocked": True,
+                                                   "request_refused": True,
+                                                   "reasons": list(scope.reasons)}},
+                )
+            effective_infer = static_refusal_inference(encoding, guard.refusal)
 
         use_browser_tool = any(
             getattr(tool, "type", None) in ("browser_search", "web_search")
@@ -1327,18 +1516,11 @@ def create_api_server(
                         .with_channel("commentary")
                     )
 
+        if coding_library is not None:
+            code_reference = coding_library.consult(question)
+            if code_reference:
+                messages.append(Message.from_role_and_content(Role.USER, code_reference))
         if library is not None:
-            if isinstance(body.input, str):
-                question = body.input
-            else:
-                question = ""
-                for item in reversed(body.input):
-                    if item.type == "message" and item.role == Role.USER:
-                        question = item.content if isinstance(item.content, str) else "\n".join(
-                            part.text for part in item.content
-                            if isinstance(part, TextContentItem)
-                        )
-                        break
             book_evidence = library.consult(question, canon.cutoff_year)
             if book_evidence:
                 messages.append(Message.from_role_and_content(Role.USER, book_evidence))
@@ -1364,6 +1546,9 @@ def create_api_server(
             browser_tool=browser_tool,
             python_tool=python_tool,
             functions_python_as_builtin=functions_python_as_builtin,
+            programming_context=programming_context,
+            scope=scope,
+            inference_fn=effective_infer,
         )
 
         if body.stream:

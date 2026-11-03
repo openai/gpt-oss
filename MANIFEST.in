@@ -1,1 +1,3 @@
-recursive-include _build * 
+recursive-include _build *
+recursive-include gpt_oss/data *.json
+recursive-include training/coding_examples *

@@ -28,7 +28,12 @@ triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 adapter = ["peft>=0.17", "transformers>=4.56.2", "accelerate", "safetensors", "torch>=2.8"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
-test = ["pytest>=8.4.1", "httpx>=0.28.1"]
+test = ["pytest>=8.4.1", "httpx>=0.28.1", "pytest-asyncio"]
+coding = [
+  "tree_sitter==0.23.2",
+  "tree_sitter_typescript==0.23.2",
+  "tree_sitter_rust==0.23.2",
+]
 eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile"]
 
 [build-system]
@@ -36,10 +41,14 @@ requires = ["setuptools>=68"]
 build-backend = "gpt_oss_build_backend.backend"
 backend-path = ["_build"]
 
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
 [tool.setuptools.packages.find]
 include = ["gpt_oss*"]
 
 [tool.setuptools.package-data]
+"gpt_oss" = ["data/*.json"]
 "gpt_oss.responses_api" = ["chat.html"]
 
 [tool.scikit-build]
