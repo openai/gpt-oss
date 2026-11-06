@@ -25,6 +25,7 @@ _stream_thread: Optional[threading.Thread] = None
 _stream_done = threading.Event()
 _stream_has_output = threading.Event()
 _stream_error: Optional[Exception] = None
+_stream_generation: int = 0
 _stream_started_ts: float = 0.0
 _last_progress_ts: float = 0.0  # updated whenever we enqueue or dequeue tokens
 _previous_request_tokens: list[int] = []
@@ -49,17 +50,19 @@ def _touch_progress():
 
 def _reset_stream_state():
     global _token_buffer, _stream_thread, _stream_error
-    global _stream_started_ts, _last_progress_ts
+    global _stream_generation, _stream_started_ts, _last_progress_ts
 
     with _buffer_lock:
+        _stream_generation += 1
         _token_buffer = []
-    _stream_done.clear()
-    _stream_has_output.clear()
-    _stream_thread = None
-    _stream_error = None
-    now = _now()
-    _stream_started_ts = now
-    _last_progress_ts = now
+        _stream_done.clear()
+        _stream_has_output.clear()
+        _stream_thread = None
+        _stream_error = None
+        now = _now()
+        _stream_started_ts = now
+        _last_progress_ts = now
+        return _stream_generation
 
 
 def setup_model(
@@ -68,7 +71,7 @@ def setup_model(
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
     model_name = checkpoint
 
-    def _start_stream(token_ids: list[int], temperature: float):
+    def _start_stream(token_ids: list[int], temperature: float, generation: int):
         prompt_text = encoding.decode(token_ids)
 
         def run():
@@ -93,6 +96,9 @@ def setup_model(
                 with requests.post(url, json=payload, stream=True, timeout=60) as resp:
                     resp.raise_for_status()
                     for line in resp.iter_lines(decode_unicode=True):
+                        with _buffer_lock:
+                            if generation != _stream_generation:
+                                return
                         if not line:
                             continue
                         obj = json.loads(line)
@@ -103,22 +109,30 @@ def setup_model(
                             if len(toks) > last_len:
                                 new_toks = toks[last_len:]
                                 with _buffer_lock:
+                                    if generation != _stream_generation:
+                                        return
                                     _token_buffer.extend(new_toks)
+                                    _stream_has_output.set()
+                                    _touch_progress()
                                 last_len = len(toks)
-                                _stream_has_output.set()
-                                _touch_progress()
 
                         if obj.get("done", False):
                             with _buffer_lock:
+                                if generation != _stream_generation:
+                                    return
                                 _token_buffer.append(EOS_TOKEN)
-                            _touch_progress()
+                                _touch_progress()
                             break
 
-                _stream_done.set()
+                with _buffer_lock:
+                    if generation == _stream_generation:
+                        _stream_done.set()
 
             except Exception as e:
-                _stream_error = e
-                _stream_done.set()
+                with _buffer_lock:
+                    if generation == _stream_generation:
+                        _stream_error = e
+                        _stream_done.set()
 
         t = threading.Thread(target=run, name="ollama-stream", daemon=True)
         t.start()
@@ -136,8 +150,10 @@ def setup_model(
         global _stream_thread
 
         if new_request:
-            _reset_stream_state()
-            _stream_thread = _start_stream(token_ids=tokens, temperature=temperature)
+            generation = _reset_stream_state()
+            _stream_thread = _start_stream(
+                token_ids=tokens, temperature=temperature, generation=generation
+            )
 
         if _stream_error is not None:
             raise RuntimeError(f"Ollama stream error: {_stream_error!r}")
