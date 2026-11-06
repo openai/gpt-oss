@@ -1,4 +1,5 @@
 """Offline checks for add-file collisions: python -m unittest discover -s tests -p test_apply_patch_existing_files.py."""
+
 import tempfile
 import unittest
 from pathlib import Path
@@ -37,8 +38,10 @@ class ExistingFileTests(unittest.TestCase):
         new = self.root / "new.txt"
         old.write_text("before", encoding="utf-8")
         collision.write_text("keep", encoding="utf-8")
-        patch = (f"*** Begin Patch\n*** Update File: {old}\n@@\n-before\n+after\n"
-                 f"*** Add File: {new}\n+new\n*** Add File: {collision}\n+bad\n*** End Patch")
+        patch = (
+            f"*** Begin Patch\n*** Update File: {old}\n@@\n-before\n+after\n"
+            f"*** Add File: {new}\n+new\n*** Add File: {collision}\n+bad\n*** End Patch"
+        )
         with self.assertRaisesRegex(DiffError, "already exists"):
             apply_patch(patch)
         self.assertEqual(old.read_text(), "before")
@@ -53,24 +56,38 @@ class ExistingFileTests(unittest.TestCase):
     def test_mapping_callbacks_reject_existing_files(self):
         files = {"existing.txt": "original"}
         with self.assertRaisesRegex(DiffError, "already exists"):
-            apply_patch(add_patch("existing.txt"), files.__getitem__, files.__setitem__, files.__delitem__)
+            apply_patch(
+                add_patch("existing.txt"),
+                files.__getitem__,
+                files.__setitem__,
+                files.__delitem__,
+            )
         self.assertEqual(files, {"existing.txt": "original"})
 
     def test_mapping_callbacks_allow_missing_files(self):
         files = {}
-        apply_patch(add_patch("new.txt"), files.__getitem__, files.__setitem__, files.__delitem__)
+        apply_patch(
+            add_patch("new.txt"),
+            files.__getitem__,
+            files.__setitem__,
+            files.__delitem__,
+        )
         self.assertEqual(files, {"new.txt": "replacement"})
 
     def test_file_not_found_callback_allows_creation(self):
         write = Mock()
-        apply_patch(add_patch("new.txt"), Mock(side_effect=FileNotFoundError), write, Mock())
+        apply_patch(
+            add_patch("new.txt"), Mock(side_effect=FileNotFoundError), write, Mock()
+        )
         write.assert_called_once_with("new.txt", "replacement")
 
     def test_read_errors_do_not_authorize_overwriting(self):
         write = Mock()
         failure = PermissionError("synthetic read denial")
         with self.assertRaises(PermissionError) as raised:
-            apply_patch(add_patch("unreadable.txt"), Mock(side_effect=failure), write, Mock())
+            apply_patch(
+                add_patch("unreadable.txt"), Mock(side_effect=failure), write, Mock()
+            )
         self.assertIs(raised.exception, failure)
         write.assert_not_called()
 
@@ -81,10 +98,37 @@ class ExistingFileTests(unittest.TestCase):
             apply_patch(add_patch(path))
         self.assertTrue(path.is_dir())
 
+    def test_dangling_symlink_is_not_followed_for_add(self):
+        target = self.root / "missing-target.txt"
+        link = self.root / "link.txt"
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"Symlinks unavailable on this filesystem: {exc}")
+        with self.assertRaisesRegex(DiffError, "already exists"):
+            apply_patch(add_patch(link))
+        self.assertTrue(link.is_symlink())
+        self.assertFalse(target.exists())
+
+    def test_existing_symlink_target_remains_unchanged(self):
+        target = self.root / "target.txt"
+        target.write_text("preserve", encoding="utf-8")
+        link = self.root / "link.txt"
+        try:
+            link.symlink_to(target)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"Symlinks unavailable on this filesystem: {exc}")
+        with self.assertRaisesRegex(DiffError, "already exists"):
+            apply_patch(add_patch(link))
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(target.read_text(encoding="utf-8"), "preserve")
+
     def test_update_and_delete_keep_existing_behavior(self):
         files = {"update.txt": "old", "delete.txt": "remove"}
-        patch = ("*** Begin Patch\n*** Update File: update.txt\n@@\n-old\n+new\n"
-                 "*** Delete File: delete.txt\n*** End Patch")
+        patch = (
+            "*** Begin Patch\n*** Update File: update.txt\n@@\n-old\n+new\n"
+            "*** Delete File: delete.txt\n*** End Patch"
+        )
         apply_patch(patch, files.__getitem__, files.__setitem__, files.__delitem__)
         self.assertEqual(files, {"update.txt": "new"})
 
