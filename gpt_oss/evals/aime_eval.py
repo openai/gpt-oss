@@ -24,8 +24,13 @@ def extract_boxed_text(text):
         for match in matches[::-1]:
             for group in match:
                 if group != "":
-                    return group.split(',')[-1].strip()
-    pattern = r'\d+'  # get the last integer if no pattern found
+                    return group.strip()
+    # Keep a numeric candidate intact; int() below must not accept only the
+    # fractional part, exponent, denominator, or unsigned portion of an answer.
+    pattern = (
+        r"[-+−]?(?:\d+(?:[.,]\d+)*|\.\d+)(?:[eE][-+]?\d+)?"
+        r"(?:\s*/\s*[-+]?\d+(?:\.\d+)?)?"
+    )
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
         return matches[-1]
