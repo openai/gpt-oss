@@ -1,6 +1,7 @@
 # torchrun --nproc-per-node=4 serve.py
 
 import argparse
+import os
 
 import uvicorn
 from openai_harmony import (
@@ -9,6 +10,11 @@ from openai_harmony import (
 )
 
 from .api_server import create_api_server
+
+
+def resolve_checkpoint_path(checkpoint: str) -> str:
+    return os.path.expanduser(checkpoint)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Responses API server")
@@ -54,5 +60,5 @@ if __name__ == "__main__":
 
     encoding = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-    infer_next_token = setup_model(args.checkpoint)
+    infer_next_token = setup_model(resolve_checkpoint_path(args.checkpoint))
     uvicorn.run(create_api_server(infer_next_token, encoding), port=args.port)
