@@ -201,7 +201,11 @@ def _compute_clipped_stats(
     elif stat == "n_samples":
         return len(values)
     elif stat == "bootstrap_std":
-        bootstrap_samples = [np.random.choice(values, len(values)) for _ in range(1000)]
+        rng = np.random.default_rng(0)
+        canonical_values = sorted(values)
+        bootstrap_samples = [
+            rng.choice(canonical_values, len(canonical_values)) for _ in range(1000)
+        ]
         bootstrap_means = [
             _compute_clipped_stats(list(s), "mean") for s in bootstrap_samples
         ]
