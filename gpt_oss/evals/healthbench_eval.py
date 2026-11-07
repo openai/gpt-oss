@@ -163,10 +163,18 @@ def get_usage_dict(response_usage) -> dict[str, int | None]:
             "total_tokens": None,
         }
 
+    input_tokens = getattr(response_usage, "input_tokens", None)
+    if input_tokens is None:
+        input_tokens = getattr(response_usage, "prompt_tokens", None)
+
+    output_tokens = getattr(response_usage, "output_tokens", None)
+    if output_tokens is None:
+        output_tokens = getattr(response_usage, "completion_tokens", None)
+
     return {
-        "input_tokens": response_usage.input_tokens,
-        "output_tokens": response_usage.output_tokens,
-        "total_tokens": response_usage.total_tokens,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": getattr(response_usage, "total_tokens", None),
         "input_cached_tokens": None,
         "output_reasoning_tokens": None,
     }
