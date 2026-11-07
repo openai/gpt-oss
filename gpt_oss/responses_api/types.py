@@ -1,7 +1,7 @@
 from typing import Any, Dict, Literal, Optional, Union
 
 from openai_harmony import ReasoningEffort
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 MODEL_IDENTIFIER = "gpt-oss-120b"
 DEFAULT_TEMPERATURE = 0.0
@@ -139,7 +139,7 @@ class FunctionToolDefinition(BaseModel):
 
 
 class BrowserToolConfig(BaseModel):
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra="allow")
     type: Literal["browser_search"] | Literal["web_search"]
 
 
@@ -182,6 +182,21 @@ class ResponsesRequest(BaseModel):
     previous_response_id: Optional[str] = None
     temperature: Optional[float] = DEFAULT_TEMPERATURE
     include: Optional[list[str]] = None
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def normalize_metadata(cls, value):
+        return {} if value is None else value
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def normalize_tools(cls, value):
+        return [] if value is None else value
+
+    @field_validator("max_output_tokens", mode="before")
+    @classmethod
+    def normalize_max_output_tokens(cls, value):
+        return DEFAULT_MAX_OUTPUT_TOKENS if value is None else value
 
 
 class ResponseObject(BaseModel):
