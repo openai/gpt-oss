@@ -9,8 +9,8 @@ import random
 import pandas
 
 from . import report
-from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
 from .abcd_grader import extract_abcd
+from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
 
 
 QUERY_TEMPLATE_MULTICHOICE = """
@@ -44,12 +44,21 @@ class GPQAEval(Eval):
         rng = random.Random(0)
 
         if debug:
-            examples = [row.to_dict() for _, row in df.iterrows() if "ESPRESSO spectrograph, please" in row["Question"]]
+            examples = [
+                row.to_dict()
+                for _, row in df.iterrows()
+                if "ESPRESSO spectrograph, please" in row["Question"]
+            ]
         else:
             examples = [row.to_dict() for _, row in df.iterrows()]
-            if num_examples:
-                assert n_repeats == 1, "n_repeats only supported for num_examples = None"
-                examples = rng.sample(examples, num_examples)
+            if num_examples is not None:
+                if num_examples < 0:
+                    raise ValueError("num_examples must be non-negative")
+                if num_examples == 0:
+                    examples = []
+                else:
+                    assert n_repeats == 1, "n_repeats only supported for num_examples = None"
+                    examples = rng.sample(examples, num_examples)
 
         examples = examples * n_repeats
         examples = [example | {"permutation": rng.sample(range(4), 4)} for example in examples]
@@ -69,12 +78,14 @@ class GPQAEval(Eval):
             correct_index = choices.index(row["Correct Answer"])
             correct_answer = "ABCD"[correct_index]
             choices_dict = dict(
-                A=choices[0], B=choices[1], C=choices[2], D=choices[3], Question=row["Question"]
+                A=choices[0],
+                B=choices[1],
+                C=choices[2],
+                D=choices[3],
+                Question=row["Question"],
             )
             prompt_messages = [
-                sampler._pack_message(
-                    content=format_multichoice_question(choices_dict), role="user"
-                )
+                sampler._pack_message(content=format_multichoice_question(choices_dict), role="user")
             ]
             sampler_response = sampler(prompt_messages)
             response_text = sampler_response.response_text
