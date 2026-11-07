@@ -504,6 +504,18 @@ def apply_patch(
         raise DiffError("Patch text must start with *** Begin Patch")
     paths = identify_files_needed(text)
     orig = load_files(paths, open_fn)
+    # Include existing add targets so the parser can reject accidental overwrites.
+    for path in identify_files_added(text):
+        if path in orig:
+            continue
+        try:
+            orig[path] = open_fn(path)
+        except (FileNotFoundError, KeyError):
+            # A dangling symlink still occupies the add path. Do not follow it
+            # when creating a supposedly new file through the default writer.
+            if open_fn is open_file and pathlib.Path(path).is_symlink():
+                raise DiffError(f"Add File Error: {path} already exists")
+            # Filesystem and mapping-backed readers both support missing files.
     patch, _fuzz = text_to_patch(text, orig)
     commit = patch_to_commit(patch, orig)
     apply_commit(commit, write_fn, remove_fn)
