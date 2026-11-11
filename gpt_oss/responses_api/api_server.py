@@ -97,6 +97,31 @@ def is_not_builtin_tool(
     )
 
 
+BROWSER_RESERVED_FUNCTIONS = frozenset(
+    {"browser.search", "browser.open", "browser.find"}
+)
+
+
+def resolve_functions_browser_fallback(
+    recipient: str, user_defined_function_names: set[str]
+) -> Optional[str]:
+    """Map a functions.{search,open,find} (or functions.browser.*) recipient
+    to its builtin browser recipient, unless the user defined a function of
+    that name. Returns None when the recipient is not a browser fallback."""
+    if not recipient.startswith("functions."):
+        return None
+    potential = recipient[len("functions.") :]
+    browser_recipient = (
+        potential if potential.startswith("browser.") else f"browser.{potential}"
+    )
+    if (
+        browser_recipient in BROWSER_RESERVED_FUNCTIONS
+        and potential not in user_defined_function_names
+    ):
+        return browser_recipient
+    return None
+
+
 def create_api_server(
     infer_next_token: Callable[[list[int], float], int], encoding: HarmonyEncoding
 ) -> FastAPI:
@@ -160,9 +185,27 @@ def create_api_server(
             reasoning_ids_iter = iter(reasoning_ids or [])
             message_ids_iter = iter(message_ids or [])
 
+            user_defined_function_names = {
+                name
+                for tool in (request_body.tools or [])
+                for name in [getattr(tool, "name", None)]
+                if getattr(tool, "type", None) == "function" and name
+            }
+
             for entry in entries:
                 entry_dict = entry.to_dict()
                 recipient = entry_dict.get("recipient", "")
+                # A functions.{search,open,find} call that the stream routed
+                # to the builtin browser must also classify as a
+                # web_search_call here: output_tokens keep the original
+                # functions.* recipient, so without this the final response
+                # would report a function_call for a call the browser served.
+                if len(recipient) > 0 and browser_tool is not None:
+                    browser_fallback = resolve_functions_browser_fallback(
+                        recipient, user_defined_function_names
+                    )
+                    if browser_fallback is not None:
+                        recipient = browser_fallback
                 if len(recipient) > 0 and is_not_builtin_tool(
                     recipient, treat_functions_python_as_builtin
                 ):
@@ -383,7 +426,6 @@ def create_api_server(
         )
 
     class StreamResponsesEvents:
-        BROWSER_RESERVED_FUNCTIONS = {"browser.search", "browser.open", "browser.find"}
         initial_tokens: list[int]
         tokens: list[int]
         output_tokens: list[int]
@@ -458,14 +500,11 @@ def create_api_server(
             if recipient.startswith("browser."):
                 return (recipient, False)
 
-            if recipient.startswith("functions."):
-                potential = recipient[len("functions.") :]
-                browser_recipient = f"browser.{potential}"
-                if (
-                    browser_recipient in self.BROWSER_RESERVED_FUNCTIONS
-                    and potential not in self.user_defined_function_names
-                ):
-                    return (browser_recipient, True)
+            browser_recipient = resolve_functions_browser_fallback(
+                recipient, self.user_defined_function_names
+            )
+            if browser_recipient is not None:
+                return (browser_recipient, True)
 
             return (None, False)
 
