@@ -1,0 +1,8 @@
+# Install into the existing BooleLOT environment as needed.
+torch>=2.1
+transformers>=4.45
+accelerate>=0.34
+safetensors>=0.4
+
+# Optional Talkie adapter:
+# pip install "git+https://github.com/talkie-lm/talkie.git"
