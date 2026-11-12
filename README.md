@@ -61,3 +61,10 @@ BoolieLOT 是一個以古代學者與工程家的視角探索歷史思想和程�
 無 GPU 亦可先執行上方三行，重建語料、查驗程式例並檢查訓練前之卷目。
 
 免費 GPU 的可用時間與記憶體不保證足夠。試訓不會自動部署聊天服務；模型底座及附加權重需另行準備。
+
+## Vintage model research integrations
+
+Optional research adapters now live under `gpt_oss/vintage/`. They provide a Talkie inference adapter, an experimental Transformers adapter for the small pre-1900 Vintage-LLM checkpoint, HistLM BERT retrieval, and a source-safe historical corpus preparation utility. These are optional and do not replace the existing BooleLOT chronology guard or the current chat service.
+
+See [Vintage upstream integration](docs/VINTAGE_UPSTREAM_INTEGRATION.md) for installation, model distinctions, data formats, and limitations. No model weights are stored in Git, and no new model has been trained by adding these adapters.
+
