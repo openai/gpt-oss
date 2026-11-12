@@ -5,12 +5,13 @@ import os
 
 @dataclass(frozen=True)
 class VintageConfig:
-    model_id: str = "talkie-lm/talkie-1930-13b-it"
+    # Talkie accepts the short model alias shown in its public Python API.
+    model_id: str = "talkie-1930-13b-it"
     backend: str = "talkie"
     period_start: int = 1800
     period_end: int = 1899
     max_new_tokens: int = 384
-    temperature: float = 0.75
+    temperature: float = 0.7
     top_p: float = 0.9
     repetition_penalty: float = 1.08
     device_map: str = "auto"
@@ -28,19 +29,19 @@ class VintageConfig:
 
 
 MODEL_PROFILES = {
-    "victorian-small": {
+    "talkie-1930": {
+        "model_id": "talkie-1930-13b-it",
+        "backend": "talkie",
+        "note": "Instruction-tuned model trained on pre-1931 English text.",
+    },
+    "vintage-small": {
         "model_id": "croqaz/vintage-LLM-340m-v1-base",
         "backend": "transformers",
-        "note": "Small pre-1900 base model; limited instruction-following ability.",
+        "note": "Experimental small pre-1900 base model; not instruction tuned.",
     },
-    "victorian-research": {
-        "model_id": "talkie-lm/talkie-1930-13b-it",
-        "backend": "talkie",
-        "note": "Instruction-tuned pre-1931 model; high hardware requirements.",
-    },
-    "historical-retrieval": {
+    "histlm-bert": {
         "model_id": "Livingwithmachines/bert_1760_1900",
         "backend": "retrieval",
-        "note": "Historical encoder for retrieval/classification, not generation.",
+        "note": "Historical encoder for retrieval and analysis, not text generation.",
     },
 }
