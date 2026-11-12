@@ -14,7 +14,7 @@ class Generation:
 
 
 class VintageEngine:
-    """Lazy-loading runtime; model weights download only on first use."""
+    """Lazy-loading runtime; weights download only when inference starts."""
 
     def __init__(self, config: Optional[VintageConfig] = None):
         self.config = config or VintageConfig.from_env()
@@ -27,18 +27,14 @@ class VintageEngine:
             from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError as exc:
             raise RuntimeError(
-                "Install inference dependencies with: "
-                "pip install -r requirements-vintage.txt"
+                "Install Transformers dependencies: pip install -r requirements-vintage.txt"
             ) from exc
-
         self._tokenizer = AutoTokenizer.from_pretrained(self.config.model_id)
         dtype = self.config.torch_dtype
         if dtype != "auto" and hasattr(torch, dtype):
             dtype = getattr(torch, dtype)
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.config.model_id,
-            torch_dtype=dtype,
-            device_map=self.config.device_map,
+            self.config.model_id, torch_dtype=dtype, device_map=self.config.device_map
         )
         self._model.eval()
 
@@ -46,7 +42,6 @@ class VintageEngine:
         import torch
         if self._model is None:
             self._load_transformers()
-
         messages = [
             {"role": "system", "content": build_system_prompt(self.config)},
             {"role": "user", "content": prompt},
@@ -60,12 +55,10 @@ class VintageEngine:
                 f"System: {messages[0]['content']}\n\n"
                 f"User: {prompt}\n\nAssistant:"
             )
-
         inputs = self._tokenizer(rendered, return_tensors="pt")
         device = getattr(self._model, "device", None)
         if device is not None:
             inputs = {key: value.to(device) for key, value in inputs.items()}
-
         with torch.inference_mode():
             output = self._model.generate(
                 **inputs,
@@ -85,20 +78,18 @@ class VintageEngine:
             from talkie import Talkie, Message
         except ImportError as exc:
             raise RuntimeError(
-                "Talkie backend selected. Install it with: "
-                "pip install 'git+https://github.com/talkie-lm/talkie.git'"
+                "Install Talkie from https://github.com/talkie-lm/talkie "
+                "(clone the repository and run uv sync)."
             ) from exc
-
         if self._model is None:
             self._model = Talkie(self.config.model_id)
-        messages = [
-            Message(role="system", content=build_system_prompt(self.config)),
-            Message(role="user", content=prompt),
-        ]
+        # Talkie's documented chat API accepts a list of Message objects.
+        # Embed behavioral instructions in the user turn rather than assuming
+        # support for a system role not documented by the upstream API.
+        content = build_system_prompt(self.config) + "\n\nUser question: " + prompt
         result = self._model.chat(
-            messages,
+            [Message(role="user", content=content)],
             temperature=self.config.temperature,
-            max_tokens=self.config.max_new_tokens,
         )
         return result.text.strip()
 
@@ -107,7 +98,6 @@ class VintageEngine:
             raise ValueError("prompt must be a non-empty string")
         if self.config.period_start > self.config.period_end:
             raise ValueError("period_start must not exceed period_end")
-
         if self.config.backend == "talkie":
             text = self._generate_talkie(prompt.strip())
         elif self.config.backend == "transformers":
@@ -117,5 +107,4 @@ class VintageEngine:
                 f"Unsupported generation backend: {self.config.backend!r}. "
                 "Use 'transformers' or 'talkie'."
             )
-        return Generation(text=text, model_id=self.config.model_id,
-                          backend=self.config.backend)
+        return Generation(text=text, model_id=self.config.model_id, backend=self.config.backend)
