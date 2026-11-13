@@ -137,6 +137,7 @@ def create_api_server(
     library: ClassicalLibrary | None = None,
     coding_library: CodingLibrary | None | object = _DEFAULT,
     guard: ChronologyGuard | None | object = _DEFAULT,
+    strict_historical: bool = True,
 ) -> FastAPI:
     canon = canon if canon is not None else ClassicalCanon()
     # Defaults are safe; passing None explicitly is reserved for diagnostics.
@@ -1337,7 +1338,7 @@ def create_api_server(
             getattr(tool, "type", None) in ("browser_search", "web_search")
             for tool in (body.tools or [])
         )
-        if use_browser_tool:
+        if use_browser_tool and strict_historical:
             raise HTTPException(
                 status_code=400,
                 detail=("Live web search is disabled in the strict historical profile because "
