@@ -72,6 +72,7 @@ def test_guard_separates_code_literals_from_history():
     assert guard.classify_request("請說明 1969 年人類登月的經過。").blocked
     assert guard.classify_request("第二次世界大戰的結果為何？").blocked
     assert not guard.classify_request("用 Python 解析 year = 1969 的資料。").blocked
+    assert guard.classify_request("請說明二十世紀的戰爭，並用 Python 寫統計程式。").blocked
     assert guard.sanitize("某語言於 1991 年創立。", programming=True).blocked
     assert not guard.sanitize("```python\nyear = 1969\n```", programming=True).blocked
     assert "程式語法" in guard.refusal
