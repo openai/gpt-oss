@@ -11,7 +11,10 @@ BoolieLOT is an experimental project that explores historical ideas and programm
 - Reviewed notes record sources and knowledge dates, covering works such as *Tiangong Kaiwu*, Leonardo da Vinci’s notebooks, and Boole’s logic. A later edition’s publication date is distinct from the date of its original content.
 - The chat interface supports conversation and code display; a model backend must be started and connected separately.
 - The upgraded corpus has 38 training and 10 held-out examples: pre-1899 notes plus modern programming lessons in Python, C++20, TypeScript, JavaScript, HTML/CSS, SQL, Rust, JSON/regex and algorithms. All 24 curated code examples have executable or parser checks.
-- Runtime reference cards and a deterministic chronology firewall keep modern programming syntax explicit while refusing clearly post-1899 historical requests and screening streamed and non-streamed answers. See [the upgrade guide](docs/coding_model.md).
+- The strict historical profile no longer exposes the actual runtime date to the model and rejects live web search, `--browser`, and `--raw` paths. Its chronology guard also blocks mixed requests that try to use a programming question to smuggle in post-1899 history. These are safeguards, not semantic proof of perfect isolation.
+- The vintage CLI now defaults to the pre-1900 `vintage-llm-340m` checkpoint. It is a small base model, not an instruction-tuned assistant, so it is not yet a quality-approved conversational model.
+- Candidate training now requires at least 1,000 reviewed historical examples, 1,000 programming examples, 100 held-out examples per domain, and 25 historical training sources. The current corpus is far below those gates; ordinary training is intentionally blocked. `--allow-small-dataset` is for pipeline experiments only.
+- See the [two-domain model architecture](docs/1899_MODEL_ARCHITECTURE.md), [upgrade guide](docs/coding_model.md), and [training guide](docs/train_classical_model.md) for the intended specialist separation and limitations.
 - A 10-step experimental run on Colab produced adapter weights. They are not included in this repository and require a compatible base model; no new weights were trained as part of this upgrade.
 
 The project uses a modern pretrained base model. Fine-tuning, prompts, retrieval and output filtering cannot guarantee removal of knowledge from after 1899; this is a domain-separated behaviour boundary, not machine unlearning. Historical reliability, classical style, and programming ability still need independent evaluation with real weights.
@@ -45,7 +48,10 @@ BoolieLOT 是一個以古代學者與工程家的視角探索歷史思想和程�
 - 古典札記以文獻出處和知識年代記錄，涵蓋《天工開物》、達文西筆記與布爾邏輯等；後世版本的出版日期不等同於原文的年代。
 - 聊天介面支援對話及程式碼展示；使用時須另行啟動並連接模型後端。
 - 升級後語料有 38 則習卷、10 則未見考卷：除 1899 年前札記外，另有 Python、C++20、TypeScript、JavaScript、HTML/CSS、SQL、Rust、JSON／正則式與演算法之現代程式課；24 個校訂程式例皆可執行、編譯或解析查驗。
-- 推論時附上校訂程式準繩，並以確定性年代防火牆拒答明確越界史事、查驗串流與非串流正文。詳見[升級說明](docs/coding_model.md)。
+- 嚴格歷史模式不再向模型提供真實執行日期，並拒絕即時網頁搜尋、`--browser` 與 `--raw`；年代防火牆亦會攔截混合程式請求中夾帶的年界後史事。此等措施是防護，不代表已證明完全隔離。
+- Vintage CLI 預設改用 1899 年前的 `vintage-llm-340m`；它是小型基礎模型，並非指令微調助理，尚未通過對話品質驗收。
+- 正式候選訓練至少須有 1,000 則史事訓練例、1,000 則程式訓練例、每域 100 則未見考題，以及 25 個史事訓練來源。現有語料遠未達標，故一般訓練會停止；`--allow-small-dataset` 僅供管線試驗。
+- 詳見[雙域模型架構](docs/1899_MODEL_ARCHITECTURE.md)、[升級說明](docs/coding_model.md)及[訓練驗收說明](docs/train_classical_model.md)。
 - Colab 曾完成一次 10 步試訓並產生附加權重；權重未包含在此儲存庫中，必須搭配相容的底座使用。本次升級未另訓練權重。
 
 此專案使用現代預訓練底座。微調、提示、檢索與輸出過濾都不能保證移除底座中 1899 年之後的知識；此為分域的行為邊界，不是機器遺忘。模型的歷史可靠性、文言風格與程式能力仍須以真實權重獨立測試。
