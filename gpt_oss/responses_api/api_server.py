@@ -3,7 +3,7 @@ import datetime
 import uuid
 from typing import Callable, Literal, Optional, Union
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
@@ -137,6 +137,7 @@ def create_api_server(
     library: ClassicalLibrary | None = None,
     coding_library: CodingLibrary | None | object = _DEFAULT,
     guard: ChronologyGuard | None | object = _DEFAULT,
+    strict_historical: bool = True,
 ) -> FastAPI:
     canon = canon if canon is not None else ClassicalCanon()
     # Defaults are safe; passing None explicitly is reserved for diagnostics.
@@ -1337,6 +1338,13 @@ def create_api_server(
             getattr(tool, "type", None) in ("browser_search", "web_search")
             for tool in (body.tools or [])
         )
+        if use_browser_tool and strict_historical:
+            raise HTTPException(
+                status_code=400,
+                detail=("Live web search is disabled in the strict historical profile because "
+                        "unfiltered contemporary results would cross the knowledge boundary. "
+                        "Use reviewed offline historical sources instead."),
+            )
         use_code_interpreter = any(
             getattr(tool, "type", None) == "code_interpreter"
             for tool in (body.tools or [])
@@ -1391,9 +1399,7 @@ def create_api_server(
                     body.instructions = prev_req.instructions
                 body.input = merged_input
 
-        system_message_content = SystemContent.new().with_conversation_start_date(
-            datetime.datetime.now().strftime("%Y-%m-%d")
-        )
+        system_message_content = SystemContent.new().with_conversation_start_date(f"{canon.cutoff_year}-12-31")
         system_message_content = system_message_content.with_model_identity(
             canon.instructions
         ).with_knowledge_cutoff(f"{canon.cutoff_year}-12")
@@ -1403,7 +1409,6 @@ def create_api_server(
 
                 reasoning_effort = get_reasoning_effort(body.reasoning.effort)
             except ValueError as e:
-                from fastapi import HTTPException
                 print(e)
 
                 raise HTTPException(status_code=422, detail=str(e))

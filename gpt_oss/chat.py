@@ -5,7 +5,6 @@ Harmony chat with tools
 import atexit
 import argparse
 import asyncio
-import datetime
 import os
 from pathlib import Path
 
@@ -63,6 +62,10 @@ def get_user_input():
 
 
 def main(args):
+    if args.raw:
+        raise SystemExit("--raw bypasses the historical output boundary and is disabled.")
+    if args.browser:
+        raise SystemExit("--browser is disabled in the strict historical profile; use curated offline sources.")
     canon = ClassicalCanon(args.knowledge_cutoff_year)
     library = ClassicalLibrary(args.classical_library) if args.classical_library else None
     coding_library = CodingLibrary(args.coding_library)
@@ -91,7 +94,7 @@ def main(args):
         .with_model_identity(canon.instructions)
         .with_knowledge_cutoff(f"{canon.cutoff_year}-12")
         .with_reasoning_effort(REASONING_EFFORT[args.reasoning_effort])
-        .with_conversation_start_date(datetime.datetime.now().strftime("%Y-%m-%d"))
+        .with_conversation_start_date(f"{canon.cutoff_year}-12-31")
     )
 
     if args.browser:

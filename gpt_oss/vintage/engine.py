@@ -15,7 +15,7 @@ class VintageEngine:
     """Load one selected generator lazily and expose a common generation API."""
 
     def __init__(
-        self, model_key: str = "talkie-1930-it", *, device: str | None = None,
+        self, model_key: str = "vintage-llm-340m", *, device: str | None = None,
         cache_dir: str | None = None, max_new_tokens: int = 384,
         temperature: float = 0.7, top_p: float = 0.9,
     ):

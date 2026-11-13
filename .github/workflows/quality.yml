@@ -1,0 +1,52 @@
+name: BooleLOT Quality Checks
+
+on:
+  pull_request:
+    branches: [work]
+  push:
+    branches:
+      - work
+      - "feat/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Tests, curriculum, and coding examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential cmake
+
+      - name: Install BooleLOT and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test,coding]"
+
+      - name: Build source-verified historical and coding curriculum
+        run: python -m training.prepare_corpus
+
+      - name: Verify curated code examples
+        run: |
+          python -m training.verify_coding_examples \
+            --output "$RUNNER_TEMP/coding-examples-report.json"
+
+      - name: Check model-training eligibility without loading a GPU
+        run: python -m training.train_classical --dry-run
+
+      - name: Run test suite
+        run: python -m pytest -q

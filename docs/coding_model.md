@@ -9,7 +9,7 @@
 ## 要旨
 
 「具現代程式能力」與「不知 1899 年後世事」在邏輯上須分域，不能只靠一句提示。
-本升級採用三層：
+本升級採用三層，並在嚴格模式下限制即時資料來源：
 
 1. **教材分域**：史事札記保留 `knowledge_year <= 1899`；程式課標
    `knowledge_domain = "programming"`、`knowledge_year = null`，只收語法、
@@ -35,7 +35,7 @@
 | `training/coding_examples/` | 24 個可驗程式例，涵蓋 Python、C++20、TypeScript、JavaScript、HTML/CSS、SQL、Rust、JSON/正則式與演算法 |
 | `gpt_oss/coding_library.py` | 確定性關鍵詞檢索；載入時即拒絕混入後世史事的卡片 |
 | `gpt_oss/chronology.py` | 知識域判別、日期與事件詞查核、拒答文；提供 `ScopeVerdict` 供稽核 |
-| `training/prepare_corpus.py` | 由史事與程式兩份目錄重建 38 筆習卷、10 筆考卷，記錄 SHA-256 與分卷來源 |
+| `training/prepare_corpus.py` | 由史事與程式兩份目錄重建 38 筆習卷、10 筆考卷（史事 6／2、程式 32／8），記錄 SHA-256 與分卷來源；僅供流程開發 |
 | `training/train_classical.py` | 逐位元核對已校語料，檢查程式例雜湊，然後才允許 GPU 微調 |
 | `training/verify_coding_examples.py` | 執行／編譯／解析所有程式例，並檢查沒有後世日期或事件詞 |
 | `gpt_oss/evals/coding_scope_eval.py` | 對已啟動的模型服務查現代語言、年代拒答與年界內問答，存原始回覆 |
@@ -61,8 +61,7 @@ python -m gpt_oss.responses_api.serve \
   --coding-library gpt_oss/data/coding_sources.json
 ```
 
-`gpt_oss.chat` 亦接受 `--coding-library`。交談程式在非 `--raw` 模式下緩衝並查驗
-正文；`--raw` 只供診斷，會直接印出 token 串，不應作為對外服務。
+`gpt_oss.chat` 亦接受 `--coding-library`。嚴格模式固定對話日期為所設年界末日，拒絕 `--raw`、`--browser` 與 Responses API 即時網頁搜尋。Python 程式執行仍可供驗證程式，但不得用作取得年界後世事的通道。
 遠端代轉的 `openai_chat` 亦會在送出前擋明確越界請求、附上程式準繩，並於回傳前
 查驗遠端正文。
 
@@ -96,15 +95,13 @@ python -m gpt_oss.evals.coding_scope_eval \
 
 - 防火牆以可審詞表、日期式與字串比對為本，不是完整語義理解；未收錄的後世事件、
   隱喻或外語轉寫可能越界。
-- 瀏覽器／工具結果可能在送入提示前含有後世資料；最終正文仍會過閘，但工具呼叫本身
-  與 `--raw` 診斷不適合作為對外保證。嚴格隔離時勿啟用外部工具。
+- 嚴格模式封鎖即時瀏覽，但使用者仍可能自行貼入後世資料，底座也可能從原有權重回想未列入詞表的事件；詞表與日期規則不是完整語義理解。
 - `metadata.chronology_scope.reasons` 可能含來客自己提供的年份；這是稽核資料，
   不是模型新知的證明。
 - 使用者當次提供、附時日的「今世城邑」特例仍由 `ClassicalCanon` 規範；若答案中
   出現明確後世年份，防火牆可能攔截，須人工複核。
 - 不啟用工具、不載入未審語料、不宣稱底座已遺忘，是本專案一貫的誠實界線。
-- `gpt_oss.evals.coding_scope_eval` 與 `training.evaluate_classical` 都需要真實模型服務
-  或 GPU 權重；本工作環境兩者皆無，故未產生模型實測分數。
+- 候選訓練現設 1,000 則史事訓練例、1,000 則程式訓練例、各 100 則獨立考題及至少 25 個史事訓練來源門檻。現有 38／10 筆遠低於門檻；`--dry-run` 會顯示不足，正式訓練須停止。
 
 ## 增修教材
 
