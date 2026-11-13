@@ -14,7 +14,7 @@ import torch
 DEFAULT_TEMPERATURE = 0.0
 TP = os.environ.get("TP", 2)
 
-def load_model(checkpoint: str):
+def load_model(checkpoint: str, adapter: str | None = None):
     """
     Serve the model directly with the Auto API.
     """
@@ -25,6 +25,9 @@ def load_model(checkpoint: str):
         device_map="auto",
     )
 
+    if adapter:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, adapter, is_trainable=False)
     return model
 
 
@@ -50,7 +53,7 @@ def get_infer_next_token(model: PreTrainedModel):
     return infer_next_token
 
 
-def setup_model(checkpoint: str) -> Callable[[List[int], float, bool], int]:
-    model = load_model(checkpoint)
+def setup_model(checkpoint: str, adapter: str | None = None) -> Callable[[List[int], float, bool], int]:
+    model = load_model(checkpoint, adapter)
     infer_next_token = get_infer_next_token(model)
     return infer_next_token

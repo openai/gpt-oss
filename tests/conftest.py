@@ -39,7 +39,8 @@ def mock_infer_token(harmony_encoding):
 def api_client(harmony_encoding, mock_infer_token) -> Generator[TestClient, None, None]:
     app = create_api_server(
         infer_next_token=mock_infer_token,
-        encoding=harmony_encoding
+        encoding=harmony_encoding,
+        strict_historical=False,  # Legacy browser-tool tests exercise the opt-out profile.
     )
     with TestClient(app) as client:
         yield client

@@ -218,19 +218,16 @@ class YouComBackend(Backend):
             {"query": query, "count": topn},
         )
         # make a simple HTML page to work with browser format
-        results = data.get("results")
-        if not isinstance(results, dict):
-            results = {}
         web_titles_and_urls, news_titles_and_urls = [], []
-        if "web" in results:
+        if "web" in data["results"]:
             web_titles_and_urls = [
                 (result["title"], result["url"], result["snippets"])
-                for result in results["web"]
+                for result in data["results"]["web"]
             ]
-        if "news" in results:
+        if "news" in data["results"]:
             news_titles_and_urls = [
                 (result["title"], result["url"], result["description"])
-                for result in results["news"]
+                for result in data["results"]["news"]
             ]
         titles_and_urls = web_titles_and_urls + news_titles_and_urls
         html_page = f"""

@@ -5,7 +5,6 @@ Harmony chat with tools
 import atexit
 import argparse
 import asyncio
-import datetime
 import os
 from pathlib import Path
 
@@ -18,6 +17,10 @@ import torch
 import termcolor
 
 from gpt_oss.tools import apply_patch
+from gpt_oss.classical import ClassicalCanon
+from gpt_oss.classical_library import ClassicalLibrary
+from gpt_oss.coding_library import DEFAULT_CATALOGUE, CodingLibrary
+from gpt_oss.chronology import ChronologyGuard
 from gpt_oss.tools.simple_browser import SimpleBrowserTool
 from gpt_oss.tools.simple_browser.backend import ExaBackend, YouComBackend
 from gpt_oss.tools.python_docker.docker_tool import PythonTool
@@ -59,6 +62,14 @@ def get_user_input():
 
 
 def main(args):
+    if args.raw:
+        raise SystemExit("--raw bypasses the historical output boundary and is disabled.")
+    if args.browser:
+        raise SystemExit("--browser is disabled in the strict historical profile; use curated offline sources.")
+    canon = ClassicalCanon(args.knowledge_cutoff_year)
+    library = ClassicalLibrary(args.classical_library) if args.classical_library else None
+    coding_library = CodingLibrary(args.coding_library)
+    guard = ChronologyGuard(canon.cutoff_year)
     match args.backend:
         case "triton":
             from gpt_oss.triton.model import TokenGenerator as TritonGenerator
@@ -80,8 +91,10 @@ def main(args):
 
     system_message_content = (
         SystemContent.new()
+        .with_model_identity(canon.instructions)
+        .with_knowledge_cutoff(f"{canon.cutoff_year}-12")
         .with_reasoning_effort(REASONING_EFFORT[args.reasoning_effort])
-        .with_conversation_start_date(datetime.datetime.now().strftime("%Y-%m-%d"))
+        .with_conversation_start_date(f"{canon.cutoff_year}-12-31")
     )
 
     if args.browser:
@@ -148,12 +161,25 @@ def main(args):
         print(termcolor.colored("Browser Tool:", "cyan"), "Enabled" if args.browser else "Disabled", flush=True)
         print(termcolor.colored("Python Tool:", "cyan"), "Enabled" if args.python else "Disabled", flush=True)
         print(termcolor.colored("Apply Patch Function:", "cyan"), "Enabled" if args.apply_patch else "Disabled", flush=True)
+        print(termcolor.colored("Chronology Guard:", "cyan"),
+              "Raw diagnostics bypass output screening" if args.raw else "Enabled", flush=True)
+        print(termcolor.colored("Coding Library:", "cyan"),
+              "、".join(coding_library.languages), flush=True)
         if developer_message_content:
             print(termcolor.colored("Developer Message:", "yellow"), flush=True)
             print(developer_message_content.instructions, flush=True)
 
     # Print the system message and the user message start
     MESSAGE_PADDING = 12
+    programming_context = False
+
+    def screened(text: str, channel: str, programming: bool) -> str:
+        """Screen one completed channel; tool arguments are treated as code."""
+        if channel == "tool":
+            verdict = guard.sanitize(f"```text\n{text}\n```", programming=True)
+            return guard.refusal if verdict.blocked else text
+        return guard.sanitize(text, programming=programming).text
+
     while True:
         last_message = messages[-1]
         if last_message.recipient is None:
@@ -166,6 +192,22 @@ def main(args):
                 user_message = get_user_input()
             user_message = Message.from_role_and_content(Role.USER, user_message)
             messages.append(user_message)
+            question = user_message.content[0].text
+            scope = guard.classify_request(question)
+            programming_context = scope.programming
+            if scope.blocked:
+                print(termcolor.colored("Assistant:".ljust(MESSAGE_PADDING), "green"), flush=True)
+                print(guard.refusal, flush=True)
+                messages.append(Message.from_role_and_content(
+                    Role.ASSISTANT, guard.refusal).with_channel("final"))
+                continue
+            code_reference = coding_library.consult(question)
+            if code_reference:
+                messages.append(Message.from_role_and_content(Role.USER, code_reference))
+            if library is not None:
+                book_evidence = library.consult(question, canon.cutoff_year)
+                if book_evidence:
+                    messages.append(Message.from_role_and_content(Role.USER, book_evidence))
         else:
             # Tool or function call
             if last_message.recipient.startswith("browser."):
@@ -234,7 +276,8 @@ def main(args):
                 if tool_name == "Search" and not args.show_browser_results:
                     print("[Search results fed to the model]")
                 else:
-                    print(result[0].content[0].text)
+                    print(screened(result[0].content[0].text, "tool",
+                                   programming_context))
 
         conversation = Conversation.from_messages(messages)
         tokens = encoding.render_conversation_for_completion(
@@ -246,43 +289,54 @@ def main(args):
             print(encoding.decode(tokens[-2:]), flush=True, end="")
 
         parser = StreamableParser(encoding, role=Role.ASSISTANT)
-        field_created = False
-        current_output_text = ""
-        output_text_delta_buffer = ""
+        # The chronology guard buffers each channel so no partial post-cutoff
+        # claim can be printed before the completed message is screened.
+        channel_buffers: dict[str, str] = {"final": "", "analysis": "", "tool": ""}
+        channel_headers: dict[str, str] = {}
+
+        def flush_channels():
+            for channel, header in channel_headers.items():
+                text = channel_buffers.get(channel, "")
+                if not text:
+                    continue
+                if args.browser and channel == "final":
+                    text, _annotations, _partial = browser_tool.normalize_citations(text)
+                print(header, flush=True)
+                print(screened(text, channel, programming_context), end="", flush=True)
+                channel_buffers[channel] = ""
+            channel_headers.clear()
+
         for predicted_token in generator.generate(tokens, encoding.stop_tokens_for_assistant_actions()):
             parser.process(predicted_token)
             if args.raw:
+                # Raw diagnostics intentionally expose the token stream; the
+                # request-level refusal still applies. Do not use raw mode as
+                # a user-facing guarded chat.
                 print(encoding.decode([predicted_token]), end="", flush=True)
                 continue
 
-            if parser.state == StreamState.EXPECT_START:
+            if parser.state == StreamState.EXPECT_START and any(channel_buffers.values()):
+                flush_channels()
                 print("")  # new line
-                field_created = False
 
             if not parser.last_content_delta:
                 continue
 
-            if not field_created:
-                field_created = True
-                if parser.current_channel == "final":
-                    print(termcolor.colored("Assistant:", "green"), flush=True)
-                elif parser.current_recipient is not None:
-                    print(termcolor.colored(f"Tool call to {parser.current_recipient}:", "cyan"), flush=True)
-                else:
-                    print(termcolor.colored("CoT:", "yellow"), flush=True)
+            if parser.current_channel == "final":
+                channel = "final"
+                header = termcolor.colored("Assistant:".ljust(MESSAGE_PADDING), "green")
+            elif parser.current_recipient is not None:
+                channel = "tool"
+                header = termcolor.colored(
+                    f"Tool call to {parser.current_recipient}:".ljust(MESSAGE_PADDING), "cyan")
+            else:
+                channel = "analysis"
+                header = termcolor.colored("CoT:".ljust(MESSAGE_PADDING), "yellow")
+            channel_headers.setdefault(channel, header)
+            channel_buffers[channel] += parser.last_content_delta
 
-            should_send_output_text_delta = True
-            output_text_delta_buffer += parser.last_content_delta
-            if args.browser:
-                updated_output_text, _annotations, has_partial_citations = browser_tool.normalize_citations(current_output_text + output_text_delta_buffer)
-                output_text_delta_buffer = updated_output_text[len(current_output_text):]
-                if has_partial_citations:
-                    should_send_output_text_delta = False
-            if should_send_output_text_delta:
-                print(output_text_delta_buffer, end="", flush=True)
-                current_output_text += output_text_delta_buffer
-                output_text_delta_buffer = ""
-
+        if not args.raw:
+            flush_channels()
         messages += parser.messages
 
 
@@ -358,6 +412,11 @@ if __name__ == "__main__":
         choices=["triton", "torch", "vllm"],
         help="Inference backend",
     )
+    parser.add_argument("--knowledge-cutoff-year", type=int, choices=range(1, 1900), default=1899,
+                        metavar="YEAR", help="古典學問之年界")
+    parser.add_argument("--classical-library", help="已校書證之索引路徑")
+    parser.add_argument("--coding-library", type=Path, default=DEFAULT_CATALOGUE,
+                        help="已校現代程式準繩；預設隨套件提供")
     args = parser.parse_args()
 
     if int(os.environ.get("WORLD_SIZE", 1)) == 1:
