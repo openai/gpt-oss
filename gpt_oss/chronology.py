@@ -151,10 +151,11 @@ class ChronologyGuard:
     def classify_request(self, text: str) -> ScopeVerdict:
         programming = self.is_programming(text)
         reasons = self.reasons(text, programming=programming)
-        # A programming request containing a date is not refused outright;
-        # its answer is still screened below. Unknown modern events without a
-        # marker are a known limitation, documented instead of hidden.
-        blocked = bool(reasons) and not programming
+        # Programming syntax and sample data are exempted narrowly inside
+        # reasons(); explicit post-cutoff events remain blocked even when a
+        # request also mentions code. This prevents a mixed request from using
+        # the coding exception as a route into unrelated modern-world facts.
+        blocked = bool(reasons)
         return ScopeVerdict(programming=programming, post_cutoff=bool(reasons),
                             blocked=blocked, reasons=reasons, text=text)
 
