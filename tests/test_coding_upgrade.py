@@ -229,3 +229,61 @@ def test_live_evaluation_cases_respect_the_domain_split():
     for case in post_cutoff:
         assert guard.classify_request(case["prompt"]).blocked
         assert case["forbidden"]
+
+
+def test_system_context_does_not_reveal_a_post_cutoff_conversation_date():
+    class ScrollReady(Exception):
+        pass
+
+    class RecordingEncoding:
+        def render_conversation_for_completion(self, conversation, role):
+            self.scroll = conversation.to_dict()
+            raise ScrollReady
+
+    encoding = RecordingEncoding()
+    app = create_api_server(lambda *_args, **_kwargs: 0, encoding,
+                            ClassicalCanon(1899), coding_library=None,
+                            guard=ChronologyGuard(1899))
+    with TestClient(app) as client, pytest.raises(ScrollReady):
+        client.post("/v1/responses", json={"input": "請說明古代水車的原理。"})
+    system = encoding.scroll["messages"][0]["content"][0]
+    assert system["conversation_start_date"] == "1899-12-31"
+    assert "今世編程" not in system["model_identity"]
+    assert "不得自稱知道" in system["model_identity"]
+
+
+def test_strict_historical_profile_rejects_live_web_search():
+    class RecordingEncoding:
+        def render_conversation_for_completion(self, conversation, role):
+            raise AssertionError("browser requests must be rejected before prompt assembly")
+
+    called = False
+
+    def forbidden_infer(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("live research must not reach inference")
+
+    app = create_api_server(forbidden_infer, RecordingEncoding(), ClassicalCanon(),
+                            coding_library=None, guard=ChronologyGuard())
+    with TestClient(app) as client:
+        response = client.post("/v1/responses", json={
+            "input": "請查詢最新資料。",
+            "tools": [{"type": "web_search"}],
+        })
+    assert response.status_code == 400
+    assert "Live web search is disabled" in response.json()["detail"]
+    assert not called
+
+
+def test_current_demo_corpus_is_not_eligible_for_candidate_training(tmp_path):
+    from training.train_classical import (
+        MIN_HISTORICAL_EVAL, MIN_HISTORICAL_TRAIN,
+        MIN_PROGRAMMING_EVAL, MIN_PROGRAMMING_TRAIN,
+    )
+
+    manifest = build_corpus(CLASSICAL_CATALOGUE, CODING_CATALOGUE, tmp_path)
+    assert manifest["domains"]["train"]["historical"] < MIN_HISTORICAL_TRAIN
+    assert manifest["domains"]["train"]["programming"] < MIN_PROGRAMMING_TRAIN
+    assert manifest["domains"]["eval"]["historical"] < MIN_HISTORICAL_EVAL
+    assert manifest["domains"]["eval"]["programming"] < MIN_PROGRAMMING_EVAL
