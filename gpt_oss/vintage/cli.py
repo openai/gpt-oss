@@ -7,7 +7,7 @@ from .registry import MODEL_REGISTRY
 def main():
     choices = sorted(key for key, value in MODEL_REGISTRY.items() if value.task == "generation")
     parser = argparse.ArgumentParser(description="BooleLOT vintage model playground")
-    parser.add_argument("--model", choices=choices, default="talkie-1930-it")
+    parser.add_argument("--model", choices=choices, default="vintage-llm-340m")
     parser.add_argument("--max-tokens", type=int, default=384)
     parser.add_argument("--temperature", type=float, default=0.7)
     args = parser.parse_args()
