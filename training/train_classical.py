@@ -15,6 +15,15 @@ from training.prepare_corpus import (CLASSICAL_CATALOGUE, CODING_CATALOGUE,
                                      ROOT, build_corpus, sha256)
 
 
+# Minimum data-volume gates for a candidate adapter. These are safeguards,
+# not a guarantee of accuracy or coding competence.
+MIN_HISTORICAL_TRAIN = 1_000
+MIN_PROGRAMMING_TRAIN = 1_000
+MIN_HISTORICAL_EVAL = 100
+MIN_PROGRAMMING_EVAL = 100
+MIN_HISTORICAL_TRAIN_SOURCES = 25
+
+
 def read_rows(path: Path) -> list[dict]:
     guard = ChronologyGuard()
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -54,7 +63,7 @@ def main():
     parser.add_argument("--classical-catalogue", type=Path, default=CLASSICAL_CATALOGUE)
     parser.add_argument("--coding-catalogue", type=Path, default=CODING_CATALOGUE)
     parser.add_argument("--base-model", default="unsloth/gpt-oss-20b")
-    parser.add_argument("--max-steps", type=int, default=100)
+    parser.add_argument("--max-steps", type=int, default=2_000)
     parser.add_argument("--allow-small-dataset", action="store_true", help="僅供小樣本流程試驗")
     parser.add_argument("--dry-run", action="store_true", help="只校語料，不載模型")
     args = parser.parse_args()
@@ -71,16 +80,50 @@ def main():
     if {r["source_id"] for r in train} & {r["source_id"] for r in evaluation}:
         parser.error("習卷與考卷不可含同一書源或題源。")
     for name, rows in (("習卷", train), ("考卷", evaluation)):
-        if not any(r["knowledge_domain"] == "programming" for r in rows):
-            parser.error(f"{name} 須含未見之程式題。")
-    print(f"習卷 {len(train)} 則（史事 {sum(r['knowledge_domain'] == 'historical' for r in train)}、"
-          f"程式 {sum(r['knowledge_domain'] == 'programming' for r in train)}）；"
-          f"考卷 {len(evaluation)} 則（史事 {sum(r['knowledge_domain'] == 'historical' for r in evaluation)}、"
-          f"程式 {sum(r['knowledge_domain'] == 'programming' for r in evaluation)}）。")
+        for domain in ("historical", "programming"):
+            if not any(r["knowledge_domain"] == domain for r in rows):
+                parser.error(f"{name} 須含 {domain} 域之題目。")
+
+    counts = {
+        "historical_train": sum(r["knowledge_domain"] == "historical" for r in train),
+        "programming_train": sum(r["knowledge_domain"] == "programming" for r in train),
+        "historical_eval": sum(r["knowledge_domain"] == "historical" for r in evaluation),
+        "programming_eval": sum(r["knowledge_domain"] == "programming" for r in evaluation),
+    }
+    historical_sources = {r["source_id"] for r in train if r["knowledge_domain"] == "historical"}
+    minimums = {
+        "historical_train": MIN_HISTORICAL_TRAIN,
+        "programming_train": MIN_PROGRAMMING_TRAIN,
+        "historical_eval": MIN_HISTORICAL_EVAL,
+        "programming_eval": MIN_PROGRAMMING_EVAL,
+    }
+    shortages = [f"{name}: {counts[name]} / {minimum}"
+                 for name, minimum in minimums.items() if counts[name] < minimum]
+    if len(historical_sources) < MIN_HISTORICAL_TRAIN_SOURCES:
+        shortages.append(
+            f"historical_train_sources: {len(historical_sources)} / {MIN_HISTORICAL_TRAIN_SOURCES}"
+        )
+
+    print(
+        f"習卷 {len(train)} 則（史事 {counts['historical_train']}、程式 {counts['programming_train']}）；"
+        f"考卷 {len(evaluation)} 則（史事 {counts['historical_eval']}、"
+        f"程式 {counts['programming_eval']}）。"
+    )
     if args.dry_run:
+        if shortages:
+            print("訓練資格：未通過資料量門檻；目前只可作流程試驗。")
+            print("\\n".join(shortages))
+        else:
+            print("訓練資格：資料量門檻通過；仍須完成人工審核與真實模型評測。")
         return
     if len(train) < 32 and not args.allow_small_dataset:
         parser.error("習題不足 32 則；須先擴充校訂語料。若僅驗證管線，明示 --allow-small-dataset。")
+    if shortages and not args.allow_small_dataset:
+        parser.error(
+            "資料不足以訓練候選模型；不得把小樣本適配器稱為成品。\n"
+            + "\\n".join(shortages)
+            + "\\n只有流程試驗可明示 --allow-small-dataset。"
+        )
     if args.max_steps <= 0:
         parser.error("max-steps 須為正數。")
     if args.output.exists() and any(args.output.iterdir()):
@@ -98,7 +141,7 @@ def main():
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.base_model, max_seq_length=2048, load_in_4bit=True, offload_embedding=True)
     model = FastLanguageModel.get_peft_model(
-        model, r=8, lora_alpha=16,
+        model, r=16, lora_alpha=32,
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         use_gradient_checkpointing="unsloth", random_state=3407)
 
@@ -116,8 +159,9 @@ def main():
         train_dataset=dataset(train), eval_dataset=dataset(evaluation),
         args=SFTConfig(output_dir=str(args.output / "checkpoints"), dataset_text_field="text",
             max_length=2048, per_device_train_batch_size=1, gradient_accumulation_steps=4,
-            max_steps=args.max_steps, learning_rate=2e-4, logging_steps=5, save_strategy="no",
-            report_to="none", seed=3407))
+            max_steps=args.max_steps, learning_rate=1e-4, warmup_ratio=0.03,
+            weight_decay=0.01, logging_steps=20, eval_strategy="steps",
+            eval_steps=100, save_strategy="no", report_to="none", seed=3407))
     trainer = train_on_responses_only(trainer, instruction_part="<|start|>user<|message|>",
                                       response_part="<|start|>assistant<|channel|>final<|message|>")
     trainer.train()
@@ -134,7 +178,20 @@ def main():
         "programming_train_count": sum(r["knowledge_domain"] == "programming" for r in train),
         "programming_eval_count": sum(r["knowledge_domain"] == "programming" for r in evaluation),
         "max_steps": args.max_steps, "metrics": metrics,
-        "status": "adapter_only; prompt and output boundary do not erase base-model knowledge",
+        "data_quality_gate": {
+            "minimums": minimums,
+            "observed": counts,
+            "historical_train_sources": len(historical_sources),
+            "passed": not shortages,
+            "shortages": shortages,
+        },
+        "quality_tier": "experimental_small_data" if args.allow_small_dataset and shortages
+                        else "candidate_requires_independent_evaluation",
+        "knowledge_isolation": (
+            "training data and response policy are domain-scoped; the base model may "
+            "retain post-cutoff knowledge and this adapter does not prove unlearning"
+        ),
+        "status": "adapter_only; not a standalone model and not a verified release",
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"附加權重已存 {args.output}；仍須以未見題目與年代防火牆獨立驗收。")
 
