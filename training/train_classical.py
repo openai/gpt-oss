@@ -112,7 +112,7 @@ def main():
     if args.dry_run:
         if shortages:
             print("訓練資格：未通過資料量門檻；目前只可作流程試驗。")
-            print("\\n".join(shortages))
+            print("\n".join(shortages))
         else:
             print("訓練資格：資料量門檻通過；仍須完成人工審核與真實模型評測。")
         return
@@ -121,7 +121,7 @@ def main():
     if shortages and not args.allow_small_dataset:
         parser.error(
             "資料不足以訓練候選模型；不得把小樣本適配器稱為成品。\n"
-            + "\\n".join(shortages)
+            + "\n".join(shortages)
             + "\\n只有流程試驗可明示 --allow-small-dataset。"
         )
     if args.max_steps <= 0:
