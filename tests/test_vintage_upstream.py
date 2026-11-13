@@ -15,6 +15,11 @@ class VintageUpstreamTests(unittest.TestCase):
         self.assertEqual(get_profile("histlm-bert-1760-1900").task, "retrieval")
         self.assertFalse(get_profile("vintage-llm-340m").instruction_tuned)
 
+    def test_default_generator_respects_1899_cutoff(self):
+        engine = VintageEngine()
+        self.assertEqual(engine.profile.key, "vintage-llm-340m")
+        self.assertEqual(engine.profile.period_end, 1899)
+
     def test_retrieval_model_cannot_be_used_as_generator(self):
         with self.assertRaises(ValueError):
             VintageEngine("histlm-bert-1760-1900")
