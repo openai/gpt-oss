@@ -169,3 +169,55 @@ def test_max_output_tokens_flushes_buffered_partial_citation_in_stream():
     assert completed_response is not None
     assert completed_response["status"] == "incomplete"
     assert "".join(deltas) == completed_response["output"][0]["content"][0]["text"]
+
+
+@pytest.mark.parametrize("max_tokens", [6, 7, 8])
+def test_max_output_tokens_after_final_partial_citation_flushes_before_item_done(
+    max_tokens: int,
+):
+    script = (
+        "<|channel|>final<|message|>See \u3010<|end|>"
+        "<|start|>assistant<|channel|>final<|message|>Later<|return|>"
+    )
+    client, calls = _make_client(script)
+    added_ids: list[str] = []
+    done_ids: set[str] = set()
+    deltas_by_item: dict[str, list[str]] = {}
+    completed_response = None
+
+    with client.stream(
+        "POST",
+        "/v1/responses",
+        json={
+            "model": "gpt-oss-120b",
+            "input": "Cite",
+            "tools": [{"type": "web_search"}],
+            "max_output_tokens": max_tokens,
+            "stream": True,
+        },
+    ) as response:
+        assert response.status_code == 200
+        for line in response.iter_lines():
+            if not line or not line.startswith("data: "):
+                continue
+            event = json.loads(line[len("data: ") :])
+            event_type = event["type"]
+            if event_type == "response.output_item.added":
+                added_ids.append(event["item"]["id"])
+            elif event_type == "response.output_text.delta":
+                item_id = event["item_id"]
+                assert item_id in added_ids
+                assert item_id not in done_ids
+                deltas_by_item.setdefault(item_id, []).append(event["delta"])
+            elif event_type == "response.output_item.done":
+                done_ids.add(event["item"]["id"])
+            elif event_type == "response.completed":
+                completed_response = event["response"]
+
+    assert calls[0] == max_tokens
+    assert completed_response is not None
+    assert completed_response["status"] == "incomplete"
+    assert len(completed_response["output"]) == 1
+    msg_item = completed_response["output"][0]
+    assert added_ids == [msg_item["id"]]
+    assert "".join(deltas_by_item[msg_item["id"]]) == msg_item["content"][0]["text"]

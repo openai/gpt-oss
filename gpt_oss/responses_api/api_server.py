@@ -720,6 +720,18 @@ def create_api_server(
                                 if self.current_message_item_id is not None
                                 else self._ensure_message_item_id()
                             )
+                            if output_delta_buffer:
+                                yield self._send_event(
+                                    ResponseOutputTextDelta(
+                                        type="response.output_text.delta",
+                                        output_index=current_output_index,
+                                        content_index=current_content_index,
+                                        item_id=message_id,
+                                        delta=output_delta_buffer,
+                                    )
+                                )
+                                current_output_text_content += output_delta_buffer
+                                output_delta_buffer = ""
                             yield self._send_event(
                                 ResponseOutputTextDone(
                                     type="response.output_text.done",
@@ -1156,14 +1168,17 @@ def create_api_server(
                     hit_max_output_tokens = True
                     break
 
-            if hit_max_output_tokens and output_delta_buffer:
-                message_id = self._ensure_message_item_id()
+            if (
+                hit_max_output_tokens
+                and output_delta_buffer
+                and self.current_message_item_id is not None
+            ):
                 yield self._send_event(
                     ResponseOutputTextDelta(
                         type="response.output_text.delta",
                         output_index=current_output_index,
                         content_index=current_content_index,
-                        item_id=message_id,
+                        item_id=self.current_message_item_id,
                         delta=output_delta_buffer,
                     )
                 )
