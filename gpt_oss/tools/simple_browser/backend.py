@@ -4,6 +4,7 @@ Simple backend for the simple browser tool.
 
 import functools
 import asyncio
+import html
 import logging
 import os
 from abc import abstractmethod
@@ -77,6 +78,50 @@ def maybe_truncate(text: str, num_chars: int = 1024) -> str:
     return text
 
 
+def _collect_search_items(
+    items: object, *, use_snippets: bool = False, summary_key: str = "description"
+) -> list[tuple[str, str, str]]:
+    if not isinstance(items, list):
+        return []
+    collected: list[tuple[str, str, str]] = []
+    for result in items:
+        if not isinstance(result, dict):
+            continue
+        url = result.get("url")
+        if not isinstance(url, str) or not url:
+            continue
+        title = result.get("title")
+        if not isinstance(title, str) or not title:
+            title = url
+        summary = ""
+        if use_snippets:
+            snippets = result.get("snippets")
+            if isinstance(snippets, list):
+                summary = " ".join(s for s in snippets if isinstance(s, str) and s)
+            elif isinstance(snippets, str):
+                summary = snippets
+        if not summary:
+            fallback = result.get(summary_key)
+            summary = fallback if isinstance(fallback, str) else ""
+        collected.append((title, url, summary))
+    return collected
+
+
+def _render_search_html(titles_and_urls: list[tuple[str, str, str]]) -> str:
+    items = "".join(
+        f"<li><a href='{html.escape(url, quote=True)}'>{html.escape(title)}</a> {html.escape(summary)}</li>"
+        for title, url, summary in titles_and_urls
+    )
+    return f"""
+<html><body>
+<h1>Search Results</h1>
+<ul>
+{items}
+</ul>
+</body></html>
+"""
+
+
 @chz.chz(typecheck=True)
 class Backend:
     source: str = chz.field(doc="Description of the backend source")
@@ -146,19 +191,10 @@ class ExaBackend(Backend):
             "/search",
             {"query": query, "numResults": topn, "contents": {"text": True, "summary": True}},
         )
-        # make a simple HTML page to work with browser format
-        titles_and_urls = [
-            (result["title"], result["url"], result["summary"])
-            for result in data["results"]
-        ]
-        html_page = f"""
-<html><body>
-<h1>Search Results</h1>
-<ul>
-{"".join([f"<li><a href='{url}'>{title}</a> {summary}</li>" for title, url, summary in titles_and_urls])}
-</ul>
-</body></html>
-"""
+        raw_results = data.get("results") if isinstance(data, dict) else None
+        html_page = _render_search_html(
+            _collect_search_items(raw_results, summary_key="summary")
+        )
 
         return process_html(
             html=html_page,
@@ -217,30 +253,13 @@ class YouComBackend(Backend):
             "/v1/search",
             {"query": query, "count": topn},
         )
-        # make a simple HTML page to work with browser format
-        results = data.get("results")
+        results = data.get("results") if isinstance(data, dict) else None
         if not isinstance(results, dict):
             results = {}
-        web_titles_and_urls, news_titles_and_urls = [], []
-        if "web" in results:
-            web_titles_and_urls = [
-                (result["title"], result["url"], result["snippets"])
-                for result in results["web"]
-            ]
-        if "news" in results:
-            news_titles_and_urls = [
-                (result["title"], result["url"], result["description"])
-                for result in results["news"]
-            ]
-        titles_and_urls = web_titles_and_urls + news_titles_and_urls
-        html_page = f"""
-<html><body>
-<h1>Search Results</h1>
-<ul>
-{"".join([f"<li><a href='{url}'>{title}</a> {summary}</li>" for title, url, summary in titles_and_urls])}
-</ul>
-</body></html>
-"""
+        titles_and_urls = _collect_search_items(
+            results.get("web"), use_snippets=True
+        ) + _collect_search_items(results.get("news"))
+        html_page = _render_search_html(titles_and_urls)
 
         return process_html(
             html=html_page,
