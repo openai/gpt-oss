@@ -54,6 +54,7 @@ from .types import (
     CodeInterpreterOutputLogs,
     Error,
     FunctionCallItem,
+    IncompleteDetails,
     Item,
     ReasoningItem,
     ReasoningTextContentItem,
@@ -133,11 +134,38 @@ def create_api_server(
         reasoning_ids: Optional[list[str]] = None,
         message_ids: Optional[list[str]] = None,
         treat_functions_python_as_builtin: bool = False,
+        incomplete: bool = False,
     ) -> ResponseObject:
         output = []
         error = None
+        has_unfinished_message = False
         if len(output_tokens) > 0:
-            if debug_mode:
+            if incomplete:
+                parser = StreamableParser(encoding, role=Role.ASSISTANT)
+                for token in output_tokens:
+                    try:
+                        parser.process(token)
+                    except Exception as e:
+                        if debug_mode and error is None:
+                            print(f"Error parsing tokens: {e}")
+                            error = Error(
+                                code="invalid_function_call",
+                                message=f"{e}",
+                            )
+                        break
+                if parser.state == StreamState.CONTENT:
+                    has_unfinished_message = True
+                    try:
+                        parser.process_eos()
+                    except Exception as e:
+                        if debug_mode and error is None:
+                            print(f"Error parsing tokens: {e}")
+                            error = Error(
+                                code="invalid_function_call",
+                                message=f"{e}",
+                            )
+                entries = parser.messages
+            elif debug_mode:
                 try:
                     entries = encoding.parse_messages_from_completion_tokens(
                         output_tokens, Role.ASSISTANT
@@ -160,7 +188,11 @@ def create_api_server(
             reasoning_ids_iter = iter(reasoning_ids or [])
             message_ids_iter = iter(message_ids or [])
 
-            for entry in entries:
+            for entry_idx, entry in enumerate(entries):
+                is_incomplete_entry = (
+                    has_unfinished_message and entry_idx == len(entries) - 1
+                )
+                item_status = "incomplete" if is_incomplete_entry else "completed"
                 entry_dict = entry.to_dict()
                 recipient = entry_dict.get("recipient", "")
                 if len(recipient) > 0 and is_not_builtin_tool(
@@ -185,6 +217,7 @@ def create_api_server(
                             type="function_call",
                             name=name,
                             arguments=arguments,
+                            status=item_status,
                             id=fc_id,
                             call_id=call_id,
                         )
@@ -242,6 +275,7 @@ def create_api_server(
                             WebSearchCallItem(
                                 type="web_search_call",
                                 id=web_search_call_id,
+                                status=item_status,
                                 action=action,
                             )
                         )
@@ -273,7 +307,7 @@ def create_api_server(
                         CodeInterpreterCallItem(
                             type="code_interpreter_call",
                             id=code_call_id,
-                            status="completed",
+                            status=item_status,
                             code=code_snippet,
                             outputs=outputs,
                         )
@@ -294,18 +328,21 @@ def create_api_server(
                             TextContentItem(
                                 type="output_text",
                                 text=text_content,
+                                status=item_status,
                                 annotations=annotations,
                             )
                         )
 
                     message_id = next(message_ids_iter, None)
+                    if message_id is None:
+                        message_id = f"item_{uuid.uuid4().hex}"
                     output.append(
                         Item(
                             id=message_id,
                             type="message",
                             role="assistant",
                             content=content,
-                            status="completed",
+                            status=item_status,
                         )
                     )
                 elif entry_dict["channel"] == "analysis":
@@ -342,7 +379,7 @@ def create_api_server(
                 output_tokens=len(output_tokens),
                 total_tokens=len(input_tokens) + len(output_tokens),
             )
-            if len(output_tokens) > 0
+            if len(output_tokens) > 0 or incomplete
             else None
         )
 
@@ -371,7 +408,12 @@ def create_api_server(
 
         return ResponseObject(
             created_at=int(datetime.datetime.now().timestamp()),
-            status="completed",
+            status="incomplete" if incomplete else "completed",
+            incomplete_details=(
+                IncompleteDetails(reason="max_output_tokens")
+                if incomplete
+                else None
+            ),
             output=output,
             text={"format": {"type": "text"}},
             usage=usage,
@@ -534,11 +576,18 @@ def create_api_server(
             # we use this to track the current output text content for things like providing the right indices in citations
             current_output_text_content = ""
             current_annotations = []
+            hit_max_output_tokens = False
 
             while True:
                 # Check for client disconnect
                 if self.request is not None and await self.request.is_disconnected():
                     print("Client disconnected, stopping token generation.")
+                    break
+                if (
+                    self.request_body.max_output_tokens is not None
+                    and len(self.output_tokens) >= self.request_body.max_output_tokens
+                ):
+                    hit_max_output_tokens = True
                     break
                 next_tok = infer_next_token(
                     self.tokens,
@@ -1099,11 +1148,27 @@ def create_api_server(
                             break
                     else:
                         raise ValueError("No messages to process")
-                if len(self.output_tokens) >= self.request_body.max_output_tokens:
+                self.output_tokens.append(next_tok)
+                if (
+                    self.request_body.max_output_tokens is not None
+                    and len(self.output_tokens) >= self.request_body.max_output_tokens
+                ):
+                    hit_max_output_tokens = True
                     break
 
-                # Adding in the end if we know we are not done
-                self.output_tokens.append(next_tok)
+            if hit_max_output_tokens and output_delta_buffer:
+                message_id = self._ensure_message_item_id()
+                yield self._send_event(
+                    ResponseOutputTextDelta(
+                        type="response.output_text.delta",
+                        output_index=current_output_index,
+                        content_index=current_content_index,
+                        item_id=message_id,
+                        delta=output_delta_buffer,
+                    )
+                )
+                current_output_text_content += output_delta_buffer
+                output_delta_buffer = ""
 
             if self.request is None or not await self.request.is_disconnected():
                 response = generate_response(
@@ -1122,6 +1187,7 @@ def create_api_server(
                     reasoning_ids=self.reasoning_item_ids,
                     message_ids=self.message_item_ids,
                     treat_functions_python_as_builtin=self.functions_python_as_builtin,
+                    incomplete=hit_max_output_tokens,
                 )
                 if self.store_callback and self.request_body.store:
                     self.store_callback(self.response_id, self.request_body, response)
