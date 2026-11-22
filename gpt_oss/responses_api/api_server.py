@@ -218,13 +218,13 @@ def create_api_server(
                         elif function_name == "open":
                             action = WebSearchActionOpenPage(
                                 type="open_page",
-                                url=parsed_args["url"],
+                                url=parsed_args.get("url"),
                             )
                         elif function_name == "find":
                             action = WebSearchActionFind(
                                 type="find",
                                 pattern=parsed_args["pattern"],
-                                url=parsed_args["url"],
+                                url=parsed_args.get("url"),
                             )
                     except Exception as e:
                         print(f"Error processing browser tool arguments: {e}")
